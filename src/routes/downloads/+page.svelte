@@ -13,15 +13,15 @@
 	let releaseData = $state({
 		version: 'v2.0.4',
 		windows: {
-			name: 'Materio_2.0.4_x64-setup.exe',
-			downloadUrl: 'https://github.com/Materioa/core/releases/download/v2.0.4/Materio_2.0.4_x64-setup.exe',
-			msiUrl: 'https://github.com/Materioa/core/releases/download/v2.0.4/Materio_2.0.4_x64_en-US.msi',
-			size: '46.5 MB'
+			name: 'Materio_2.1.0_x64-setup.exe',
+			downloadUrl: 'https://github.com/Materioa/core/releases/download/v2.1.0/Materio_2.1.0_x64-setup.exe',
+			msiUrl: 'https://github.com/Materioa/core/releases/download/v2.1.0/Materio_2.1.0_x64_en-US.msi',
+			size: '48.5 MB'
 		},
 		android: {
 			name: 'Materio-Android.apk',
-			downloadUrl: 'https://github.com/Materioa/core/releases/download/v2.0.4/Materio-Android.apk',
-			size: '52.9 MB'
+			downloadUrl: 'https://github.com/Materioa/core/releases/download/v2.1.0/Materio-Android.apk',
+			size: '55.0 MB'
 		}
 	});
 

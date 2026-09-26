@@ -22,8 +22,11 @@ dist-binaries/
 src-tauri/target/
 src-tauri/gen/
 
-# Capacitor / Android
-android/
+# Capacitor / Android build outputs
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
 ios/
 
 # MCP compiled binary

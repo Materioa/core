@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 
-const FALLBACK_VERSION = 'v2.0.4';
+const FALLBACK_VERSION = 'v2.1.0';
 const DEFAULT_REPO = 'Materioa/core';
 
 function formatBytes(bytes) {
@@ -19,19 +19,19 @@ export async function GET({ fetch, platform }) {
 		published_at: new Date().toISOString(),
 		notes: 'Official native apps for Windows and Android with full offline study vault and local MCP server.',
 		windows: {
-			name: 'Materio_2.0.4_x64-setup.exe',
+			name: 'Materio_2.1.0_x64-setup.exe',
 			version: FALLBACK_VERSION,
-			downloadUrl: `https://github.com/${GITHUB_REPO}/releases/download/v2.0.4/Materio_2.0.4_x64-setup.exe`,
-			msiUrl: `https://github.com/${GITHUB_REPO}/releases/download/v2.0.4/Materio_2.0.4_x64_en-US.msi`,
-			standaloneUrl: `https://github.com/${GITHUB_REPO}/releases/download/v2.0.4/Materio-Windows-Standalone.exe`,
-			size: '46.5 MB',
+			downloadUrl: `https://github.com/${GITHUB_REPO}/releases/download/v2.1.0/Materio_2.1.0_x64-setup.exe`,
+			msiUrl: `https://github.com/${GITHUB_REPO}/releases/download/v2.1.0/Materio_2.1.0_x64_en-US.msi`,
+			standaloneUrl: `https://github.com/${GITHUB_REPO}/releases/download/v2.1.0/Materio-Windows-Standalone.exe`,
+			size: '48.5 MB',
 			format: 'EXE Installer'
 		},
 		android: {
 			name: 'Materio-Android.apk',
 			version: FALLBACK_VERSION,
-			downloadUrl: `https://github.com/${GITHUB_REPO}/releases/download/v2.0.4/Materio-Android.apk`,
-			size: '52.9 MB',
+			downloadUrl: `https://github.com/${GITHUB_REPO}/releases/download/v2.1.0/Materio-Android.apk`,
+			size: '55.0 MB',
 			format: 'APK'
 		}
 	};

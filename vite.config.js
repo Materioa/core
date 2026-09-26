@@ -8,10 +8,17 @@ if (v8?.startupSnapshot) {
 	}
 }
 
+import fs from 'node:fs';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 
+const pkg = JSON.parse(fs.readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
+const appVersion = process.env.APP_VERSION || pkg.version || '2.1.0';
+
 export default defineConfig({
+	define: {
+		__MATERIO_APP_VERSION__: JSON.stringify(appVersion)
+	},
 	plugins: [sveltekit()],
 	assetsInclude: ['**/*.md'],
 	ssr: {

@@ -38,7 +38,9 @@
 			}
 
 			// Fallback: check /api/releases/latest
-			const currentAppVersion = (window as any).__MATERIO_APP_VERSION__ || '2.0.4';
+			// @ts-ignore
+			const builtVersion = typeof __MATERIO_APP_VERSION__ !== 'undefined' ? __MATERIO_APP_VERSION__ : null;
+			const currentAppVersion = (window as any).__MATERIO_APP_VERSION__ || builtVersion || '2.1.0';
 			const res = await fetch('/api/releases/latest');
 			if (res.ok) {
 				const data = await res.json();

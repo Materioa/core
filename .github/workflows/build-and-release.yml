@@ -12,13 +12,59 @@ on:
 permissions:
   contents: write
 
+env:
+  # Auto-increment: major.minor.patch where patch = run_number
+  # Override with a tag push (v3.0.0) for manual version control
+  APP_VERSION_FALLBACK: "2.1.${{ github.run_number }}"
+
 jobs:
+  # ─────────────────────────────────────────────
+  #  Resolve the version once, share across jobs
+  # ─────────────────────────────────────────────
+  resolve-version:
+    name: Resolve Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.VERSION }}
+      tag: ${{ steps.ver.outputs.TAG }}
+    steps:
+      - name: Determine version
+        id: ver
+        shell: bash
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            RAW="${GITHUB_REF#refs/tags/v}"
+          else
+            RAW="${{ env.APP_VERSION_FALLBACK }}"
+          fi
+          echo "VERSION=${RAW}" >> $GITHUB_OUTPUT
+          echo "TAG=v${RAW}" >> $GITHUB_OUTPUT
+          echo "📦 Version: ${RAW}  Tag: v${RAW}"
+
+  # ─────────────────────────────────────────────
+  #  Windows (Tauri)
+  # ─────────────────────────────────────────────
   build-windows:
     name: Build Windows App (Tauri)
+    needs: resolve-version
     runs-on: windows-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Stamp version into config files
+        shell: bash
+        run: |
+          VER="${{ needs.resolve-version.outputs.version }}"
+          # tauri.conf.json
+          sed -i "s/\"version\": \".*\"/\"version\": \"${VER}\"/" src-tauri/tauri.conf.json
+          # Cargo.toml
+          sed -i "s/^version = \".*\"/version = \"${VER}\"/" src-tauri/Cargo.toml
+          # package.json
+          sed -i "s/\"version\": \".*\"/\"version\": \"${VER}\"/" package.json
+          echo "✅ Stamped version ${VER}"
+          grep '"version"' src-tauri/tauri.conf.json
+          grep '^version' src-tauri/Cargo.toml
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -43,6 +89,8 @@ jobs:
 
       - name: Build SvelteKit Frontend
         run: npm run build:static
+        env:
+          APP_VERSION: ${{ needs.resolve-version.outputs.version }}
 
       - name: Build Tauri Desktop App
         run: npx tauri build
@@ -50,9 +98,10 @@ jobs:
       - name: Prepare Windows Release Artifacts
         shell: bash
         run: |
+          VER="${{ needs.resolve-version.outputs.version }}"
           mkdir -p release-windows
           if [ -d "src-tauri/target/release/bundle" ]; then
-            find src-tauri/target/release/bundle/ -type f \( -name "*.msi" -o -name "*.exe" \) -exec cp {} release-windows/ \;
+            find src-tauri/target/release/bundle/ -type f \( -name "*.msi" -o -name "*-setup.exe" -o -name "*.nsis.zip" \) -exec cp {} release-windows/ \;
           fi
           if [ -f src-tauri/target/release/app.exe ]; then
             cp src-tauri/target/release/app.exe release-windows/Materio-Windows-Standalone.exe || true
@@ -60,6 +109,8 @@ jobs:
           if [ -f src-tauri/target/release/Materio.exe ]; then
             cp src-tauri/target/release/Materio.exe release-windows/Materio-Windows-Standalone.exe || true
           fi
+          # Tauri generates .nsis.zip and .nsis.zip.sig for the updater
+          find src-tauri/target/release/bundle/ -type f \( -name "*.sig" -o -name "*.nsis.zip" \) -exec cp {} release-windows/ \; 2>/dev/null || true
           ls -la release-windows/
 
       - name: Upload Windows Artifacts
@@ -69,12 +120,23 @@ jobs:
           path: release-windows/*
           if-no-files-found: error
 
+  # ─────────────────────────────────────────────
+  #  Android (Capacitor)
+  # ─────────────────────────────────────────────
   build-android:
     name: Build Android App (Capacitor)
+    needs: resolve-version
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Stamp version into config files
+        shell: bash
+        run: |
+          VER="${{ needs.resolve-version.outputs.version }}"
+          sed -i "s/\"version\": \".*\"/\"version\": \"${VER}\"/" package.json
+          echo "✅ Stamped version ${VER}"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -103,23 +165,47 @@ jobs:
 
       - name: Build SvelteKit Web App
         run: npm run build:static
+        env:
+          APP_VERSION: ${{ needs.resolve-version.outputs.version }}
 
       - name: Sync Capacitor Android
         run: npx cap sync android
+
+      - name: Bump Android versionCode
+        shell: bash
+        run: |
+          VCODE="${{ github.run_number }}"
+          VNAME="${{ needs.resolve-version.outputs.version }}"
+          GRADLE="android/app/build.gradle"
+          if [ -f "$GRADLE" ]; then
+            sed -i "s/versionCode [0-9]*/versionCode ${VCODE}/" "$GRADLE"
+            sed -i "s/versionName \".*\"/versionName \"${VNAME}\"/" "$GRADLE"
+            echo "✅ Android versionCode=${VCODE} versionName=${VNAME}"
+          fi
+
+      - name: Ensure Android Release Keystore
+        working-directory: android/app
+        shell: bash
+        run: |
+          if [ ! -f release.keystore ]; then
+            keytool -genkeypair -v -keystore release.keystore -alias materio -keyalg RSA -keysize 2048 -validity 10000 -storepass materio123 -keypass materio123 -dname "CN=Materio, OU=App, O=Materio, L=San Francisco, ST=California, C=US"
+          fi
 
       - name: Build Android APK
         working-directory: android
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleRelease assembleDebug
 
       - name: Prepare Android Release Artifacts
         shell: bash
         run: |
           mkdir -p release-android
           find android/app/build/outputs/apk/ -type f -name "*.apk" -exec cp {} release-android/ \;
-          if [ -f android/app/build/outputs/apk/debug/app-debug.apk ]; then
-            cp android/app/build/outputs/apk/debug/app-debug.apk release-android/Materio-Android.apk || true
+          if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
+            cp android/app/build/outputs/apk/release/app-release.apk release-android/Materio-Android.apk
+          elif [ -f android/app/build/outputs/apk/debug/app-debug.apk ]; then
+            cp android/app/build/outputs/apk/debug/app-debug.apk release-android/Materio-Android.apk
           fi
           ls -la release-android/
 
@@ -130,9 +216,12 @@ jobs:
           path: release-android/*
           if-no-files-found: error
 
+  # ─────────────────────────────────────────────
+  #  Publish Release + Updater JSON
+  # ─────────────────────────────────────────────
   publish-release:
     name: Publish to GitHub Releases
-    needs: [build-windows, build-android]
+    needs: [resolve-version, build-windows, build-android]
     if: always() && !cancelled() && (needs.build-windows.result == 'success' || needs.build-android.result == 'success')
     runs-on: ubuntu-latest
     steps:
@@ -162,34 +251,74 @@ jobs:
           echo "Assets prepared for release:"
           ls -lh release-assets/
 
-      - name: Determine Release Tag
-        id: vars
+      - name: Generate Tauri Updater JSON
         shell: bash
         run: |
-          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-            echo "PRERELEASE=false" >> $GITHUB_OUTPUT
-          else
-            echo "TAG=v2.0.4" >> $GITHUB_OUTPUT
-            echo "PRERELEASE=false" >> $GITHUB_OUTPUT
+          VER="${{ needs.resolve-version.outputs.version }}"
+          TAG="${{ needs.resolve-version.outputs.tag }}"
+          REPO="${{ github.repository }}"
+          NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Find the NSIS setup exe for the download URL
+          SETUP_FILE=$(ls release-assets/*-setup.exe 2>/dev/null | head -1 | xargs basename 2>/dev/null || echo "")
+          MSI_FILE=$(ls release-assets/*.msi 2>/dev/null | head -1 | xargs basename 2>/dev/null || echo "")
+
+          # Read signature if available
+          SIG=""
+          SIG_FILE=$(ls release-assets/*.sig 2>/dev/null | head -1)
+          if [ -n "$SIG_FILE" ] && [ -f "$SIG_FILE" ]; then
+            SIG=$(cat "$SIG_FILE")
           fi
+
+          # Prefer NSIS setup for the updater URL
+          WIN_ASSET="${SETUP_FILE:-$MSI_FILE}"
+          WIN_URL="https://github.com/${REPO}/releases/download/${TAG}/${WIN_ASSET}"
+
+          cat > release-assets/latest.json << ENDJSON
+          {
+            "version": "${TAG}",
+            "notes": "Materio ${TAG} — automated build from ${GITHUB_SHA:0:8}",
+            "pub_date": "${NOW}",
+            "platforms": {
+              "windows-x86_64": {
+                "signature": "${SIG}",
+                "url": "${WIN_URL}"
+              }
+            }
+          }
+          ENDJSON
+
+          echo "✅ Generated updater latest.json for ${TAG}"
+          cat release-assets/latest.json
+
+      - name: Delete existing release (if same tag)
+        shell: bash
+        run: |
+          TAG="${{ needs.resolve-version.outputs.tag }}"
+          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish Release to GitHub
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.vars.outputs.TAG }}
-          name: Materio Apps ${{ steps.vars.outputs.TAG }}
+          tag_name: ${{ needs.resolve-version.outputs.tag }}
+          name: Materio Apps ${{ needs.resolve-version.outputs.tag }}
           make_latest: true
           draft: false
-          prerelease: ${{ steps.vars.outputs.PRERELEASE == 'true' }}
+          prerelease: false
           body: |
-            ## Materio Official Builds
+            ## Materio ${{ needs.resolve-version.outputs.tag }}
             
             ### Downloads
             - **Windows Desktop:** Native installer (.exe / .msi) with offline reading, system tray, and bundled local MCP server (`localhost:3000/mcp`).
             - **Android APK:** Fast, mobile-optimized companion with background in-app updates.
             
-            *Automated build from commit `${{ github.sha }}`.*
+            ### What's new
+            Auto-bump build `${{ needs.resolve-version.outputs.version }}` from commit `${{ github.sha }}`.
+            
+            ---
+            _The `latest.json` asset in this release powers the desktop in-app updater._
           files: |
             release-assets/*
         env:
