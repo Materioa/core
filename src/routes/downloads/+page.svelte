@@ -13,10 +13,15 @@
 	let releaseData = $state({
 		version: 'v2.0.4',
 		windows: {
-			downloadUrl: '/api/download/windows'
+			name: 'Materio_2.0.4_x64-setup.exe',
+			downloadUrl: 'https://github.com/Materioa/web-frontend/releases/download/v2.0.4/Materio_2.0.4_x64-setup.exe',
+			msiUrl: 'https://github.com/Materioa/web-frontend/releases/download/v2.0.4/Materio_2.0.4_x64_en-US.msi',
+			size: '46.5 MB'
 		},
 		android: {
-			downloadUrl: '/api/download/android'
+			name: 'Materio-Android.apk',
+			downloadUrl: 'https://github.com/Materioa/web-frontend/releases/download/v2.0.4/Materio-Android.apk',
+			size: '52.9 MB'
 		}
 	});
 
@@ -31,7 +36,10 @@
 			.then(d => {
 				if (d) {
 					if (d.windows?.downloadUrl) releaseData.windows.downloadUrl = d.windows.downloadUrl;
+					if (d.windows?.msiUrl) releaseData.windows.msiUrl = d.windows.msiUrl;
+					if (d.windows?.size) releaseData.windows.size = d.windows.size;
 					if (d.android?.downloadUrl) releaseData.android.downloadUrl = d.android.downloadUrl;
+					if (d.android?.size) releaseData.android.size = d.android.size;
 					if (d.version) releaseData.version = d.version;
 				}
 			})

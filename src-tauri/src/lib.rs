@@ -16,7 +16,7 @@ struct McpServerState {
 fn start_mcp_server(app: AppHandle, state: State<'_, McpServerState>) -> Result<String, String> {
     let mut lock = state.process.lock().map_err(|e| e.to_string())?;
 
-    // Check if already running
+    // Check if already running via child process
     if let Some(ref mut child) = *lock {
         match child.try_wait() {
             Ok(None) => return Ok("MCP server is already running".to_string()),
@@ -26,57 +26,103 @@ fn start_mcp_server(app: AppHandle, state: State<'_, McpServerState>) -> Result<
         }
     }
 
-    // Resolve project/resource root
+    // Check if MCP server is already listening on port 3000
+    if std::net::TcpStream::connect("127.0.0.1:3000").is_ok() {
+        return Ok("MCP server is already running on http://localhost:3000/mcp".to_string());
+    }
+
+    // Resolve resource and execution paths
     let resource_dir = app
         .path()
         .resource_dir()
         .unwrap_or_else(|_| std::env::current_dir().unwrap_or_default());
 
-    // Check possible MCP paths:
-    let mut candidates = vec![
-        resource_dir.join("mcp"),
-        resource_dir.join("_up_").join("mcp"),
-        resource_dir.join("../mcp"),
-        resource_dir.join("../../mcp"),
-        resource_dir.join("../../../mcp"),
+    let mut exe_candidates = vec![
+        // Production: bundled as a resource directly in resource_dir
+        resource_dir.join("materio-mcp.exe"),
+        resource_dir.join("mcp").join("materio-mcp.exe"),
+        resource_dir.join("resources").join("mcp").join("materio-mcp.exe"),
+        resource_dir.join("_up_").join("mcp").join("materio-mcp.exe"),
     ];
 
     if let Ok(cur) = std::env::current_dir() {
-        candidates.push(cur.join("mcp"));
-        candidates.push(cur.join("svelte/mcp"));
-        candidates.push(cur.join("../mcp"));
+        // Development: binary is in the mcp folder relative to the project
+        exe_candidates.push(cur.join("mcp").join("materio-mcp.exe"));
+        exe_candidates.push(cur.join("svelte").join("mcp").join("materio-mcp.exe"));
+        exe_candidates.push(cur.join("../mcp").join("materio-mcp.exe"));
     }
 
     if let Ok(exe) = std::env::current_exe() {
         if let Some(exe_dir) = exe.parent() {
-            candidates.push(exe_dir.join("mcp"));
-            candidates.push(exe_dir.join("resources/mcp"));
-            candidates.push(exe_dir.join("_up_/mcp"));
+            exe_candidates.push(exe_dir.join("materio-mcp.exe"));
+            exe_candidates.push(exe_dir.join("mcp").join("materio-mcp.exe"));
+            exe_candidates.push(exe_dir.join("resources").join("materio-mcp.exe"));
+            exe_candidates.push(exe_dir.join("resources").join("mcp").join("materio-mcp.exe"));
+            exe_candidates.push(exe_dir.join("_up_").join("mcp").join("materio-mcp.exe"));
         }
     }
 
-    let working_dir = candidates
-        .into_iter()
-        .find(|p| p.join("src/index.ts").exists() || p.join("package.json").exists())
-        .unwrap_or_else(|| std::path::PathBuf::from("mcp"));
-
-    #[cfg(target_os = "windows")]
-    let mut cmd = Command::new("cmd");
-    #[cfg(target_os = "windows")]
-    {
-        cmd.creation_flags(CREATE_NO_WINDOW);
-        cmd.args(&["/C", "npx --yes tsx src/index.ts"]);
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    let mut cmd = Command::new("npx");
     #[cfg(not(target_os = "windows"))]
     {
-        cmd.args(&["--yes", "tsx", "src/index.ts"]);
+        let mut unix_candidates = Vec::new();
+        for p in &exe_candidates {
+            if let Some(parent) = p.parent() {
+                unix_candidates.push(parent.join("materio-mcp"));
+            }
+        }
+        exe_candidates.extend(unix_candidates);
     }
 
-    cmd.current_dir(&working_dir)
-        .env("PORT", "3000")
+    let standalone_bin = exe_candidates.into_iter().find(|p| p.exists());
+
+    let mut cmd = if let Some(bin_path) = standalone_bin {
+        let work_dir = bin_path.parent().unwrap_or_else(|| std::path::Path::new("."));
+        let mut c = Command::new(&bin_path);
+        #[cfg(target_os = "windows")]
+        c.creation_flags(CREATE_NO_WINDOW);
+        c.current_dir(work_dir);
+        c
+    } else {
+        // Fallback to npx/bun in development mode
+        let mut dir_candidates = vec![
+            resource_dir.join("mcp"),
+            resource_dir.join("_up_").join("mcp"),
+            resource_dir.join("../mcp"),
+        ];
+        if let Ok(cur) = std::env::current_dir() {
+            dir_candidates.push(cur.join("mcp"));
+            dir_candidates.push(cur.join("svelte/mcp"));
+            dir_candidates.push(cur.join("../mcp"));
+        }
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(exe_dir) = exe.parent() {
+                dir_candidates.push(exe_dir.join("mcp"));
+                dir_candidates.push(exe_dir.join("resources/mcp"));
+            }
+        }
+        let working_dir = dir_candidates
+            .into_iter()
+            .find(|p| p.join("src/index.ts").exists() || p.join("package.json").exists())
+            .unwrap_or_else(|| std::path::PathBuf::from("mcp"));
+
+        #[cfg(target_os = "windows")]
+        {
+            let mut c = Command::new("cmd");
+            c.creation_flags(CREATE_NO_WINDOW);
+            c.args(&["/C", "npx --yes tsx src/index.ts"]);
+            c.current_dir(&working_dir);
+            c
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let mut c = Command::new("npx");
+            c.args(&["--yes", "tsx", "src/index.ts"]);
+            c.current_dir(&working_dir);
+            c
+        }
+    };
+
+    cmd.env("PORT", "3000")
         .env("TRANSPORT", "http")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -108,15 +154,19 @@ fn get_mcp_status(state: State<'_, McpServerState>) -> Result<bool, String> {
     let mut lock = state.process.lock().map_err(|e| e.to_string())?;
     if let Some(ref mut child) = *lock {
         match child.try_wait() {
-            Ok(None) => Ok(true), // Process is active
+            Ok(None) => return Ok(true), // Process is active
             _ => {
                 *lock = None;
-                Ok(false)
             }
         }
-    } else {
-        Ok(false)
     }
+
+    // Also check if port 3000 is listening
+    if std::net::TcpStream::connect("127.0.0.1:3000").is_ok() {
+        return Ok(true);
+    }
+
+    Ok(false)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

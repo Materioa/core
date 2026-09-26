@@ -30,7 +30,7 @@
     "active": true,
     "targets": "all",
     "resources": [
-      "../mcp"
+      "../mcp/materio-mcp.exe"
     ],
     "icon": [
       "icons/32x32.png",

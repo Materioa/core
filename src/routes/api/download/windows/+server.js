@@ -1,13 +1,14 @@
 import { redirect } from '@sveltejs/kit';
-import fs from 'node:fs';
-import path from 'node:path';
 
-export async function GET({ fetch, platform }) {
+const FALLBACK_URL = 'https://github.com/Materioa/web-frontend/releases/download/v2.0.4/Materio_2.0.4_x64-setup.exe';
+
+export async function GET({ fetch, platform, url }) {
 	const env = platform?.env || process?.env || {};
-	const GITHUB_REPO = env.GITHUB_REPOSITORY;
+	const GITHUB_REPO = env.GITHUB_REPOSITORY || 'Materioa/web-frontend';
+	const format = url.searchParams.get('format') || '';
 	let targetUrl = env.DOWNLOAD_WINDOWS_URL || null;
 
-	if (!targetUrl && GITHUB_REPO) {
+	if (!targetUrl) {
 		try {
 			const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
 				headers: {
@@ -18,9 +19,17 @@ export async function GET({ fetch, platform }) {
 
 			if (res.ok) {
 				const data = await res.json();
-				const winAsset = data.assets?.find(a => a.name.endsWith('.msi') || a.name.endsWith('.exe'));
-				if (winAsset?.browser_download_url) {
-					targetUrl = winAsset.browser_download_url;
+				if (format === 'msi') {
+					const msi = data.assets?.find(a => a.name.endsWith('.msi'));
+					if (msi?.browser_download_url) targetUrl = msi.browser_download_url;
+				} else {
+					const winSetup = data.assets?.find(a => a.name.includes('-setup.exe'));
+					const winMsi = data.assets?.find(a => a.name.endsWith('.msi'));
+					const winExe = data.assets?.find(a => a.name.endsWith('.exe'));
+					const chosen = winSetup || winMsi || winExe;
+					if (chosen?.browser_download_url) {
+						targetUrl = chosen.browser_download_url;
+					}
 				}
 			}
 		} catch (err) {
@@ -28,23 +37,11 @@ export async function GET({ fetch, platform }) {
 		}
 	}
 
-	if (targetUrl) {
-		throw redirect(302, targetUrl);
+	if (!targetUrl) {
+		targetUrl = format === 'msi'
+			? 'https://github.com/Materioa/web-frontend/releases/download/v2.0.4/Materio_2.0.4_x64_en-US.msi'
+			: FALLBACK_URL;
 	}
 
-	try {
-		const filePath = path.resolve('static/downloads/Materio-Windows-Setup.msi');
-		if (fs.existsSync(filePath)) {
-			const fileBuffer = fs.readFileSync(filePath);
-			return new Response(fileBuffer, {
-				headers: {
-					'Content-Type': 'application/x-msi',
-					'Content-Disposition': 'attachment; filename="Materio-Windows-Setup.msi"',
-					'Content-Length': fileBuffer.length.toString()
-				}
-			});
-		}
-	} catch {}
-
-	throw redirect(302, '/downloads/Materio-Windows-Setup.msi');
+	throw redirect(302, targetUrl);
 }

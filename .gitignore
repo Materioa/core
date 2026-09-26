@@ -1,55 +1,39 @@
-﻿# Dependencies
 node_modules/
-.pnpm-store/
-
-# SvelteKit & Vite
 .svelte-kit/
 build/
 dist/
-dist-binaries/
+.env
+.env.*
+!.env.example
+.dev.vars
+.wrangler/
 worker-configuration.d.ts
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
-# Cloudflare & Wrangler
-.wrangler/
-.dev.vars
+# Build artifacts & binaries
+dist-binaries/
+*.exe
+*.msi
+*.apk
+*.aab
 
-# Environments & Secret Configs
-.env
-.env.*
-!.env.example
-*.local
-*.local.*
-config.local.*
-
-# Migrations & Local DB
-migrations/
-*.sqlite
-*.db
-
-# Tauri & Rust
+# Tauri
 src-tauri/target/
 src-tauri/gen/
 
-# Capacitor & Android
-android/.gradle/
-android/build/
-android/app/build/
-android/local.properties
-android/.idea/
-android/*.iml
-android/app/*.iml
-android/.externalNativeBuild
-android/app/.cxx
+# Capacitor / Android
+android/
+ios/
 
-# Logs & Temporary Files
+# MCP compiled binary
+mcp/materio-mcp.exe
+mcp/materio-mcp
+mcp/node_modules/
+mcp/.wrangler/
+mcp/bun.lock
+
+# Misc
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# System
 .DS_Store
 Thumbs.db
