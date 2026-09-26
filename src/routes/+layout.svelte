@@ -20,11 +20,16 @@
   import SearchResultsModal from '$lib/components/SearchResultsModal.svelte';
   import InterviewerModal from '$lib/components/InterviewerModal.svelte';
   import AppUpdateModal from '$lib/components/AppUpdateModal.svelte';
+  import { installApiInterceptor } from '$lib/config/api.js';
   
-import { activeModalStore, pdfModalStore } from '$lib/stores.js';
+  import { activeModalStore, pdfModalStore } from '$lib/stores.js';
   import { get } from 'svelte/store';
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
+
+  if (browser) {
+    installApiInterceptor();
+  }
 
   let headerVersion = 0;
   function shouldHideHeader(pathname, _ver) {
@@ -35,6 +40,19 @@ import { activeModalStore, pdfModalStore } from '$lib/stores.js';
     if (pathname === '/interviewer' || pathname.startsWith('/interviewer')) return true;
     if (pathname === '/downloads' || pathname.startsWith('/downloads')) return true;
     if (pathname === '/') {
+      // In native apps, never hide app header
+      try {
+        if (typeof window !== 'undefined' && (
+          window.__TAURI_INTERNALS__ || 
+          window.__TAURI__ || 
+          window.location?.protocol === 'tauri:' || 
+          window.location?.protocol === 'capacitor:' || 
+          window.location?.hostname === 'tauri.localhost' || 
+          window.Capacitor
+        )) {
+          return false;
+        }
+      } catch {}
       // In-memory "Go to App" click (app-start preference is 'root'):
       // render the full app chrome instead of the landing shell.
       try {

@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { browser } from '$app/environment';
 	import { getSkipLanding, getAppStart, isForceApp } from '$lib/utils/landingPrefs.js';
+	import { isTauri, isCapacitor, isNative } from '$lib/config/api.js';
 	import LandingPage from '$lib/components/LandingPage.svelte';
 	import MainApp from '$lib/components/MainApp.svelte';
 
@@ -12,6 +13,22 @@
 
 	function evaluate() {
 		if (!browser) return;
+		// In native desktop (Tauri) or mobile (Capacitor) apps, never show landing page; jump directly to app
+		const inNativeApp = isNative || isTauri || isCapacitor || Boolean(
+			window.__TAURI_INTERNALS__ ||
+			window.__TAURI__ ||
+			window.location?.protocol === 'tauri:' ||
+			window.location?.protocol === 'capacitor:' ||
+			window.location?.hostname === 'tauri.localhost' ||
+			window.Capacitor
+		);
+		if (inNativeApp) {
+			showLanding = false;
+			showApp = true;
+			checked = true;
+			return;
+		}
+
 		// Session "Go to App" click (app-start preference is 'root').
 		if (isForceApp()) {
 			showLanding = false;

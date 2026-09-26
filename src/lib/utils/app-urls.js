@@ -46,12 +46,9 @@ export function getAppUrls(currentOrigin) {
  */
 export function getLoginUrl(callbackUrl) {
   const urls = getAppUrls();
-  let origin = 'https://getmaterio.app';
+  let origin = 'https://beta.getmaterio.app';
   if (typeof window !== 'undefined' && window.location?.origin) {
-    const locOrigin = window.location.origin;
-    if (!locOrigin.startsWith('tauri://') && !locOrigin.startsWith('capacitor://')) {
-      origin = locOrigin;
-    }
+    origin = window.location.origin;
   }
   const cb = callbackUrl || `${origin}/auth/callback`;
   return `${urls.auth}/login?callback=${encodeURIComponent(cb)}`;
@@ -64,12 +61,9 @@ export function getLoginUrl(callbackUrl) {
  */
 export function getSignupUrl(callbackUrl) {
   const urls = getAppUrls();
-  let origin = 'https://getmaterio.app';
+  let origin = 'https://beta.getmaterio.app';
   if (typeof window !== 'undefined' && window.location?.origin) {
-    const locOrigin = window.location.origin;
-    if (!locOrigin.startsWith('tauri://') && !locOrigin.startsWith('capacitor://')) {
-      origin = locOrigin;
-    }
+    origin = window.location.origin;
   }
   const cb = callbackUrl || `${origin}/auth/callback`;
   return `${urls.auth}/signup?callback=${encodeURIComponent(cb)}`;

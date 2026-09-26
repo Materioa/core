@@ -33,32 +33,46 @@ fn start_mcp_server(app: AppHandle, state: State<'_, McpServerState>) -> Result<
         .unwrap_or_else(|_| std::env::current_dir().unwrap_or_default());
 
     // Check possible MCP paths:
-    // 1. Sibling "mcp" directory in dev:
-    let candidate_dev = resource_dir.join("../mcp");
-    // 2. Subdirectory "mcp" in bundled resources:
-    let candidate_bundle = resource_dir.join("mcp");
+    let mut candidates = vec![
+        resource_dir.join("mcp"),
+        resource_dir.join("_up_").join("mcp"),
+        resource_dir.join("../mcp"),
+        resource_dir.join("../../mcp"),
+        resource_dir.join("../../../mcp"),
+    ];
 
-    let working_dir = if candidate_dev.exists() {
-        candidate_dev
-    } else if candidate_bundle.exists() {
-        candidate_bundle
-    } else {
-        std::path::PathBuf::from("mcp")
-    };
+    if let Ok(cur) = std::env::current_dir() {
+        candidates.push(cur.join("mcp"));
+        candidates.push(cur.join("svelte/mcp"));
+        candidates.push(cur.join("../mcp"));
+    }
+
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(exe_dir) = exe.parent() {
+            candidates.push(exe_dir.join("mcp"));
+            candidates.push(exe_dir.join("resources/mcp"));
+            candidates.push(exe_dir.join("_up_/mcp"));
+        }
+    }
+
+    let working_dir = candidates
+        .into_iter()
+        .find(|p| p.join("src/index.ts").exists() || p.join("package.json").exists())
+        .unwrap_or_else(|| std::path::PathBuf::from("mcp"));
 
     #[cfg(target_os = "windows")]
     let mut cmd = Command::new("cmd");
     #[cfg(target_os = "windows")]
     {
         cmd.creation_flags(CREATE_NO_WINDOW);
-        cmd.args(&["/C", "npx tsx src/index.ts"]);
+        cmd.args(&["/C", "npx --yes tsx src/index.ts"]);
     }
 
     #[cfg(not(target_os = "windows"))]
     let mut cmd = Command::new("npx");
     #[cfg(not(target_os = "windows"))]
     {
-        cmd.args(&["tsx", "src/index.ts"]);
+        cmd.args(&["--yes", "tsx", "src/index.ts"]);
     }
 
     cmd.current_dir(&working_dir)
@@ -124,6 +138,15 @@ pub fn run() {
                         .build(),
                 )?;
             }
+
+            // Automatically launch local MCP server in background on app startup
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                if let Some(state) = app_handle.try_state::<McpServerState>() {
+                    let _ = start_mcp_server(app_handle.clone(), state);
+                }
+            });
+
             Ok(())
         })
         .on_window_event(|window, event| {

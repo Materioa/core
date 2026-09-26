@@ -42,7 +42,8 @@ jobs:
         run: npm run icons:generate
 
       - name: Build SvelteKit Frontend
-        run: npm run build:static
+        working-directory: svelte
+        run: npm run build
 
       - name: Build Tauri Desktop App
         run: npx tauri build
@@ -51,7 +52,10 @@ jobs:
         shell: bash
         run: |
           mkdir -p release-windows
-          find src-tauri/target/release/bundle/ -type f \( -name "*.msi" -o -name "*.exe" \) -exec cp {} release-windows/ \;
+          find src-tauri/target/release/bundle/ -type f \( -name "*.msi" -o -name "*.exe" \) -exec cp {} release-windows/ \; || true
+          if [ -f src-tauri/target/release/app.exe ]; then
+            cp src-tauri/target/release/app.exe release-windows/Materio-Windows.exe || true
+          fi
           ls -la release-windows/
 
       - name: Upload Windows Artifacts
@@ -81,8 +85,11 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Configure Android SDK
+        run: |
+          echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> $GITHUB_ENV
+          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
       - name: Install dependencies
         run: npm install
@@ -100,13 +107,12 @@ jobs:
         working-directory: android
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleDebug || ./gradlew assembleRelease
+          ./gradlew assembleDebug
 
       - name: Prepare Android Release Artifacts
         shell: bash
         run: |
           mkdir -p release-android
-          # Grab either release or debug APK
           find android/app/build/outputs/apk/ -type f -name "*.apk" -exec cp {} release-android/Materio-Android.apk \;
           ls -la release-android/
 
@@ -120,18 +126,21 @@ jobs:
   publish-release:
     name: Publish to GitHub Releases
     needs: [build-windows, build-android]
+    if: always() && !cancelled() && (needs.build-windows.result == 'success' || needs.build-android.result == 'success')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Download Windows Artifacts
+        if: needs.build-windows.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: windows-binaries
           path: release-assets
 
       - name: Download Android Artifacts
+        if: needs.build-android.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: android-binaries
@@ -145,7 +154,7 @@ jobs:
             echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
             echo "PRERELEASE=false" >> $GITHUB_OUTPUT
           else
-            echo "TAG=latest" >> $GITHUB_OUTPUT
+            echo "TAG=v2.0.4" >> $GITHUB_OUTPUT
             echo "PRERELEASE=false" >> $GITHUB_OUTPUT
           fi
 
@@ -154,6 +163,7 @@ jobs:
         with:
           tag_name: ${{ steps.vars.outputs.TAG }}
           name: Materio Apps ${{ steps.vars.outputs.TAG }}
+          make_latest: true
           body: |
             ## Materio Official Builds
             

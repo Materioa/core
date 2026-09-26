@@ -16162,13 +16162,48 @@ initCom(PDFViewerApplication);
   PDFPrintServiceFactory.initGlobals(PDFViewerApplication);
 }
 {
-  const HOSTED_VIEWER_ORIGINS = new Set(["null", "http://mozilla.github.io", "https://mozilla.github.io", "https://materioa.github.io", "https://materio-a.netlify.app", "https://materioa.netlify.app", "https://materioapp.in", "http://localhost:8888", "http://localhost:4000", "http://localhost:3000", "http://localhost:5173", "http://localhost:5176", "http://127.0.0.1:5173", "https://materioa.vercel.app", "*.devtunnels.ms", "https://getmaterio.app", "https://www.getmaterio.app", "https://beta.getmaterio.app", "https://materio.jinansh.workers.dev"]);
+  const HOSTED_VIEWER_ORIGINS = new Set([
+    "null",
+    "http://mozilla.github.io",
+    "https://mozilla.github.io",
+    "https://materioa.github.io",
+    "https://materio-a.netlify.app",
+    "https://materioa.netlify.app",
+    "https://materioapp.in",
+    "http://localhost:8888",
+    "http://localhost:4000",
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:5176",
+    "http://127.0.0.1:5173",
+    "https://materioa.vercel.app",
+    "*.devtunnels.ms",
+    "https://getmaterio.app",
+    "https://www.getmaterio.app",
+    "https://beta.getmaterio.app",
+    "https://materio.jinansh.workers.dev",
+    "tauri://localhost",
+    "https://tauri.localhost",
+    "http://tauri.localhost",
+    "capacitor://localhost",
+    "https://capacitor.localhost",
+    "http://localhost",
+    "https://localhost"
+  ]);
   var validateFileURL = function (file) {
     if (!file) {
       return;
     }
     const viewerOrigin = URL.parse(window.location)?.origin || "null";
-    if (HOSTED_VIEWER_ORIGINS.has(viewerOrigin)) {
+    if (
+      HOSTED_VIEWER_ORIGINS.has(viewerOrigin) ||
+      viewerOrigin.startsWith('tauri:') ||
+      viewerOrigin.startsWith('capacitor:') ||
+      viewerOrigin.startsWith('file:') ||
+      viewerOrigin.includes('localhost') ||
+      viewerOrigin.includes('127.0.0.1') ||
+      viewerOrigin === "null"
+    ) {
       return;
     }
     const fileOrigin = URL.parse(file, window.location)?.origin;
