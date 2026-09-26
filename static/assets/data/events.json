@@ -1,0 +1,153 @@
+[
+  {
+    "event": "Default",
+    "url_pc": "dynamic",
+    "url_mobile": "dynamic",
+    "header_logo_light": "/assets/img/materio_new_bk.svg",
+    "header_logo_dark": "/assets/img/materio_new_wh.svg",
+    "dynamic_config": [
+      {
+        "image": "/assets/img/events/dynamic/part_0.webp",
+        "start": "05:45",
+        "end": "06:00"
+      },
+      {
+        "image": "/assets/img/events/dynamic/part_1.webp",
+        "start": "06:00",
+        "end": "06:45"
+      },
+      {
+        "image": "/assets/img/events/dynamic/part_2.webp",
+        "start": "06:45",
+        "end": "17:45"
+      },
+      {
+        "image": "/assets/img/events/dynamic/part_3.webp",
+        "start": "17:45",
+        "end": "18:00"
+      },
+      {
+        "image": "/assets/img/events/dynamic/part_4.webp",
+        "start": "18:00",
+        "end": "19:00"
+      },
+      {
+        "image": "/assets/img/events/dynamic/part_5.webp",
+        "start": "19:00",
+        "end": "19:45"
+      },
+      {
+        "image": "/assets/img/events/dynamic/part_6.webp",
+        "start": "19:45",
+        "end": "23:50"
+      },
+      {
+        "image": "/assets/img/events/dynamic/part_7.webp",
+        "start": "23:50",
+        "end": "00:30"
+      },
+      {
+        "image": "/assets/img/events/dynamic/part_8.webp",
+        "start": "00:30",
+        "end": "05:45"
+      }
+    ],
+    "setDate": "2025-01-01T00:00:00Z",
+    "default": 1
+  },
+  {
+    "event": "Christmas",
+    "url_pc": "dynamic",
+    "url_mobile": "dynamic",
+    "dynamic_config": [
+      {
+        "image": "/assets/img/events/dynamic/part_0.webp",
+        "start": "05:45",
+        "end": "06:00"
+      },
+      {
+        "image": "/assets/img/events/dynamic/part_1.webp",
+        "start": "06:00",
+        "end": "06:45"
+      },
+      {
+        "image": "/assets/img/events/dynamic/christmas/part_2.webp",
+        "start": "06:45",
+        "end": "17:45"
+      },
+      {
+        "image": "/assets/img/events/dynamic/christmas/part_3.webp",
+        "start": "17:45",
+        "end": "18:00"
+      },
+      {
+        "image": "/assets/img/events/dynamic/christmas/part_4.webp",
+        "start": "18:00",
+        "end": "19:00"
+      },
+      {
+        "image": "/assets/img/events/dynamic/christmas/part_5.webp",
+        "start": "19:00",
+        "end": "21:20"
+      },
+      {
+        "image": "/assets/img/events/dynamic/christmas/part_7.webp",
+        "start": "21:20",
+        "end": "22:50",
+        "exclusive_dates": [
+          "2025-12-25",
+          "2025-12-26",
+          "2025-12-27"
+        ]
+      },
+      {
+        "image": "/assets/img/events/dynamic/christmas/part_8.webp",
+        "start": "22:50",
+        "end": "05:45",
+        "exclusive_dates": [
+          "2025-12-25",
+          "2025-12-26",
+          "2025-12-27"
+        ]
+      },
+      {
+        "image": "/assets/img/events/dynamic/christmas/part_2026.webp",
+        "start": "22:50",
+        "end": "05:45",
+        "showLockscreen": true,
+        "exclusive_dates": [
+          "2025-12-30",
+          "2025-12-31",
+          "2025-12-01"
+        ]
+      },
+      {
+        "image": "/assets/img/events/dynamic/christmas/part_6.webp",
+        "start": "19:45",
+        "end": "05:45"
+      }
+    ],
+    "setDate": "2025-12-24T00:00:00Z",
+    "endDate": "2026-01-15T23:59:59Z",
+    "default": 0
+  },
+  {
+    "event": "Materio Birthday",
+    "type": "overlay",
+    "overlay_script": "/assets/scripts/birthday-overlay.js",
+    "setDate": "2026-03-16T00:00:00+05:30",
+    "endDate": "2026-03-21T23:59:59+05:30",
+    "config": {
+      "eyebrow": "Materio's Birthday Week",
+      "headline_brand": "materio",
+      "headline_text": "turns",
+      "headline_num": "2",
+      "sub": "Two years of studying smarter",
+      "plank_duration_ms": 12000,
+      "balloons_duration_ms": 35000,
+      "balloons_speed_scale": 3.0,
+      "show_once_per_day": true
+    },
+    "default": 0
+  }
+]

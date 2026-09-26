@@ -1,0 +1,181 @@
+/* Status page styles using existing design patterns */
+.status-page-container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 20px 0;
+}
+
+.status-title {
+    margin-bottom: 20px;
+}
+
+.status-indicator {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    margin-right: 10px;
+}
+
+.status-indicator.operational {
+    background-color: #28a745;
+}
+
+.status-indicator.degraded {
+    background-color: #ffc107;
+}
+
+.status-indicator.down {
+    background-color: #dc3545;
+}
+
+.status-overview {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.status-updated {
+    font-size: 0.9rem;
+    color: #666;
+}
+
+.category-title {
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+}
+
+.category-title i {
+    margin-right: 10px;
+}
+
+.category-services {
+    margin-bottom: 15px;
+}
+
+.service-card {
+    margin-bottom: 15px;
+    border-left: 4px solid transparent;
+}
+
+.service-card.operational {
+    border-left-color: #28a745;
+}
+
+.service-card.degraded {
+    border-left-color: #ffc107;
+}
+
+.service-card.down {
+    border-left-color: #dc3545;
+}
+
+.service-info {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.service-name {
+    font-weight: bold;
+}
+
+.service-metrics {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 10px;
+}
+
+.metric {
+    display: flex;
+    flex-direction: column;
+}
+
+.metric-label {
+    font-size: 0.8rem;
+    color: #666;
+}
+
+.metric-value {
+    font-weight: bold;
+}
+
+.uptime-graph-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    margin-bottom: 5px;
+}
+
+.uptime-bars {
+    display: flex;
+    height: 20px;
+    background: #f0f0f0;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.uptime-bar {
+    flex: 1;
+    margin: 0 1px;
+}
+
+.uptime-bar.high {
+    background-color: #28a745;
+}
+
+.uptime-bar.medium {
+    background-color: #ffc107;
+}
+
+.uptime-bar.low {
+    background-color: #dc3545;
+}
+
+.status-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+}
+
+.legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 10px;
+}
+
+.legend-dot.operational {
+    background-color: #28a745;
+}
+
+.legend-dot.degraded {
+    background-color: #ffc107;
+}
+
+.legend-dot.down {
+    background-color: #dc3545;
+}
+
+.status-actions-card {
+    text-align: center;
+}
+
+.status-info {
+    margin-top: 10px;
+    font-size: 0.9rem;
+    color: #666;
+}
+
+.no-data-message {
+    text-align: center;
+    padding: 5px;
+    color: #666;
+    font-style: italic;
+}

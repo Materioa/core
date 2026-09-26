@@ -1,0 +1,523 @@
+[
+  {
+    "build_id": "a9e66757-97cf-48a2-987f-70b7d5f84f1e",
+    "timestamp": "2025-12-08T05:18:01.068Z",
+    "date": "12/8/2025",
+    "time": "10:48:01 AM",
+    "build_number": 74
+  },
+  {
+    "build_id": "b03758c7-3b63-4dac-8533-63cb744e5fa0",
+    "timestamp": "2025-12-08T05:16:19.933Z",
+    "date": "12/8/2025",
+    "time": "10:46:19 AM",
+    "build_number": 73
+  },
+  {
+    "build_id": "de2ad5a9-c227-4734-bb69-3c877b14781c",
+    "timestamp": "2025-12-07T03:37:28.108Z",
+    "date": "12/7/2025",
+    "time": "9:07:28 AM",
+    "build_number": 72
+  },
+  {
+    "build_id": "434692c7-68dd-4d65-806e-b1b2cfa1a629",
+    "timestamp": "2025-11-15T15:21:00.769Z",
+    "date": "11/15/2025",
+    "time": "8:51:00 PM",
+    "build_number": 71
+  },
+  {
+    "build_id": "5d8be981-dda3-46cc-9751-51e9a9561ca1",
+    "timestamp": "2025-11-14T16:45:12.083Z",
+    "date": "11/14/2025",
+    "time": "10:15:12 PM",
+    "build_number": 70
+  },
+  {
+    "build_id": "3302fddc-36a9-4c92-9004-a624807273ed",
+    "timestamp": "2025-11-14T13:27:31.832Z",
+    "date": "11/14/2025",
+    "time": "6:57:31 PM",
+    "build_number": 69
+  },
+  {
+    "build_id": "4dc1bfd2-a87d-409e-9c03-3793bd867f97",
+    "timestamp": "2025-11-12T10:09:04.286Z",
+    "date": "11/12/2025",
+    "time": "3:39:04 PM",
+    "build_number": 68
+  },
+  {
+    "build_id": "ca624d0e-5893-4712-98f8-d80a726e0c1f",
+    "timestamp": "2025-11-10T13:00:13.652Z",
+    "date": "11/10/2025",
+    "time": "6:30:13 PM",
+    "build_number": 67
+  },
+  {
+    "build_id": "cba6f1bf-9ead-4a82-a666-670865210838",
+    "timestamp": "2025-11-10T10:31:48.051Z",
+    "date": "11/10/2025",
+    "time": "4:01:48 PM",
+    "build_number": 66
+  },
+  {
+    "build_id": "fcad7963-df20-4aa7-aa34-2626d3c5feef",
+    "timestamp": "2025-11-08T15:27:50.025Z",
+    "date": "11/8/2025",
+    "time": "8:57:50 PM",
+    "build_number": 65
+  },
+  {
+    "build_id": "a1cd7903-0740-4a03-9811-01546238e52b",
+    "timestamp": "2025-11-08T09:43:52.490Z",
+    "date": "11/8/2025",
+    "time": "3:13:52 PM",
+    "build_number": 64
+  },
+  {
+    "build_id": "9095fb37-4498-4f17-801a-7b7877b9a599",
+    "timestamp": "2025-11-07T10:40:53.143Z",
+    "date": "11/7/2025",
+    "time": "4:10:53 PM",
+    "build_number": 63
+  },
+  {
+    "build_id": "33425258-d3b0-44d4-8fc5-0edcdac5d02d",
+    "timestamp": "2025-11-07T05:03:54.555Z",
+    "date": "11/7/2025",
+    "time": "10:33:54 AM",
+    "build_number": 62
+  },
+  {
+    "build_id": "5c50e8b2-ff14-4223-8820-5ebd7c594415",
+    "timestamp": "2025-11-05T03:32:42.604Z",
+    "date": "11/5/2025",
+    "time": "9:02:42 AM",
+    "build_number": 61
+  },
+  {
+    "build_id": "d1d0b24f-e0d8-4ceb-b5f9-55e7551ae678",
+    "timestamp": "2025-11-01T16:15:05.575Z",
+    "date": "11/1/2025",
+    "time": "9:45:05 PM",
+    "build_number": 60
+  },
+  {
+    "build_id": "4bee9bad-53a4-4fd5-8225-52b3ca03a492",
+    "timestamp": "2025-11-01T15:05:05.234Z",
+    "date": "11/1/2025",
+    "time": "8:35:05 PM",
+    "build_number": 59
+  },
+  {
+    "build_id": "a861cf21-7799-46ce-bfe8-2a58bd9eec8d",
+    "timestamp": "2025-11-01T13:35:40.955Z",
+    "date": "11/1/2025",
+    "time": "7:05:40 PM",
+    "build_number": 58
+  },
+  {
+    "build_id": "dbfa5e3d-8e68-4e94-9a8b-5c4f0e9defd4",
+    "timestamp": "2025-11-01T05:36:59.850Z",
+    "date": "11/1/2025",
+    "time": "11:06:59 AM",
+    "build_number": 57
+  },
+  {
+    "build_id": "74e94c89-1280-42d5-ba8e-0920a9d686d2",
+    "timestamp": "2025-10-31T13:05:10.475Z",
+    "date": "10/31/2025",
+    "time": "6:35:10 PM",
+    "build_number": 56
+  },
+  {
+    "build_id": "93e652cd-1964-4428-bffe-698f820315f7",
+    "timestamp": "2025-10-31T05:31:56.072Z",
+    "date": "10/31/2025",
+    "time": "11:01:56 AM",
+    "build_number": 55
+  },
+  {
+    "build_id": "5a3117a5-3ae3-413b-a7b5-033a9c02a01f",
+    "timestamp": "2025-10-14T07:33:37.563Z",
+    "date": "10/14/2025",
+    "time": "1:03:37 PM",
+    "build_number": 54
+  },
+  {
+    "build_id": "8b4781ac-1d50-4420-a1b2-54ed46b975ed",
+    "timestamp": "2025-10-12T07:44:45.101Z",
+    "date": "10/12/2025",
+    "time": "1:14:45 PM",
+    "build_number": 53,
+    "log": "Health indicator, New navbar design"
+  },
+  {
+    "build_id": "bfc0fa0c-4780-4365-9bf8-8ad8ca267590",
+    "timestamp": "2025-10-11T07:39:29.521Z",
+    "date": "10/11/2025",
+    "time": "1:09:29 PM",
+    "build_number": 52
+  },
+  {
+    "build_id": "f0562fb6-b923-4e2c-b81d-4efec796fb4b",
+    "timestamp": "2025-10-09T07:20:35.671Z",
+    "date": "10/9/2025",
+    "time": "12:50:35 PM",
+    "build_number": 51,
+    "log": "Fix: promotional modal size for compact phones like Xiaomi 14 Civi"
+  },
+  {
+    "build_id": "550946ba-2979-4297-b8c7-0f2e71b5e7b9",
+    "timestamp": "2025-10-03T14:52:44.895Z",
+    "date": "10/3/2025",
+    "time": "8:22:44 PM",
+    "build_number": 50
+  },
+  {
+    "build_id": "6d2af8f5-39aa-4814-9981-1363df366257",
+    "timestamp": "2025-10-03T03:14:40.807Z",
+    "date": "10/3/2025",
+    "time": "8:44:40 AM",
+    "build_number": 49
+  },
+  {
+    "build_id": "85523f1a-d35b-4ea1-b65f-74c08d898aaf",
+    "timestamp": "2025-10-02T15:09:07.837Z",
+    "date": "10/2/2025",
+    "time": "8:39:07 PM",
+    "build_number": 48
+  },
+  {
+    "build_id": "b40acd67-434b-43a0-a119-65ea50e3cede",
+    "timestamp": "2025-10-02T10:30:57.843Z",
+    "date": "10/2/2025",
+    "time": "4:00:57 PM",
+    "build_number": 47
+  },
+  {
+    "build_id": "66942f74-ac8b-4c7a-a59c-a57b9db3c762",
+    "timestamp": "2025-10-02T10:28:20.805Z",
+    "date": "10/2/2025",
+    "time": "3:58:20 PM",
+    "build_number": 46
+  },
+  {
+    "build_id": "5121fb06-22f3-4e92-aedc-512e03026a3b",
+    "timestamp": "2025-10-02T10:19:14.285Z",
+    "date": "10/2/2025",
+    "time": "3:49:14 PM",
+    "build_number": 45
+  },
+  {
+    "build_id": "36259bcd-8e44-489a-8f3c-e4282ce8f827",
+    "timestamp": "2025-10-02T10:04:25.977Z",
+    "date": "10/2/2025",
+    "time": "3:34:25 PM",
+    "build_number": 44
+  },
+  {
+    "build_id": "bc8a4a5f-5d7d-49e5-840c-221bdb51a23d",
+    "timestamp": "2025-10-02T09:31:22.810Z",
+    "date": "10/2/2025",
+    "time": "3:01:22 PM",
+    "build_number": 43
+  },
+  {
+    "build_id": "7ed96fd5-3fe8-4cdf-8735-0dca9e0d913e",
+    "timestamp": "2025-10-02T08:44:23.646Z",
+    "date": "10/2/2025",
+    "time": "2:14:23 PM",
+    "build_number": 42
+  },
+  {
+    "build_id": "7751cef7-8d82-4bf4-b214-8ffb2d3a7155",
+    "timestamp": "2025-10-01T13:44:38.082Z",
+    "date": "10/1/2025",
+    "time": "7:14:38 PM",
+    "build_number": "41"
+  },
+  {
+    "build_id": "113329e2-77da-4b13-8f20-4f0be838b323",
+    "timestamp": "2025-10-01T13:40:43.380Z",
+    "date": "10/1/2025",
+    "time": "7:10:43 PM",
+    "build_number": 40,
+    "status": "failed"
+  },
+  {
+    "build_id": "b6279fa4-33d3-4216-aa3c-0bb67b9294bd",
+    "timestamp": "2025-10-01T13:28:23.696Z",
+    "date": "10/1/2025",
+    "time": "6:58:23 PM",
+    "build_number": 39
+  },
+  {
+    "build_id": "c4485b8a-ca37-46fc-ab72-97db392a18f8",
+    "timestamp": "2025-09-27T05:26:00.088Z",
+    "date": "9/27/2025",
+    "time": "10:56:00 AM",
+    "build_number": 38
+  },
+  {
+    "build_id": "a3364a5f-db3f-4422-bc89-39e99284fc0f",
+    "timestamp": "2025-09-21T17:10:39.093Z",
+    "date": "9/21/2025",
+    "time": "10:40:39 PM",
+    "build_number": 37
+  },
+  {
+    "build_id": "ef7d549c-87c6-481d-ad03-07ec7448bcb6",
+    "timestamp": "2025-09-20T05:44:12.203Z",
+    "date": "9/20/2025",
+    "time": "11:14:12 AM",
+    "build_number": 36
+  },
+  {
+    "build_id": "c87d1d05-e2e7-4dc6-866f-7ad97e9455cc",
+    "timestamp": "2025-09-19T06:32:11.743Z",
+    "date": "9/19/2025",
+    "time": "12:02:11 PM",
+    "build_number": 35
+  },
+  {
+    "build_id": "018d3e5d-19d6-4861-b17a-709db78b4b1f",
+    "timestamp": "2025-09-19T06:14:11.695Z",
+    "date": "9/19/2025",
+    "time": "11:44:11 AM",
+    "build_number": 34
+  },
+  {
+    "build_id": "71838366-fc87-445c-b76a-421f1dca51d5",
+    "timestamp": "2025-09-06T09:56:58.028Z",
+    "date": "9/6/2025",
+    "time": "3:26:58 PM",
+    "build_number": 33
+  },
+  {
+    "build_id": "56126b6e-21dd-4244-9009-9a75cddfef03",
+    "timestamp": "2025-09-02T08:28:59.579Z",
+    "date": "9/2/2025",
+    "time": "1:58:59 PM",
+    "build_number": 32
+  },
+  {
+    "build_id": "92e8ff9b-bbdb-442d-b9eb-c2dac640ce37",
+    "timestamp": "2025-09-02T07:57:04.785Z",
+    "date": "9/2/2025",
+    "time": "1:27:04 PM",
+    "build_number": 31
+  },
+  {
+    "build_id": "d4839a35-a8d2-4b4e-b078-a74a1b34ba4f",
+    "timestamp": "2025-08-20T15:24:47.267Z",
+    "date": "8/20/2025",
+    "time": "8:54:47 PM",
+    "build_number": 30
+  },
+  {
+    "build_id": "6f7f6275-552c-4cbc-8116-a002ef81e6df",
+    "timestamp": "2025-08-17T11:19:22.134Z",
+    "date": "8/17/2025",
+    "time": "4:49:22 PM",
+    "build_number": 29
+  },
+  {
+    "build_id": "f3e89230-f9ec-43f6-8808-7aca2489f178",
+    "timestamp": "2025-08-17T10:03:43.145Z",
+    "date": "8/17/2025",
+    "time": "3:33:43 PM",
+    "build_number": 28
+  },
+  {
+    "build_id": "4fc0f76d-4de7-4d1b-9c4e-c5fcc0bfafc1",
+    "timestamp": "2025-08-17T06:50:00.392Z",
+    "date": "8/17/2025",
+    "time": "12:20:00 PM",
+    "build_number": 27
+  },
+  {
+    "build_id": "8b84deda-97fa-4fb5-8d14-ccfb7e1fee98",
+    "timestamp": "2025-08-13T09:25:43.785Z",
+    "date": "8/13/2025",
+    "time": "2:55:43 PM",
+    "build_number": 26
+  },
+  {
+    "build_id": "2559cc42-4cf4-4739-8dfe-38b2bf945600",
+    "timestamp": "2025-08-13T09:03:48.453Z",
+    "date": "8/13/2025",
+    "time": "2:33:48 PM",
+    "build_number": 25
+  },
+  {
+    "build_id": "ad783d92-aa0e-4606-95a7-1c2267d99b69",
+    "timestamp": "2025-08-12T09:29:23.597Z",
+    "date": "8/12/2025",
+    "time": "2:59:23 PM",
+    "build_number": 24
+  },
+  {
+    "build_id": "7cca2a09-a436-4e1e-bf07-57a58dc6c8a7",
+    "timestamp": "2025-08-10T13:03:48.288Z",
+    "date": "8/10/2025",
+    "time": "6:33:48 PM",
+    "build_number": 23
+  },
+  {
+    "build_id": "04b6dd3a-f5bf-4a88-91c8-0ec17f8cc882",
+    "timestamp": "2025-08-10T11:02:52.732Z",
+    "date": "8/10/2025",
+    "time": "4:32:52 PM",
+    "build_number": 22
+  },
+  {
+    "build_id": "a35473f8-067c-4c9c-be86-05549f2c0373",
+    "timestamp": "2025-08-08T04:52:37.042Z",
+    "date": "8/8/2025",
+    "time": "10:22:37 AM",
+    "build_number": 21
+  },
+  {
+    "build_id": "599e73ac-d367-411f-a5a6-961163df4b68",
+    "timestamp": "2025-08-08T03:25:01.668Z",
+    "date": "8/8/2025",
+    "time": "8:55:01 AM",
+    "build_number": 20
+  },
+  {
+    "build_id": "22b6d3c7-98a2-41f6-81a5-55c9175bcf1c",
+    "timestamp": "2025-08-08T03:08:57.705Z",
+    "date": "8/8/2025",
+    "time": "8:38:57 AM",
+    "build_number": 19
+  },
+  {
+    "build_id": "caa2819b-2db1-447a-a6dc-8ac6f9e4135e",
+    "timestamp": "2025-08-01T13:34:09.354Z",
+    "date": "8/1/2025",
+    "time": "7:04:09 PM",
+    "build_number": 18
+  },
+  {
+    "build_id": "96c99216-dcb6-4278-8dee-7ea8d5d42a8b",
+    "timestamp": "2025-07-31T14:40:35.547Z",
+    "date": "7/31/2025",
+    "time": "8:10:35 PM",
+    "build_number": 17
+  },
+  {
+    "build_id": "e33ad8d4-8a30-4fd4-bb35-aa8e31737bde",
+    "timestamp": "2025-07-29T17:32:40.088Z",
+    "date": "7/29/2025",
+    "time": "11:02:40 PM",
+    "build_number": 16
+  },
+  {
+    "build_id": "627c3e1c-f38b-43c6-b697-b68558e0ff33",
+    "timestamp": "2025-07-29T08:13:22.856Z",
+    "date": "7/29/2025",
+    "time": "1:43:22 PM",
+    "build_number": 15
+  },
+  {
+    "build_id": "e3af586b-6662-4471-9117-657b1d1cab3b",
+    "timestamp": "2025-07-28T15:04:09.398Z",
+    "date": "7/28/2025",
+    "time": "8:34:09 PM",
+    "build_number": 14
+  },
+  {
+    "build_id": "7b6a870f-255c-45f3-a3f5-7aa581f25cd8",
+    "timestamp": "2025-07-27T05:37:09.403Z",
+    "date": "7/27/2025",
+    "time": "11:07:09 AM",
+    "build_number": 13
+  },
+  {
+    "build_id": "c6e7c3e4-ec57-4482-93f7-cf131bfbf3a4",
+    "timestamp": "2025-07-16T13:31:40.349Z",
+    "date": "7/16/2025",
+    "time": "7:01:40 PM",
+    "build_number": 12
+  },
+  {
+    "build_id": "62007d6e-41df-427c-9d99-56c6ac310370",
+    "timestamp": "2025-07-15T12:50:15.281Z",
+    "date": "7/15/2025",
+    "time": "6:20:15 PM",
+    "build_number": 11
+  },
+  {
+    "build_id": "ac43088d-f757-4319-b0f2-080c58e27a15",
+    "timestamp": "2025-07-14T13:19:28.526Z",
+    "date": "7/14/2025",
+    "time": "6:49:28 PM",
+    "build_number": 10
+  },
+  {
+    "build_id": "a563428d-191e-46f2-a283-443e4b35687b",
+    "timestamp": "2025-07-13T11:16:25.916Z",
+    "date": "7/13/2025",
+    "time": "4:46:25 PM",
+    "build_number": 9
+  },
+  {
+    "build_id": "a6b566de-e0d3-4cb4-bc7a-fc0af4946736",
+    "timestamp": "2025-07-12T17:50:27.853Z",
+    "date": "7/12/2025",
+    "time": "11:20:27 PM",
+    "build_number": 8
+  },
+  {
+    "build_id": "6f390281-c0d2-4be5-b709-34f5ab2cd310",
+    "timestamp": "2025-07-11T15:25:18.992Z",
+    "date": "7/11/2025",
+    "time": "8:55:18 PM",
+    "build_number": 7
+  },
+  {
+    "build_id": "7a8a05d4-e223-4553-9082-eb2ee7d1bb95",
+    "timestamp": "2025-07-11T13:19:13.099Z",
+    "date": "7/11/2025",
+    "time": "6:49:13 PM",
+    "build_number": 6
+  },
+  {
+    "build_id": "d92a559d-c09b-4da5-b2ed-994ac52e5974",
+    "timestamp": "2025-07-11T13:10:59.370Z",
+    "date": "7/11/2025",
+    "time": "6:40:59 PM",
+    "build_number": 5
+  },
+  {
+    "build_id": "bcd63683-31bc-4d6c-b5d7-e6a4346bc217",
+    "timestamp": "2025-07-11T13:08:17.882Z",
+    "date": "7/11/2025",
+    "time": "6:38:17 PM",
+    "build_number": 4
+  },
+  {
+    "build_id": "433a6e8a-d908-4021-89a7-30f11fcc3c68",
+    "timestamp": "2025-07-11T11:21:54.329Z",
+    "date": "7/11/2025",
+    "time": "4:51:54 PM",
+    "build_number": 3
+  },
+  {
+    "build_id": "09a4cbcb-6d6c-4cbf-8a44-452729d0b3b3",
+    "timestamp": "2025-07-11T03:16:11.074Z",
+    "date": "7/11/2025",
+    "time": "8:46:11 AM",
+    "build_number": 2
+  },
+  {
+    "build_id": "bd68d660-eeac-4464-8661-f70a8571c54a",
+    "timestamp": "2025-07-09T16:51:08.412Z",
+    "date": "7/9/2025",
+    "time": "10:21:08 PM",
+    "build_number": 1
+  }
+]

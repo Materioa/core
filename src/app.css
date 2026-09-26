@@ -1,0 +1,1206 @@
+/* ==================================================================
+   CSS LAYER ORDERING
+   Tailwind v4 uses CSS @layer for its output (theme, base, utilities).
+   By declaring layer order here, we ensure Tailwind layers sit BELOW
+   unlayered app CSS in the cascade. This prevents Tailwind from the
+   landing page from overriding the app's styles.
+   ================================================================== */
+@layer theme, base, components, utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* ==================================================================
+   FONTS: Quadrant (Headings), OpenRunde (Body), Melange (Secondary)
+   ================================================================== */
+@font-face {
+  font-family: 'Quadrant';
+  src: local('Quadrant'), local('Quadrant Notepad'), local('Quadrant-Regular'),
+       url('/fonts/QuadrantNotepad-Regular-BZHKwHCP.woff2') format('woff2'),
+       url('/assets/fonts/QuadrantNotepad-Regular-BZHKwHCP.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Quadrant Notepad';
+  src: local('Quadrant Notepad'), local('Quadrant'), local('Quadrant-Regular'),
+       url('/fonts/QuadrantNotepad-Regular-BZHKwHCP.woff2') format('woff2'),
+       url('/assets/fonts/QuadrantNotepad-Regular-BZHKwHCP.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'OpenRunde';
+  src: local('OpenRunde'), local('Open Runde'), local('OpenRunde-Regular'),
+       url('/fonts/OpenRunde-Regular.woff2') format('woff2'),
+       url('/assets/fonts/OpenRunde-Regular.woff2') format('woff2'),
+       url('/fonts/OpenRunde-Regular.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Open Runde';
+  src: local('OpenRunde'), local('Open Runde'), local('OpenRunde-Regular'),
+       url('/fonts/OpenRunde-Regular.woff2') format('woff2'),
+       url('/assets/fonts/OpenRunde-Regular.woff2') format('woff2'),
+       url('/fonts/OpenRunde-Regular.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'OpenRunde';
+  src: local('OpenRunde Medium'), local('Open Runde Medium'), local('OpenRunde-Medium'),
+       url('/fonts/OpenRunde-Medium.woff2') format('woff2'),
+       url('/assets/fonts/OpenRunde-Medium.woff2') format('woff2'),
+       url('/fonts/OpenRunde-Medium.woff') format('woff');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Open Runde';
+  src: local('OpenRunde Medium'), local('Open Runde Medium'), local('OpenRunde-Medium'),
+       url('/fonts/OpenRunde-Medium.woff2') format('woff2'),
+       url('/assets/fonts/OpenRunde-Medium.woff2') format('woff2'),
+       url('/fonts/OpenRunde-Medium.woff') format('woff');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'OpenRunde';
+  src: local('OpenRunde Semibold'), local('Open Runde Semibold'), local('OpenRunde-Semibold'),
+       url('/fonts/OpenRunde-Semibold.woff2') format('woff2'),
+       url('/assets/fonts/OpenRunde-Semibold.woff2') format('woff2'),
+       url('/fonts/OpenRunde-Semibold.woff') format('woff');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Open Runde';
+  src: local('OpenRunde Semibold'), local('Open Runde Semibold'), local('OpenRunde-Semibold'),
+       url('/fonts/OpenRunde-Semibold.woff2') format('woff2'),
+       url('/assets/fonts/OpenRunde-Semibold.woff2') format('woff2'),
+       url('/fonts/OpenRunde-Semibold.woff') format('woff');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'OpenRunde';
+  src: local('OpenRunde Bold'), local('Open Runde Bold'), local('OpenRunde-Bold'),
+       url('/fonts/OpenRunde-Bold.woff2') format('woff2'),
+       url('/assets/fonts/OpenRunde-Bold.woff2') format('woff2'),
+       url('/fonts/OpenRunde-Bold.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Open Runde';
+  src: local('OpenRunde Bold'), local('Open Runde Bold'), local('OpenRunde-Bold'),
+       url('/fonts/OpenRunde-Bold.woff2') format('woff2'),
+       url('/assets/fonts/OpenRunde-Bold.woff2') format('woff2'),
+       url('/fonts/OpenRunde-Bold.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Melange';
+  src: local('Melange'), local('Melange-Regular'), local('KMR Melange Grotesk'), local('KMRMelangeGrotesk-Regular'),
+       url('/fonts/kmrmelangegrotesk-regular-BQ0DoJin.woff2') format('woff2'),
+       url('/assets/fonts/kmrmelangegrotesk-regular-BQ0DoJin.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'KMR Melange Grotesk';
+  src: local('Melange'), local('Melange-Regular'), local('KMR Melange Grotesk'), local('KMRMelangeGrotesk-Regular'),
+       url('/fonts/kmrmelangegrotesk-regular-BQ0DoJin.woff2') format('woff2'),
+       url('/assets/fonts/kmrmelangegrotesk-regular-BQ0DoJin.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Melange';
+  src: local('Melange Book'), local('KMR Melange Grotesk Book'), local('KMRMelangeGrotesk-Book'),
+       url('/fonts/kmrmelangegrotesk-book-BWM7GPGX.woff2') format('woff2'),
+       url('/assets/fonts/kmrmelangegrotesk-book-BWM7GPGX.woff2') format('woff2');
+  font-weight: 450;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Melange';
+  src: local('Melange Light'), local('KMR Melange Grotesk Light'), local('KMRMelangeGrotesk-Light'),
+       url('/fonts/kmrmelangegrotesk-light-CYToDGwI.woff2') format('woff2'),
+       url('/assets/fonts/kmrmelangegrotesk-light-CYToDGwI.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Melange';
+  src: local('Melange Medium'), local('KMR Melange Grotesk Medium'), local('KMRMelangeGrotesk-Medium'),
+       url('/fonts/kmrmelangegrotesk-medium-C1-hbCBJ.woff2') format('woff2'),
+       url('/assets/fonts/kmrmelangegrotesk-medium-C1-hbCBJ.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Melange';
+  src: local('Melange Semibold'), local('KMR Melange Grotesk Semibold'), local('KMRMelangeGrotesk-Semibold'),
+       url('/fonts/kmrmelangegrotesk-semibold-BLXxgi3V.woff2') format('woff2'),
+       url('/assets/fonts/kmrmelangegrotesk-semibold-BLXxgi3V.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Melange';
+  src: local('Melange Italic'), local('KMR Melange Grotesk Italic'), local('KMRMelangeGrotesk-Italic'),
+       url('/fonts/kmrmelangegrotesk-italic-BF6bTSX5.woff2') format('woff2'),
+       url('/assets/fonts/kmrmelangegrotesk-italic-BF6bTSX5.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+:root {
+  --bg: #faf9f5;
+  --text: #000000;
+  --link: #007aff;
+  --card-bg: #f9f9f9;
+  --border: #ddd;
+  --foot: #e4e0da;
+  --color-bg-body: var(--bg);
+  --color-bg-overlay: rgba(232, 230, 220, 0.55);
+  --materio-orange: #ff5400;
+  --color-primary: #ff8400;
+  --color-primary-hover: #e67300;
+  --color-primary-light: rgba(255, 130, 0, 0.1);
+  --font-heading: 'Quadrant', 'Quadrant Notepad', 'Playfair Display', Georgia, serif;
+  --font-quadrant: 'Quadrant', 'Quadrant Notepad', 'Playfair Display', Georgia, serif;
+  --font-serif: 'Quadrant', 'Quadrant Notepad', Georgia, serif;
+  --font-primary: 'OpenRunde', 'Open Runde', 'Melange', 'KMR Melange Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-sans: 'OpenRunde', 'Open Runde', 'Melange', 'KMR Melange Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-body: 'OpenRunde', 'Open Runde', 'Melange', 'KMR Melange Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-melange: 'Melange', 'KMR Melange Grotesk', 'OpenRunde', 'Open Runde', sans-serif;
+  --font-openrunde: 'OpenRunde', 'Open Runde', 'Melange', 'KMR Melange Grotesk', sans-serif;
+  --font-mono: 'Consolas', 'Monaco', 'Courier New', monospace;
+  --font-code: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+}
+
+body.dark-mode,
+html.dark-mode body {
+  --bg: #121212;
+  --text: #eeeeee;
+  --link: #3ea6ff;
+  --card-bg: #1e1e1e;
+  --border: #333;
+  --foot: #121212;
+  background: #121212;
+  color: #eeeeee;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-primary);
+  background: var(--color-bg-body);
+  color: var(--text);
+  transition: background 0.3s, color 0.3s;
+}
+
+h1, h2, h3, h4, h5, h6,
+.font-heading,
+.font-quadrant {
+  font-family: var(--font-heading);
+}
+
+.promo-modal h2,
+.promo-modal .promo-title,
+.custom-select-promo h2,
+.custom-select-promo .promo-title,
+.custom-select-title,
+.custom-select-wizard-view h2,
+.dynamic-form-header h2,
+.exam-modal h2 {
+  font-family: var(--font-heading) !important;
+  font-weight: 400;
+  letter-spacing: -0.015em;
+}
+
+/* The standalone landing app has no app navbar offset or app canvas. */
+body.landing-page-active,
+body.landing-active {
+  padding: 0 !important;
+  background: #fbfaf6;
+  color: #1a1715;
+}
+
+body:not(.landing-page-active) .container {
+    box-sizing: border-box;
+    width: auto;
+    max-width: none;
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+}
+
+body:not(.landing-page-active) main {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: none;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+}
+
+body:not(.landing-page-active) .content {
+    flex: 1;
+    overflow-y: auto !important;
+    padding-bottom: 60px !important;
+}
+
+body:not(.landing-page-active) #home {
+    height: auto !important;
+    min-height: 100%;
+    overflow-y: visible !important;
+}
+
+.landing-shell {
+    width: 100%;
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+.landing-shell > .landing-page {
+    width: 100%;
+    min-height: 100vh;
+    box-sizing: border-box;
+}
+
+/* Bare links keep the app link color. This lives in the `base` layer (not
+   unlayered) so explicit Tailwind text-color utilities on links win, as
+   v4 cascade rules intend — an unlayered `a {}` used to beat every
+   `text-*` utility and forced all utility-colored links blue. */
+@layer base {
+  a {
+    color: var(--link);
+    text-decoration: none;
+  }
+}
+
+::selection {
+  background: #ff895075;
+  color: inherit;
+}
+
+/* Extracted promo-modal styles */
+.promo-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    opacity: 1;
+    transition:
+        opacity 0.4s cubic-bezier(0.32, 0.72, 0, 1),
+        background-color 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.promo-modal {
+    display: flex;
+    background: var(--color-bg-card, #f7f7f7);
+    border: 1px solid var(--color-border-light, rgba(0, 0, 0, 0.08));
+    border-radius: 40px;
+    corner-shape: squircle;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    max-width: 1145px;
+    width: 90%;
+    max-height: 85vh;
+    height: auto;
+    position: relative;
+    animation: modalFadeIn 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+    margin: 20px auto;
+    /* Performance optimization */
+    will-change: transform, opacity;
+    /* Custom slim scrollbar */
+    scrollbar-width: thin;
+    scrollbar-color: #ff8200 transparent;
+}
+
+
+/* Webkit scrollbar styling for promo modal */
+.promo-modal::-webkit-scrollbar {
+    width: 4px;
+}
+
+.promo-modal::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 2px;
+}
+
+.promo-modal::-webkit-scrollbar-thumb {
+    background: rgba(255, 130, 0, 0.4);
+    border-radius: 2px;
+    transition: background 0.3s ease;
+}
+
+.promo-modal::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 130, 0, 0.7);
+}
+
+/* Promo Image Section */
+.promo-image {
+    flex: 1;
+    min-width: 45%;
+    max-width: 50%;
+    background: #ddd;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.promo-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.promo-image video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Promo Orientation Feature Flag (desktop only): orientation: "vertical" */
+@media (min-width: 501px) {
+    .promo-modal.promo-orientation-vertical {
+        flex-direction: column;
+        max-width: 460px;
+        max-height: none;
+        overflow: hidden;
+        border-radius: 28px;
+    }
+
+    .promo-modal.promo-orientation-vertical .promo-image {
+        min-width: 100%;
+        max-width: 100%;
+        width: 100%;
+        height: min(26vh, 220px);
+        flex-shrink: 0;
+        border-right: none;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+    }
+
+    .promo-modal.promo-orientation-vertical .promo-content {
+        width: 100%;
+        padding: 18px 28px 28px;
+        box-sizing: border-box;
+    }
+
+    .promo-modal.promo-orientation-vertical h2 {
+        font-size: 1.15rem;
+        margin-bottom: 8px;
+    }
+
+    .promo-modal.promo-orientation-vertical .promo-description {
+        font-size: 0.82rem;
+        line-height: 1.45;
+        margin-bottom: 10px;
+        flex-grow: 0;
+    }
+
+    .promo-modal.promo-orientation-vertical .promo-actions {
+        margin: 6px 0 8px;
+        gap: 8px;
+    }
+
+    .promo-modal.promo-orientation-vertical .promo-primary-btn,
+    .promo-modal.promo-orientation-vertical .promo-secondary-btn {
+        padding: 10px 20px;
+        font-size: 13px;
+        font-family: var(--font-primary);
+    }
+
+    .promo-modal.promo-orientation-vertical .promo-options {
+        margin-top: 6px;
+        padding-top: 6px;
+    }
+
+    body.dark-mode .promo-modal.promo-orientation-vertical .promo-image {
+        border-bottom-color: rgba(255, 255, 255, 0.15);
+    }
+}
+
+/* Promo media animations (used by promotions.js) */
+.promo-image img,
+.promo-image video {
+    will-change: transform, opacity;
+}
+
+/* Note: --promo-default-animation-duration is defined in the main :root section */
+
+.slide-left {
+    animation-name: slide-left;
+    animation-duration: var(--animation-duration,
+            var(--promo-default-animation-duration));
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+    animation-fill-mode: both;
+}
+
+.slide-right {
+    animation-name: slide-right;
+    animation-duration: var(--animation-duration,
+            var(--promo-default-animation-duration));
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+    animation-fill-mode: both;
+}
+
+.slide-up {
+    animation-name: slide-up;
+    animation-duration: var(--animation-duration,
+            var(--promo-default-animation-duration));
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+    animation-fill-mode: both;
+}
+
+.slide-down {
+    animation-name: slide-down;
+    animation-duration: var(--animation-duration,
+            var(--promo-default-animation-duration));
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+    animation-fill-mode: both;
+}
+
+.fade {
+    animation-name: fade-in;
+    animation-duration: var(--animation-duration,
+            var(--promo-default-animation-duration));
+    animation-timing-function: ease;
+    animation-fill-mode: both;
+}
+
+.fade-scale {
+    animation-name: fade-scale-in;
+    animation-duration: var(--animation-duration,
+            var(--promo-default-animation-duration));
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+    animation-fill-mode: both;
+}
+
+@keyframes slide-left {
+    from {
+        transform: translateX(30%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slide-right {
+    from {
+        transform: translateX(-30%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slide-up {
+    from {
+        transform: translateY(30%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slide-down {
+    from {
+        transform: translateY(-30%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+        transform: none;
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@keyframes fade-scale-in {
+    from {
+        opacity: 0;
+        transform: scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* When no image is available, adjust modal layout */
+.promo-modal.no-image {
+    max-width: 750px;
+}
+
+.promo-modal.no-image .promo-image {
+    display: none;
+}
+
+.promo-modal.no-image .promo-content {
+    max-width: 100%;
+}
+
+/* Promo Content Section */
+.promo-content {
+    flex: 1;
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+}
+
+/* Optimize content spacing */
+.promo-modal h2 {
+    color: #333;
+    margin: 0 0 16px 0;
+    font-size: 1.7rem;
+    line-height: 1.3;
+    font-family: var(--font-primary);
+}
+
+.promo-modal p {
+    color: #555;
+    margin: 0 0 24px 0;
+    font-size: 1rem;
+    line-height: 1.5;
+    flex-grow: 1;
+    font-family: var(--font-primary);
+}
+
+/* Promo Actions Container */
+.promo-actions {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+/* Promo Disclaimer */
+.promo-disclaimer {
+    font-size: 0.8rem;
+    color: #888;
+    margin-bottom: 12px;
+    display: block;
+}
+
+.promo-disclaimer a {
+    color: #555;
+    text-decoration: underline;
+}
+
+.promo-disclaimer a:hover {
+    color: #ff6600;
+}
+
+/* Mobile Version - Bottom Sheet (400px and below only) */
+/* Mobile Version - Bottom Sheet & Modals (max-width: 768px) */
+@media (max-width: 768px) {
+    .promo-modal-overlay,
+    .dynamic-form-overlay,
+    .search-results-overlay,
+    .exam-modal-overlay,
+    .modal-overlay,
+    .keyboard-shortcuts-modal {
+        padding: 0 !important;
+        box-sizing: border-box !important;
+    }
+
+    .promo-modal,
+    .dynamic-form-modal,
+    .search-results-modal,
+    .exam-modal,
+    .keyboard-shortcuts-dialog,
+    .wallpaper-store-modal {
+        padding: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    .promo-content,
+    .dynamic-form-content-wrapper,
+    .keyboard-shortcuts-content {
+        padding: 54px 5px 15px 5px !important;
+        box-sizing: border-box !important;
+    }
+}
+
+@media (max-width: 500px) {
+    .promo-modal-overlay,
+    .dynamic-form-overlay,
+    .search-results-overlay,
+    .exam-modal-overlay,
+    .modal-overlay,
+    .keyboard-shortcuts-modal {
+        align-items: flex-end;
+        padding: 0 !important;
+    }
+
+    .promo-modal,
+    .dynamic-form-modal,
+    .search-results-modal,
+    .exam-modal,
+    .keyboard-shortcuts-dialog,
+    .wallpaper-store-modal {
+        flex-direction: column;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 auto;
+        border-radius: 40px !important;
+        corner-shape: squircle;
+        max-height: 85vh;
+        overflow-y: auto;
+        position: relative;
+        padding: 0 !important;
+        animation: modalSlideUp 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+        /* Hide scrollbar on mobile */
+        scrollbar-width: none;
+        /* Firefox */
+        -ms-overflow-style: none;
+        /* Internet Explorer 10+ */
+        /* Touch optimization */
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-y;
+    }
+
+    /* Hide webkit scrollbar on mobile */
+    .promo-modal::-webkit-scrollbar {
+        display: none;
+    }
+
+    /* Top handle bar for mobile sheet - make it more prominent for swipe interaction */
+    .promo-modal::before {
+        content: "";
+        position: absolute;
+        top: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 60px;
+        height: 6px;
+        background-color: rgba(150, 150, 150, 0.6);
+        border-radius: 3px;
+        z-index: 10;
+        cursor: var(--f-cursor-grab);
+        transition:
+            background-color 0.2s ease,
+            width 0.2s ease;
+    }
+
+    .promo-modal:active::before {
+        background-color: rgba(120, 120, 120, 0.8);
+        width: 70px;
+    }
+
+    .promo-image {
+        min-width: 100%;
+        height: 200px;
+        order: 1;
+    }
+
+    .promo-content,
+    .dynamic-form-content-wrapper,
+    .keyboard-shortcuts-content {
+        padding: 54px 5px 15px 5px !important;
+        order: 2;
+    }
+
+    /* Show and style close button on mobile */
+    .promo-close-btn {
+        display: flex !important;
+        position: absolute;
+        top: 32px;
+        /* Even spacing from corners */
+        right: 32px;
+        font-size: 20px;
+        cursor: var(--f-cursor-pointer);
+        color: #666;
+        z-index: 100;
+        /* Higher priority */
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 50%;
+        width: 36px;
+        height: 36px;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        transition: all 0.2s ease;
+        flex-shrink: 0;
+    }
+
+    .promo-close-btn:active {
+        background: rgba(255, 255, 255, 0.85);
+        transform: scale(0.95);
+    }
+
+    .promo-modal h2 {
+        font-size: 1.3rem;
+        margin-bottom: 12px;
+    }
+
+    .promo-modal p {
+        font-size: 0.9rem;
+        margin-bottom: 20px;
+    }
+
+    .promo-actions {
+        flex-direction: column;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .promo-primary-btn,
+    .promo-secondary-btn {
+        width: 100%;
+        padding: 14px 18px;
+        font-size: 14px;
+        min-width: auto;
+        justify-content: center;
+    }
+
+    /* Closing animation - slide down with spring easing */
+    .promo-modal.closing {
+        animation: modalSlideDown 0.4s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+    }
+}
+
+/* Slide down animation for mobile close */
+@keyframes modalSlideDown {
+    from {
+        transform: translateY(0);
+        opacity: 1;
+    }
+
+    to {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+}
+
+/* Slide up animation for mobile open */
+@keyframes modalSlideUp {
+    from {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Desktop closing animation - slide down like mobile */
+.promo-modal.closing {
+    animation: modalSlideDown 0.4s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Tablet and small desktop (401px to 768px) - use desktop layout */
+@media (min-width: 401px) and (max-width: 768px) {
+    .promo-modal,
+    .dynamic-form-modal {
+        max-width: 100%;
+        width: 100%;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(100%);
+    }
+
+    to {
+        transform: translateY(0);
+    }
+}
+
+.promo-modal .promo-close-btn {
+    position: absolute;
+    top: 32px;
+    /* Even spacing from corners */
+    right: 32px;
+    font-size: 18px;
+    cursor: var(--f-cursor-pointer);
+    color: var(--color-text-secondary, #999);
+    z-index: 10;
+    background: var(--color-bg-card, rgba(255, 255, 255, 0.9));
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+    border: 1px solid var(--color-border-light, rgba(0, 0, 0, 0.1));
+}
+
+.promo-close-btn:hover {
+    color: var(--color-danger, #ff4444);
+    background: var(--color-bg-white, rgba(255, 255, 255, 1));
+    transform: scale(1.1);
+}
+
+.promo-close-btn:active {
+    transform: scale(0.95);
+    transition: transform 0.1s ease;
+}
+
+/* Dark Mode Styles for Promotional Modal */
+body.dark-mode .promo-modal-overlay {
+    background: rgba(0, 0, 0, 0.8);
+}
+
+body.dark-mode .promo-modal {
+    background: #1e1e1e;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    corner-shape: squircle;
+}
+
+body.dark-mode .promo-image {
+    background: #2a2a2a;
+}
+
+body.dark-mode .promo-modal h2 {
+    color: #ffffff;
+}
+
+body.dark-mode .promo-modal p {
+    color: #cccccc;
+}
+
+body.dark-mode .promo-primary-btn {
+    background: var(--color-primary, #ff6600);
+    color: white;
+}
+
+body.dark-mode .promo-primary-btn:hover {
+    background-color: var(--color-primary-hover, #e55a00);
+}
+
+body.dark-mode .promo-secondary-btn {
+    background: transparent;
+    border: 1px solid #555;
+    color: #cccccc;
+}
+
+body.dark-mode .promo-secondary-btn:hover {
+    background-color: #333;
+    border-color: #777;
+    color: #ffffff;
+}
+
+body.dark-mode .promo-disclaimer {
+    color: #999;
+}
+
+body.dark-mode .promo-disclaimer a {
+    color: #ccc;
+}
+
+body.dark-mode .promo-disclaimer a:hover {
+    color: #ff6600;
+}
+
+body.dark-mode .promo-checkbox-text {
+    color: #ccc;
+}
+
+body.dark-mode .promo-close-btn {
+    color: #ccc;
+    background: rgba(34, 34, 34, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+body.dark-mode .promo-close-btn:hover {
+    color: #ff4444;
+    background: rgba(34, 34, 34, 1);
+}
+
+/* Dark mode mobile handle bar */
+body.dark-mode .promo-modal::before {
+    background-color: #666;
+}
+
+/* Dark mode checkbox and options section */
+body.dark-mode .promo-options {
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+body.dark-mode .promo-checkbox-label {
+    color: #ccc;
+}
+
+/* ================================================
+   Coffee Mode & Coffee Dark Mode Comprehensive Modal & Dropdown Overrides
+   ================================================ */
+body.coffee-mode .promo-modal-overlay,
+body.coffee-mode .custom-select-backdrop,
+body.coffee-mode .dynamic-form-overlay {
+    background-color: rgba(27, 21, 18, 0.65) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+}
+
+body.coffee-dark-mode .promo-modal-overlay,
+body.coffee-dark-mode .custom-select-backdrop,
+body.coffee-dark-mode .dynamic-form-overlay {
+    background-color: rgba(15, 11, 9, 0.82) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+}
+
+/* Light Coffee Mode Surfaces for All Modals & Sheets */
+body.coffee-mode .promo-modal,
+body.coffee-mode .custom-select-wizard-view,
+body.coffee-mode .custom-select-sheet,
+body.coffee-mode .dynamic-form-modal,
+body.coffee-mode .wallpaper-store-modal,
+body.coffee-mode .exam-modal,
+body.coffee-mode .keyboard-shortcuts-dialog,
+body.coffee-mode .quick-search-dropdown,
+body.coffee-mode .dropdown-menu,
+body.coffee-mode select {
+    background-color: var(--color-bg-card, #eee8d5) !important;
+    color: var(--color-text-primary, #4a3b32) !important;
+    border: 1px solid var(--color-border-light, #dcd3b6) !important;
+    border-radius: 40px !important;
+    corner-shape: squircle !important;
+}
+
+body.coffee-mode .promo-modal h2,
+body.coffee-mode .promo-title,
+body.coffee-mode .custom-select-title,
+body.coffee-mode .dynamic-form-header h2,
+body.coffee-mode .shortcuts-header h2 {
+    color: var(--color-text-primary, #4a3b32) !important;
+}
+
+body.coffee-mode .promo-modal p,
+body.coffee-mode .promo-description,
+body.coffee-mode .field-hint {
+    color: var(--color-text-secondary, #655348) !important;
+}
+
+body.coffee-mode .promo-secondary-btn,
+body.coffee-mode .custom-select-option,
+body.coffee-mode select option {
+    background: transparent;
+    border: 1px solid var(--color-border-medium, #c7bc99);
+    color: var(--color-text-primary, #4a3b32) !important;
+}
+
+body.coffee-mode .promo-secondary-btn:hover,
+body.coffee-mode .custom-select-option:hover,
+body.coffee-mode .custom-select-option.selected,
+body.coffee-mode .quick-search-item:hover,
+body.coffee-mode select option:checked {
+    background-color: var(--color-primary-light, rgba(138, 108, 82, 0.15)) !important;
+    color: var(--color-primary, #8a6c52) !important;
+}
+
+/* Dark Coffee Mode Surfaces for All Modals & Sheets */
+body.coffee-dark-mode .promo-modal,
+body.coffee-dark-mode .custom-select-wizard-view,
+body.coffee-dark-mode .custom-select-sheet,
+body.coffee-dark-mode .dynamic-form-modal,
+body.coffee-dark-mode .wallpaper-store-modal,
+body.coffee-dark-mode .exam-modal,
+body.coffee-dark-mode .keyboard-shortcuts-dialog,
+body.coffee-dark-mode .quick-search-dropdown,
+body.coffee-dark-mode .dropdown-menu,
+body.coffee-dark-mode select {
+    background-color: var(--color-bg-card, #251c19) !important;
+    color: var(--color-text-primary, #ebdcd0) !important;
+    border: 1px solid var(--color-border-light, #362924) !important;
+    border-radius: 40px !important;
+    corner-shape: squircle !important;
+}
+
+body.coffee-dark-mode .promo-modal h2,
+body.coffee-dark-mode .promo-title,
+body.coffee-dark-mode .custom-select-title,
+body.coffee-dark-mode .dynamic-form-header h2,
+body.coffee-dark-mode .shortcuts-header h2 {
+    color: var(--color-text-primary, #ebdcd0) !important;
+}
+
+body.coffee-dark-mode .promo-modal p,
+body.coffee-dark-mode .promo-description,
+body.coffee-dark-mode .field-hint {
+    color: var(--color-text-secondary, #cbb8ac) !important;
+}
+
+body.coffee-dark-mode .promo-secondary-btn,
+body.coffee-dark-mode .custom-select-option,
+body.coffee-dark-mode select option {
+    background: transparent;
+    border: 1px solid var(--color-border-medium, #4a3832);
+    color: var(--color-text-secondary, #cbb8ac) !important;
+}
+
+body.coffee-dark-mode .promo-secondary-btn:hover,
+body.coffee-dark-mode .custom-select-option:hover,
+body.coffee-dark-mode .custom-select-option.selected,
+body.coffee-dark-mode .quick-search-item:hover,
+body.coffee-dark-mode select option:checked {
+    background-color: var(--color-primary-light, rgba(207, 157, 117, 0.15)) !important;
+    color: var(--color-primary, #cf9d75) !important;
+}
+
+/* Coffee theme overrides for close buttons */
+body.coffee-mode .promo-close-btn {
+    background-color: var(--color-bg-body, #fdf6e3) !important;
+    color: var(--color-text-secondary, #655348) !important;
+    border-color: var(--color-border-light, #dcd3b6) !important;
+}
+
+body.coffee-mode .promo-close-btn:hover {
+    background-color: var(--color-bg-card, #eee8d5) !important;
+    color: var(--color-text-primary, #4a3b32) !important;
+}
+
+body.coffee-dark-mode .promo-close-btn {
+    background-color: var(--color-bg-body, #1b1513) !important;
+    color: var(--color-text-secondary, #cbb8ac) !important;
+    border-color: var(--color-border-light, #362924) !important;
+}
+
+body.coffee-dark-mode .promo-close-btn:hover {
+    background-color: var(--color-bg-card, #251c19) !important;
+    color: var(--color-text-primary, #ebdcd0) !important;
+}
+
+
+/* Hard rule (bundled, ships with every deploy): mobile sheets are full-bleed
+   with exactly 5px content side gutters and 40px radius. Doubled-class
+   specificity beats any stale static-stylesheet tie regardless of load order. */
+@media (max-width: 768px) {
+    body .promo-modal-overlay.promo-modal-overlay,
+    body .dynamic-form-overlay.dynamic-form-overlay,
+    body .search-results-overlay.search-results-overlay,
+    body .exam-modal-overlay.exam-modal-overlay,
+    body .modal-overlay.modal-overlay,
+    body .custom-select-backdrop.custom-select-backdrop,
+    #searchResultsModal {
+        padding: 0 !important;
+        box-sizing: border-box !important;
+    }
+    body .promo-modal.promo-modal,
+    body .dynamic-form-modal.dynamic-form-modal,
+    body .search-results-modal.search-results-modal,
+    body .exam-modal.exam-modal,
+    body .custom-select-promo.custom-select-promo {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 auto !important;
+        padding: 0 !important;
+        border-radius: 40px !important;
+        box-sizing: border-box !important;
+    }
+    body .promo-modal.promo-modal > .promo-content,
+    body .promo-modal.promo-modal > .dynamic-form-content-wrapper,
+    body .promo-modal.promo-modal > .custom-select-wizard-container,
+    body .search-results-modal.search-results-modal > .promo-content,
+    body .exam-modal.exam-modal > .promo-content,
+    body .custom-select-promo.custom-select-promo > .promo-content {
+        padding-left: 5px !important;
+        padding-right: 5px !important;
+    }
+}
+
+
+/* Search result Open button follows the active theme accent. */
+.search-open-btn:hover {
+    background: var(--color-primary-hover, #ff9500) !important;
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--color-primary, #ff8400) 40%, transparent);
+}
+.search-open-btn:active {
+    transform: scale(1);
+    box-shadow: none;
+}
+

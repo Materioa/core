@@ -1,0 +1,253 @@
+{
+    "enabled": true,
+    "viewRotationInterval": 15000,
+    "showBeforeDays": 9,
+    "showBeforeDaysViva": 3,
+    "semesters": [
+        {
+            "semester": 6,
+            "examPeriod": {
+                "name": "Viva/Practical",
+                "shortName": "Viva",
+                "startDate": "2026-04-06T09:00:00",
+                "endDate": "2026-04-11T17:00:00"
+            },
+            "exams": [
+                {
+                    "id": 101,
+                    "subject": "Viva/Practical",
+                    "type": "viva",
+                    "code": "303105000",
+                    "date": "2026-04-06",
+                    "time": "09:00",
+                    "duration": "full day"
+                },
+                {
+                    "id": 102,
+                    "subject": "Viva/Practical",
+                    "type": "viva",
+                    "code": "303105000",
+                    "date": "2026-04-07",
+                    "time": "09:00",
+                    "duration": "full day"
+                },
+                {
+                    "id": 103,
+                    "subject": "Viva/Practical",
+                    "type": "viva",
+                    "code": "303105000",
+                    "date": "2026-04-08",
+                    "time": "09:00",
+                    "duration": "full day"
+                },
+                {
+                    "id": 104,
+                    "subject": "Viva/Practical",
+                    "type": "viva",
+                    "code": "303105000",
+                    "date": "2026-04-09",
+                    "time": "09:00",
+                    "duration": "full day"
+                },
+                {
+                    "id": 105,
+                    "subject": "Viva/Practical",
+                    "type": "viva",
+                    "code": "303105000",
+                    "date": "2026-04-10",
+                    "time": "09:00",
+                    "duration": "full day"
+                },
+                {
+                    "id": 106,
+                    "subject": "Viva/Practical",
+                    "type": "viva",
+                    "code": "303105000",
+                    "date": "2026-04-11",
+                    "time": "09:00",
+                    "duration": "full day"
+                }
+            ]
+        },
+        {
+            "semester": 6,
+            "examPeriod": {
+                "name": "End Semester",
+                "shortName": "End Sem",
+                "startDate": "2026-04-15T14:00:00",
+                "endDate": "2026-04-27T16:30:00"
+            },
+            "exams": [
+                {
+                    "id": 201,
+                    "subject": "Compiler Design",
+                    "type": "theory",
+                    "code": "303105349",
+                    "date": "2026-04-15",
+                    "time": "14:00",
+                    "duration": "150 mins"
+                },
+                {
+                    "id": 202,
+                    "subject": "Machine Learning",
+                    "type": "theory",
+                    "code": "303105353",
+                    "date": "2026-04-20",
+                    "time": "14:00",
+                    "duration": "150 mins"
+                },
+                {
+                    "id": 203,
+                    "subject": "MEA(R)N Stack Web Development",
+                    "type": "theory",
+                    "code": "303105385",
+                    "date": "2026-04-22",
+                    "time": "14:00",
+                    "duration": "150 mins"
+                },
+                {
+                    "id": 204,
+                    "subject": "Mobile App Development",
+                    "type": "theory",
+                    "code": "303105379",
+                    "date": "2026-04-24",
+                    "time": "14:00",
+                    "duration": "150 mins"
+                },
+                {
+                    "id": 205,
+                    "subject": "Quant and Reasoning",
+                    "type": "theory",
+                    "code": "303105311",
+                    "date": "2026-04-27",
+                    "time": "14:00",
+                    "duration": "150 mins"
+                }
+            ]
+        },
+        {
+            "semester": 6,
+            "examPeriod": {
+                "name": "Mid Semester",
+                "shortName": "Mid Sem",
+                "startDate": "2026-02-16T09:00:00",
+                "endDate": "2026-02-24T11:15:00"
+            },
+            "exams": [
+                {
+                    "id": 1,
+                    "subject": "Mobile App Development",
+                    "aliases": [
+                        "MAD",
+                        "Mobile App",
+                        "Mobile Application",
+                        "Android",
+                        "Mobile App Development"
+                    ],
+                    "code": "303105379",
+                    "date": "2026-02-16",
+                    "time": "09:45",
+                    "duration": "1.5 hours",
+                    "syllabus": [
+                        "Android Operating System and Development Environment",
+                        "Android Components and Resource Handling",
+                        "Android User Interface Elements",
+                        "Working with Views and Fragments"
+                    ]
+                },
+                {
+                    "id": 2,
+                    "subject": "Machine Learning",
+                    "aliases": [
+                        "ML",
+                        "Machine Learning"
+                    ],
+                    "code": "303105353",
+                    "date": "2026-02-17",
+                    "time": "09:45",
+                    "duration": "1.5 hours",
+                    "syllabus": [
+                        "UNIT-1: Introduction to Machine Learning \n Learning Paradigms \n PAC learning \n Basics of Probability \n Version Spaces \n  *Machine Learning in Practice*, Data collection \n Preprocessing (Missing values, Normalization, Adopting to chosen algorithm etc.,) \n Outlier Analysis (Z-Score) - Model selection & evaluation \n Optimization of tuning parameters \n Setting the environment \n Visualization of results",
+                        "UNIT-2: Supervised Learning \n I, Linear and Non-Linear examples \n Multi–Class & Multi-Label classification \n LinearRegression \n Multilinear Regression \n Naïve Bayes Classifier \n Decision Trees \n ID3 \n CART \n Error bounds",
+                        "UNIT-3: Supervised Learning - II \n K-NN classifier \n Logistic regression"
+                    ]
+                },
+                {
+                    "id": 3,
+                    "subject": "Compiler Design",
+                    "aliases": [
+                        "CD",
+                        "Compiler",
+                        "Compiler Design"
+                    ],
+                    "code": "303105349",
+                    "date": "2026-02-19",
+                    "time": "09:45",
+                    "duration": "1.5 hours",
+                    "syllabus": [
+                        "1 Overview of compilation : The structure of a compiler and applications of compiler technology; Lexical analysis - The role of a lexical analyzer, specification of tokens, recognition of tokens, hand-written lexical analyzers, LEX, examples of LEX programs.",
+                        "2 Introduction to syntax analysis : Role of a parser, use of context-free grammars (CFG) in the specification of the syntax of programming languages, techniques for writing grammars for programming languages (removal left recursion, etc.), non-context-free constructs in programming languages, parse trees and ambiguity, examples of programming language grammars.",
+                        "3 Top-down parsing : FIRST & FOLLOW sets, LL(1) conditions, predictive parsing, recursive descent parsing, error recovery. LR-parsing - Handle pruning, shift-reduce parsing, viable prefixes, valid items, LR(0) automaton, LR-parsing algorithm, SLR(1), LR(1)"
+                    ]
+                },
+                {
+                    "id": 4,
+                    "subject": "MEAN Stack Web Development",
+                    "aliases": [
+                        "MEAN",
+                        "MEAN Stack",
+                        "Web Development",
+                        "Full Stack"
+                    ],
+                    "code": "303105385",
+                    "date": "2026-02-20",
+                    "time": "09:45",
+                    "duration": "1.5 hours",
+                    "syllabus": [
+                        "Unit - 1",
+                        "Unit - 2",
+                        "Unit - 3"
+                    ]
+                },
+                {
+                    "id": 5,
+                    "subject": "Employability Skills",
+                    "aliases": [
+                        "ES",
+                        "Employability",
+                        "Soft Skills"
+                    ],
+                    "code": "303193353",
+                    "date": "2026-02-23",
+                    "time": "09:45",
+                    "duration": "1 hour",
+                    "syllabus": [
+                        "Introduction to Employability Skills",
+                        "Communication Skills"
+                    ]
+                },
+                {
+                    "id": 6,
+                    "subject": "Quant and Reasoning",
+                    "aliases": [
+                        "QR",
+                        "Aptitude",
+                        "Reasoning",
+                        "Quant"
+                    ],
+                    "code": "303105311",
+                    "date": "2026-02-24",
+                    "time": "09:45",
+                    "duration": "1.5 hours",
+                    "syllabus": [
+                        "Number system, LCM &. HCF simplification and Approximation",
+                        "Averages and Progressions",
+                        "Ratio & Proportion, Problems on ages and Percentage",
+                        "Profit & Loss, partnerships, S.I & C.I",
+                        "Time & work , pipes and Cisterns, Time speed and distance , Problems on train crossings, Boats & streams"
+                    ]
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,419 @@
+# Diagram Tool Enhancements
+
+## Overview
+
+The diagram workflow has been improved to clearly separate **JS-based server rendering** from **LLM web-interface sandbox execution**. Mermaid and DOT can be rendered server-side with JS tooling when helpful, while Python-heavy diagrams are intended for the sandbox inside ChatGPT, Claude, or Perplexity.
+
+## Output Handling Rules (ChatGPT / Claude / Perplexity)
+
+- If the tool returns HTML, **create an artifact** so native rendering kicks in on ChatGPT and Claude.
+- If the tool returns image files (SVG/PNG), **provide download links** on ChatGPT and Claude instead of trying to render inline.
+- Perplexity can render images inline; do not force download links there.
+- Do not use RAG tools for diagram generation.
+
+### Problem Solved
+
+- ✅ **DOT/Graphviz FSMs can render as accurate SVG/PNG assets** using server-side JS tooling instead of relying on Mermaid approximations
+- ✅ **Multi-platform support** across ChatGPT, Claude, and Perplexity
+- ✅ **New diagram types** beyond just flowcharts: plots, Gantt charts, circuit diagrams, logic gates
+- ✅ **No server-side Python sandbox required** — Python-heavy diagrams are routed to the LLM web-interface sandbox
+
+## Architecture
+
+### Three Main Tools
+
+#### 1. **GenerateDiagramFromRequest** (diagram-generator.ts)
+- **Purpose**: Accept natural language diagram requests and provide appropriate spec templates
+- **Features**:
+  - Auto-detects optimal format (dot for FSMs, plot for visualizations, circuit for electronics, etc.)
+  - Provides template code/specs for each format
+  - Returns instructions for either JS-based server rendering or web-interface sandbox execution
+- **Usage**: LLM → GenerateDiagramFromRequest → [generate spec] → DiagramGenerator or platform sandbox
+
+#### 2. **DiagramGenerator** (diagrams.ts) — ENHANCED
+- **Purpose**: JS-based server-side rendering for Mermaid and Graphviz/DOT
+- **New Capabilities**:
+  - **Input formats**: mermaid, dot, graphviz
+  - **Output formats**: svg, png, base64 (data URI)
+  - **Supported packages**: Graphviz (Viz.js), Mermaid.js, sharp
+- **Improvements**:
+  - SVG → PNG conversion via `sharp` library
+  - Base64 output for embedding in responses
+- **Usage**: DiagramGenerator → {format, spec, render} → PNG/SVG/DataURI
+
+#### 3. **DiagramValidator** (diagrams.ts) — ENHANCED
+- **Purpose**: Quick syntax validation before rendering
+- **Improvements**:
+  - Supports Mermaid and DOT validation
+  - Better error messages
+
+#### 4. **LLM Web-Interface Sandbox**
+- **Purpose**: Execute Python-based diagram code for complex or precision-sensitive visualizations
+- **Platforms**: ChatGPT, Claude, Perplexity
+- **Typical libraries**: graphviz, matplotlib, networkx, schemdraw, plotly
+- **Rule**: Use this for circuit, plot, gantt, logic, and other Python-heavy diagram generation. Do not assume or describe a server-side Python sandbox in MCP.
+
+## Supported Diagram Types
+
+### 1. **DOT (Graphviz)** — `format: "dot"`
+
+**Best for**: FSMs, state diagrams, directed graphs, trees, network topologies
+
+**Example Use Case**: DFA that accepts binary strings ending in "01"
+
+```dot
+digraph {
+  rankdir=LR;
+  node [shape=circle, style=filled, fillcolor="#e8f4fd", color="#2196F3"];
+  edge [color="#555555"];
+  
+  q0 [label="q₀"];
+  q1 [label="q₁"];
+  q2 [label="q₂", shape=doublecircle];  // accept state
+  
+  q0 -> q1 [label="0"];
+  q0 -> q0 [label="1"];
+  q1 -> q2 [label="1"];
+  q1 -> q0 [label="0"];
+  q2 -> q1 [label="0"];
+  q2 -> q0 [label="1"];
+}
+```
+
+**Key Features**:
+- One transition per (state, input) pair
+- Use `shape=doublecircle` for accept states
+- `rankdir=LR` for left-to-right flow
+- Edge labels for inputs/transitions
+- Perfect accuracy for FSMs (unlike Mermaid)
+
+---
+
+### 2. **Mermaid** — `format: "mermaid"`
+
+**Best for**: Flowcharts, sequence diagrams, ER diagrams, class diagrams, state diagrams (simple)
+
+**Example Use Case**: User authentication flow
+
+```mermaid
+graph TD
+    A[User Login] --> B{Credentials Valid?}
+    B -->|Yes| C[Create Session]
+    B -->|No| D[Show Error]
+    C --> E[Redirect to Dashboard]
+    D --> A
+```
+
+---
+
+### 3. **Circuit Diagrams** — `format: "circuit"`
+
+**Best for**: Electronic circuits, schematic diagrams
+
+**Example Use Case**: RC Low-Pass Filter Circuit
+
+```python
+import schemdraw
+import schemdraw.elements as elm
+
+with schemdraw.Drawing() as d:
+    d += (R1 := elm.Resistor().label('R1', loc='top'))
+    d += elm.Line().right(0.5)
+    d += (C1 := elm.Capacitor().down().label('C1', loc='right'))
+    d.push()
+    d += elm.Line().down(0.5)
+    d += elm.Ground()
+    d.pop()
+    d += elm.Line().left(0.5)
+    d += elm.Ground()
+    
+    d.save('/tmp/diagram.png')
+```
+
+**Key Features**:
+- Support for resistors, capacitors, diodes, transistors, etc.
+- Professional schematic output
+- Precise component placement
+
+---
+
+### 4. **Plots & Visualizations** — `format: "plot"`
+
+**Best for**: Line charts, scatter plots, bar charts, heatmaps, histograms
+
+**Example Use Cases**:
+
+```python
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Line plot example
+x = np.linspace(0, 2*np.pi, 100)
+y = np.sin(x)
+
+plt.figure(figsize=(10, 6))
+plt.plot(x, y, linewidth=2, label='sin(x)')
+plt.plot(x, np.cos(x), linewidth=2, label='cos(x)')
+plt.grid(True, alpha=0.3)
+plt.legend()
+plt.title('Trigonometric Functions')
+plt.xlabel('x')
+plt.ylabel('y')
+
+plt.savefig('/tmp/diagram.png', dpi=150, bbox_inches='tight', transparent=True)
+```
+
+**Supported Libraries**:
+- `matplotlib` — standard plotting
+- `plotly` — interactive charts
+- `seaborn` — statistical visualization
+- `numpy`, `pandas` — data manipulation
+
+---
+
+### 5. **Gantt Charts** — `format: "gantt"`
+
+**Best for**: Project timelines, schedules, milestone tracking
+
+**Example Use Case**: Software development project timeline
+
+```python
+import matplotlib.pyplot as plt
+from datetime import datetime
+
+tasks = [
+    {'name': 'Planning', 'start': 0, 'duration': 5},
+    {'name': 'Development', 'start': 5, 'duration': 20},
+    {'name': 'Testing', 'start': 20, 'duration': 10},
+    {'name': 'Deployment', 'start': 30, 'duration': 3},
+]
+
+fig, ax = plt.subplots(figsize=(12, 6))
+colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A']
+
+for i, task in enumerate(tasks):
+    ax.barh(i, task['duration'], left=task['start'], 
+            height=0.6, color=colors[i], label=task['name'])
+
+ax.set_yticks(range(len(tasks)))
+ax.set_yticklabels([t['name'] for t in tasks])
+ax.set_xlabel('Timeline (days)')
+ax.set_title('Project Schedule')
+ax.grid(True, alpha=0.3, axis='x')
+
+plt.tight_layout()
+plt.savefig('/tmp/diagram.png', dpi=150, bbox_inches='tight', transparent=True)
+```
+
+---
+
+### 6. **Logic Gates** — `format: "logic"`
+
+**Best for**: Digital logic circuits, Boolean algebra, truth tables
+
+**Example Use Case**: XOR logic gate
+
+```python
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+
+fig, ax = plt.subplots(figsize=(10, 6))
+ax.set_xlim(0, 10)
+ax.set_ylim(0, 10)
+ax.axis('off')
+
+# Draw XOR gate
+def draw_xor_gate(ax, x, y, label='XOR'):
+    # Inputs
+    ax.plot([x-1, x-0.3], [y+0.5, y+0.5], 'k-', linewidth=2)
+    ax.plot([x-1, x-0.3], [y-0.5, y-0.5], 'k-', linewidth=2)
+    
+    # Gate body (curved D-shape with double curve on left)
+    from matplotlib.path import Path
+    import matplotlib.patches as patches
+    
+    # Simple gate representation
+    gate = patches.FancyBboxPatch((x-0.3, y-0.7), 0.6, 1.4,
+                                  boxstyle="round,pad=0.1",
+                                  edgecolor='black', facecolor='lightblue')
+    ax.add_patch(gate)
+    
+    # Output
+    ax.plot([x+0.3, x+1], [y, y], 'k-', linewidth=2)
+    
+    # Label
+    ax.text(x, y, label, ha='center', va='center', fontsize=10, fontweight='bold')
+
+draw_xor_gate(ax, 5, 5)
+ax.set_title('XOR Logic Gate')
+
+plt.savefig('/tmp/diagram.png', dpi=150, bbox_inches='tight', transparent=True)
+```
+
+---
+
+## Usage Workflow
+
+### For ChatGPT/Claude Users
+
+1. **Request**: "Create a DFA that accepts binary strings ending in 01"
+
+2. **Tool: GenerateDiagramFromRequest**
+   - Input: `request="DFA that accepts binary strings ending in 01", format="auto"`
+   - Output: Recommended format (DOT), template DOT code
+
+3. **Generate**: LLM creates complete DOT specification
+
+4. **Render path**
+   - Use `DiagramGenerator` when you want JS-based server rendering of Mermaid or DOT.
+   - Use the web-interface sandbox when the output depends on Python libraries or more bespoke rendering logic.
+
+5. **Result**: Accurate diagram output without relying on any server-side Python sandbox
+
+### For Perplexity Users
+
+1. **Request**: Same as above
+
+2. **Tool: GenerateDiagramFromRequest**
+   - Output: Python sandbox template plus any Mermaid/DOT rendering guidance
+
+3. **Execute in Sandbox**: Run Python code to generate diagram
+
+4. **Fallback**: Use DiagramGenerator only for Mermaid/DOT JS-based server rendering
+
+---
+
+## Migration Path
+
+### Before (Limited)
+- ❌ FSM diagrams rendered with Mermaid (inaccurate)
+- ❌ Only Mermaid/DOT formats
+- ❌ Native renderer limitations
+- ❌ No plots/circuits/Gantt charts
+
+### After (Comprehensive)
+- ✅ FSM diagrams can render as accurate SVG/PNG assets
+- ✅ 6 diagram types: DOT, Mermaid, circuit, plot, gantt, logic
+- ✅ JS-based server rendering where it fits
+- ✅ Multiple output formats: SVG, PNG, base64 data URIs
+- ✅ Web-interface Python sandbox for complex visualizations
+
+---
+
+## Configuration & Dependencies
+
+### New Dependencies
+```json
+{
+  "sharp": "^0.33.0"  // SVG → PNG conversion
+}
+```
+
+### Environment Requirements
+- **Graphviz** (via Viz.js) for DOT rendering (built-in)
+- **matplotlib**, **plotly**, **schemdraw** available in the target LLM web-interface sandbox for Python-based diagrams
+
+---
+
+## Examples for Each Format
+
+### Example 1: DFA (DOT)
+```dot
+digraph DFA_Binary_01 {
+  rankdir=LR;
+  node [shape=circle, style=filled, fillcolor="#e8f4fd", color="#2196F3", fontname="Arial"];
+  edge [color="#555555", fontname="Arial"];
+  
+  q0 [label="Start"];
+  q1 [label="Seen 0"];
+  q2 [label="Accept", shape=doublecircle];
+  
+  q0 -> q0 [label="1"];
+  q0 -> q1 [label="0"];
+  q1 -> q1 [label="0"];
+  q1 -> q2 [label="1"];
+  q2 -> q1 [label="0"];
+  q2 -> q0 [label="1"];
+}
+```
+
+### Example 2: Simple Flowchart (Mermaid)
+```mermaid
+graph LR
+    A[Start] --> B{Check Input}
+    B -->|Valid| C[Process]
+    B -->|Invalid| D[Error]
+    C --> E[End]
+    D --> E
+```
+
+### Example 3: Bar Chart (Plot)
+```python
+import matplotlib.pyplot as plt
+import numpy as np
+
+categories = ['A', 'B', 'C', 'D']
+values = [23, 45, 56, 78]
+colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A']
+
+plt.bar(categories, values, color=colors, edgecolor='black', linewidth=1.5)
+plt.title('Sample Bar Chart')
+plt.ylabel('Values')
+plt.tight_layout()
+plt.savefig('/tmp/diagram.png', dpi=150, bbox_inches='tight', transparent=True)
+```
+
+---
+
+## Benefits
+
+| Aspect | Before | After |
+|--------|--------|-------|
+| **FSM Accuracy** | Mermaid approximation | Exact DOT rendering |
+| **Diagram Types** | 2 (Mermaid, DOT) | 6+ types |
+| **Output Quality** | Browser-dependent | Native, JS-rendered, or sandbox-rendered depending on format |
+| **Circuit Support** | ❌ | ✅ Electronic schematics |
+| **Visualization** | ❌ | ✅ Plots, charts, Gantt |
+| **Logic Circuits** | ❌ | ✅ Boolean algebra |
+| **Embed Support** | Code blocks | Base64 data URIs |
+
+---
+
+## Troubleshooting
+
+### DOT diagram renders as blank
+- Check that all nodes are defined before edges
+- Ensure rankdir is set (LR, TB, RL, BT)
+- Verify state labels are unique
+
+### Python diagram execution fails
+- Ensure correct import statements
+- Verify `/tmp/diagram.png` is the output file
+- Use transparent background: `transparent=True`
+- Set DPI: `dpi=150` for quality
+
+### PNG conversion fails
+- SVG must be valid XML
+- Check for unsupported SVG features
+- Fallback to SVG output if PNG fails
+
+---
+
+## Performance Notes
+
+- **DOT rendering**: ~100ms (Viz.js in Node.js)
+- **Mermaid rendering**: ~200-500ms (requires JSDOM)
+- **Python sandbox execution**: depends on the target web interface and diagram complexity
+- **SVG → PNG**: ~100-300ms (via sharp)
+
+---
+
+## Future Enhancements
+
+- [ ] Support for more circuit components (op-amps, transformers)
+- [ ] 3D plot support (matplotlib 3D)
+- [ ] Animated Gantt charts
+- [ ] Interactive HTML outputs
+- [ ] PDF export
+- [ ] SVG to PDF conversion
+

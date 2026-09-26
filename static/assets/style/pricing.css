@@ -1,0 +1,70 @@
+/* ==========================================================================
+   Materio pricing utilities (Tailwind v4.3.3 syntax, same as landing.css)
+   --------------------------------------------------------------------------
+   The landing stylesheet (static/assets/style/landing.css) is a frozen
+   prebuilt Tailwind file: it only contains utilities that existed in
+   LandingPage.svelte when it was generated. This file backfills every
+   utility used by PricingSection (/pricing page) that is missing there.
+   Keep selectors + declarations byte-consistent with v4 output.
+   ========================================================================== */
+
+.p-7{padding:calc(var(--spacing) * 7)}
+.p-1{padding:calc(var(--spacing) * 1)}
+.flex-1{flex:1 1 0%}
+.rounded-lg{border-radius:.5rem}
+.mt-3{margin-top:calc(var(--spacing) * 3)}
+.mb-8{margin-bottom:calc(var(--spacing) * 8)}
+.gap-2{gap:calc(var(--spacing) * 2)}
+.gap-2\.5{gap:calc(var(--spacing) * 2.5)}
+.gap-5{gap:calc(var(--spacing) * 5)}
+.scroll-mt-24{scroll-margin-top:calc(var(--spacing) * 24)}
+.items-baseline{align-items:baseline}
+.max-w-xl{max-width:36rem}
+.font-mono{font-family:var(--font-mono)}
+.text-4xl{font-size:var(--text-4xl);line-height:var(--tw-leading,var(--text-4xl--line-height))}
+.border-\[2px\]{border-width:2px}
+.text-cream-50{color:var(--color-cream-50)}
+.text-\[\#EB5E28\]{color:#EB5E28}
+.bg-\[\#171412\]{background-color:#171412}
+.bg-\[\#EB5E28\]{background-color:#EB5E28}
+.border-\[\#2a2521\]{border-color:#2a2521}
+.bg-red-50{background-color:#fef2f2}
+.border-red-200{border-color:#fecaca}
+.text-red-700{color:#b91c1c}
+.border-white\/20{border-color:color-mix(in oklab,#fff 20%,transparent)}
+.text-white\/85{color:color-mix(in oklab,var(--color-white) 85%,transparent)}
+.text-white\/60{color:color-mix(in oklab,var(--color-white) 60%,transparent)}
+.text-white\/50{color:color-mix(in oklab,var(--color-white) 50%,transparent)}
+.border-cream-dark\/80{border-color:color-mix(in oklab,var(--color-cream-dark) 80%,transparent)}
+.transition-shadow{transition-property:color,box-shadow,background-color,border-color,outline-color,text-decoration-color,fill,stroke,--tw-gradient-from,--tw-gradient-via,--tw-gradient-to;transition-timing-function:var(--tw-ease,var(--default-transition-timing-function, cubic-bezier(.4,0,.2,1)));transition-duration:var(--tw-duration,var(--default-transition-duration,.15s))}
+.disabled\:opacity-60:disabled{opacity:60%}
+.hover\:brightness-110:hover{filter:brightness(1.1)}
+
+/* Gradient stops (pairs with the existing .bg-gradient-to-t utility) */
+.from-\[\#EB5E28\]{--tw-gradient-from:#EB5E28;--tw-gradient-stops:var(--tw-gradient-via-stops,var(--tw-gradient-position),var(--tw-gradient-from) var(--tw-gradient-from-position),var(--tw-gradient-to) var(--tw-gradient-to-position))}
+.via-\[\#f26a2e\]{--tw-gradient-via:#f26a2e;--tw-gradient-via-stops:var(--tw-gradient-position),var(--tw-gradient-from) var(--tw-gradient-from-position),var(--tw-gradient-via) var(--tw-gradient-via-position),var(--tw-gradient-to) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-via-stops)}
+.via-\[\#ff8a3d\]{--tw-gradient-via:#ff8a3d;--tw-gradient-via-stops:var(--tw-gradient-position),var(--tw-gradient-from) var(--tw-gradient-from-position),var(--tw-gradient-via) var(--tw-gradient-via-position),var(--tw-gradient-to) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-via-stops)}
+.to-\[\#EB5E28\]{--tw-gradient-to:#EB5E28}
+.to-\[\#ff8a3d\]{--tw-gradient-to:#ff8a3d}
+
+/* Arbitrary shadows used by the pricing cards */
+.shadow-\[0_8px_30px_rgba\(0\,0\,0\,0\.015\)\]{--tw-shadow:0 8px 30px var(--tw-shadow-color,#00000004);box-shadow:var(--tw-inset-shadow),var(--tw-inset-ring-shadow),var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow)}
+.shadow-\[0_20px_60px_rgba\(23\,20\,18\,0\.25\)\]{--tw-shadow:0 20px 60px var(--tw-shadow-color,#17141240);box-shadow:var(--tw-inset-shadow),var(--tw-inset-ring-shadow),var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow)}
+.hover\:shadow-\[0_12px_40px_rgba\(0\,0\,0\,0\.05\)\]:hover{--tw-shadow:0 12px 40px var(--tw-shadow-color,#0000000d);box-shadow:var(--tw-inset-shadow),var(--tw-inset-ring-shadow),var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow)}
+.hover\:shadow-\[0_12px_40px_rgba\(0\,0\,0\,0\.06\)\]:hover{--tw-shadow:0 12px 40px var(--tw-shadow-color,#0000000f);box-shadow:var(--tw-inset-shadow),var(--tw-inset-ring-shadow),var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow)}
+.hover\:shadow-\[0_24px_70px_rgba\(235\,94\,40\,0\.22\)\]:hover{--tw-shadow:0 24px 70px var(--tw-shadow-color,#eb5e2838);box-shadow:var(--tw-inset-shadow),var(--tw-inset-ring-shadow),var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow)}
+
+@media (width>=48rem){
+.md\:gap-6{gap:calc(var(--spacing) * 6)}
+.md\:pt-16{padding-top:calc(var(--spacing) * 16)}
+}
+
+@media (width>=40rem){
+.sm\:gap-5{gap:calc(var(--spacing) * 5)}
+}
+
+/* Premium CTA buttons (global copy of the landing hero button system) */
+.btn-dark-hero{background:linear-gradient(180deg,#3a3a3a 0%,#202020 100%);border:1px solid #181818;box-shadow:0 4px 12px rgba(0,0,0,.1),inset 0 1px 0 rgba(255,255,255,.1);transition:background .25s ease,box-shadow .25s ease}
+.btn-dark-hero:hover{background:linear-gradient(180deg,#4c4c4c 0%,#303030 100%)}
+.btn-light-hero{background:linear-gradient(180deg,#fff 0%,#e8e8e8 100%);border:1px solid #cfcfcf;box-shadow:0 4px 12px rgba(0,0,0,.04),inset 0 1px 0 rgba(255,255,255,.8);transition:background .25s ease,box-shadow .25s ease}
+.btn-light-hero:hover{background:linear-gradient(180deg,#fff 0%,#f5f5f5 100%)}

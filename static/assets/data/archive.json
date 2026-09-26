@@ -1,0 +1,264 @@
+{
+  "archive": [
+    {
+      "enabled": true,
+      "category": "whats-new",
+      "frequency": "every-12hr",
+      "customFrequencyHours": "null",
+      "title": "What's New",
+      "description": "The all new insightroom experience.\n The insightroom is re-written in svelte providing faster loading of content.\n Materio homepage provides a new layout for insightroom feed and smart recommendations.",
+      "link": "/changelog",
+      "images": [
+        "assets/img/covers/e6ddc339-0012-4c4b-83cd-6c37d1c7af9a.webp"
+      ],
+      "showImageOnMaintenance": false,
+      "imageRotationInterval": 5000,
+      "imageAnimation": {
+        "type": "slide-left",
+        "duration": 600,
+        "direction": "left"
+      },
+      "isLimitedOffer": true,
+      "startDate": "2025-12-18T00:00",
+      "endDate": "2025-12-20T00:00",
+      "showDateInfo": false,
+      "lastUpdated": "2025-12-18T13:15:00",
+      "buttons": {
+        "primary": {
+          "show": false,
+          "text": "Show Changes",
+          "icon": "&#8206;"
+        },
+        "secondary": {
+          "show": true,
+          "text": "Got it",
+          "icon": "&#8206;"
+        }
+      },
+      "disclaimer": {
+        "show": false,
+        "text": "Terms and conditions.",
+        "linkText": "Read more",
+        "linkUrl": ""
+      }
+    },
+    {
+      "enabled": true,
+      "category": "whats-new",
+      "frequency": "every-12hr",
+      "customFrequencyHours": "null",
+      "title": "What's New",
+      "description": " 1. Introducing Materio Originals !- A brand-new category of resources created, curated, and refined entirely by Materio — to help students understand concepts faster and more clearly.\n 2. Dark Mode in PDF natively - toggle from Settings - Reading modes\n 3. Optimizations made to OpenReader component.",
+      "link": "/changelog",
+      "images": [
+        "assets/img/covers/e6d2c600-a047-4a60-baa5-06adea6a054d.webp",
+        "assets/img/covers/8abb551b-2bb4-4879-800e-e936a1c44632.webp"
+      ],
+      "showImageOnMaintenance": false,
+      "imageRotationInterval": 5000,
+      "imageAnimation": {
+        "type": "slide-left",
+        "duration": 600,
+        "direction": "left"
+      },
+      "isLimitedOffer": true,
+      "startDate": "2025-12-01T00:00",
+      "endDate": "2025-12-04T00:00",
+      "showDateInfo": false,
+      "lastUpdated": "2025-11-30T22:15:00",
+      "buttons": {
+        "primary": {
+          "show": true,
+          "text": "Show Changes",
+          "icon": "&#8206;"
+        },
+        "secondary": {
+          "show": true,
+          "text": "Got it",
+          "icon": "&#8206;"
+        }
+      },
+      "disclaimer": {
+        "show": false,
+        "text": "Terms and conditions.",
+        "linkText": "Read more",
+        "linkUrl": ""
+      }
+    },
+    {
+      "enabled": true,
+      "category": "notice",
+      "frequency": "once",
+      "customFrequencyHours": "null",
+      "title": "A New Home for Materio’s Reliability",
+      "description": "Materio has officially completed its move to Vercel. The platform is now live again, powered by faster delivery, improved stability, and a more resilient infrastructure. You’re all set to continue using Materio with a smoother, more reliable experience than before.\n Thank you for your patience during the transition. For ongoing updates, our status page is always available.",
+      "link": "https://statuspage.incident.io/materio",
+      "images": [
+        "assets/img/covers/f58a6024-35aa-4982-aec9-c8270cfa76c4.webp"
+      ],
+      "showImageOnMaintenance": false,
+      "imageRotationInterval": 5000,
+      "imageAnimation": {
+        "type": "cascade",
+        "duration": 600,
+        "direction": "left"
+      },
+      "isLimitedOffer": true,
+      "startDate": "2025-11-23T14:00",
+      "endDate": "2025-11-24T00:00",
+      "showDateInfo": false,
+      "lastUpdated": "2025-11-23T13:31:00",
+      "buttons": {
+        "primary": {
+          "show": true,
+          "text": "View Status",
+          "icon": "&#8206;"
+        },
+        "secondary": {
+          "show": true,
+          "text": "Got it",
+          "icon": "&#8206;"
+        }
+      },
+      "disclaimer": {
+        "show": false,
+        "text": "Terms and conditions.",
+        "linkText": "Read more",
+        "linkUrl": ""
+      }
+    },
+    {
+      "enabled": true,
+      "category": "whats-new",
+      "frequency": "once",
+      "customFrequencyHours": "null",
+      "title": "What's New?",
+      "description": "1. AI Search was optimised so you can now ask something like `what to read?`, `resources with basics of turing machines` etc. and get suggestions based on it.\n 2. Improved user experience by revamping the items in the reading card.\n 3. Little improvements to PDF loading logic to reduce lag and faster loading (this will be improved more later).",
+      "link": "null",
+      "images": [
+        "assets/img/covers/211dbe97-430f-4637-b459-5bbc9e63ffcd.webp"
+      ],
+      "imageRotationInterval": 5000,
+      "imageAnimation": {
+        "type": "cascade",
+        "duration": 600,
+        "direction": "left"
+      },
+      "isLimitedOffer": true,
+      "startDate": "2025-11-14T19:00",
+      "endDate": "2025-11-15T19:00",
+      "showDateInfo": false,
+      "lastUpdated": "2025-11-14T18:55:00.000Z",
+      "buttons": {
+        "primary": {
+          "show": false,
+          "text": "Try Now",
+          "icon": "&#8206;"
+        },
+        "secondary": {
+          "show": true,
+          "text": "Got it",
+          "icon": "&#8206;"
+        }
+      },
+      "disclaimer": {
+        "show": false,
+        "text": "Terms and conditions.",
+        "linkText": "Read more",
+        "linkUrl": ""
+      }
+    },
+    {
+      "enabled": true,
+      "title": "What was shipped - 08-11-25",
+      "description": "Introducing Search! The faster way to access the materials you want to read. Just type few keywords and open from the results quickly. Didn't find what you were looking for? Try AI Search for better results.",
+      "link": "#quickSearchBox",
+      "images": [
+        "assets/img/covers/80992778-3605-4a15-af7e-73da26f882ff.webp"
+      ],
+      "imageRotationInterval": 5000,
+      "imageAnimation": {
+        "type": "cascade",
+        "duration": 600,
+        "direction": "left"
+      },
+      "isLimitedOffer": true,
+      "startDate": "2025-11-08T00:00",
+      "endDate": "2025-11-10T00:00",
+      "showDateInfo": false,
+      "lastUpdated": "2025-11-08T14:30:00.000Z",
+      "buttons": {
+        "primary": {
+          "show": true,
+          "text": "Try Now",
+          "icon": "&#8206;"
+        },
+        "secondary": {
+          "show": true,
+          "text": "Later",
+          "icon": "&#8206;"
+        }
+      },
+      "disclaimer": {
+        "show": false,
+        "text": "Terms and conditions.",
+        "linkText": "Read more",
+        "linkUrl": ""
+      }
+    },
+    {
+      "enabled": true,
+      "title": "Comet is the browser you need with latest agentic capabilities combined with same adblocker from Brave!",
+      "description": "Comet is an AI-powered browser that does things for you, Use it for quickly finding answers to MCQs, writing code and other tasks. And it uses the adblocker from brave, and as a Bonus get Perplexity Pro for free. So, its perfect time to switch to Comet - Get it today!",
+      "link": "/redirects/p/perplexity-comet",
+      "images": [
+        "/assets/media/f10f0ebe-583a-4024-93d4-884cfdf2f68b.webm"
+      ],
+      "imageRotationInterval": 5000,
+      "imageAnimation": {
+        "type": "cascade",
+        "duration": 600,
+        "direction": "left"
+      },
+      "isLimitedOffer": true,
+      "startDate": "2025-09-01T12:30",
+      "endDate": "2025-11-03T00:00",
+      "lastUpdated": "2025-10-31T15:30:00.000Z",
+      "buttons": {
+        "primary": {
+          "show": true,
+          "text": "Get Comet",
+          "icon": "&#8206;"
+        },
+        "secondary": {
+          "show": true,
+          "text": "Later",
+          "icon": "&#8206;"
+        }
+      },
+      "disclaimer": {
+        "show": true,
+        "text": "Terms and conditions.",
+        "linkText": "Read more",
+        "linkUrl": "https://www.perplexity.ai/hub/legal/terms-of-service"
+      },
+      "options": {
+        "showDontShowAgain": false,
+        "dontShowAgainText": "I am not interested"
+      },
+      "closure": {
+        "endedUnexpectedly": true,
+        "restart": "Uncertain",
+        "reason": "Large amount of fraud detected by perplexity",
+        "officialMessage": "📢 UPDATE: CAMPUS PARTNER PROGRAM IN INDIA ** Hey @everyone, I wanted to share an important update specifically for our Campus Partners in India. Starting next week, we'll be **PAUSING the Campus Partner Program in India **. This was not my decision, but I want to personally thank each and every one of you for the **creativity, consistency, and hard work** you've shown up to this point. You've helped Perplexity and Comet reach** thousands of students across India** - through campus events, classroom demos, and social media outreach. Your efforts have truly made a difference. 💙 **WHAT THIS MEANS** - Campus Partner links in India will be** paused and stop working by Monday.** - Any **leads submitted before Monday will still be counted, **reviewed, and paid out. - Pending **bounties and payouts will still be processed in full **under the normal 30-business-day review window. - **After Monday, no new leads or referrals will be tracked **or paid since links will be inactive for now. - You'll still have temporary access to your Dub dashboard to view your data — feel free to screenshot or export anything you'd like to save. **WHAT'S NOT CHANGING** - Partners in the U.S., Canada, Europe and other select regions will continue as usual. This change is part of a company-wide restructuring to mitigate the **large amounts of fraud detected in this region. **I know it's disappointing, but your impact has been absolutely incredible, and you've played a huge role in helping Perplexity grow its global student community. I know this isn't easy news to share or receive, but I'm really grateful for everything you've done to help build this community. You've been a huge part of Perplexity's growth, and I can't thank you enough. **We'll share more details about future plans for the program in India as they come.** — Ashna 💙",
+        "messageSource": "discord",
+        "messageLink": "https://discord.com/channels/1402357722430570498/1402597178656161894/1433609004957044797"
+      },
+      "archived": {
+        "bool": true,
+        "contextAdded": true,
+        "point": "closure"
+      }
+    }
+  ]
+}

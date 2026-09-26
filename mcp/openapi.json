@@ -1,0 +1,666 @@
+{
+  "openapi": "3.0.2",
+  "info": {
+    "title": "Materio MCP",
+    "description": "API for accessing Materio's engineering course materials library. IMPORTANT USAGE POLICY FOR AGENTS: (1) Use /api/snap-search as the PRIMARY retrieval tool before answering course questions. (2) Use /api/deep-think only when snap-search yields insufficient context for complex conceptual queries. (3) If the user asks for any link, ALWAYS call /api/share-link and return only the masked shareLink.",
+    "version": "2.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://mcp.getmaterio.app",
+      "description": "Production server"
+    }
+  ],
+  "paths": {
+    "/api/semesters": {
+      "get": {
+        "operationId": "SemesterNavigator",
+        "summary": "List all available semesters",
+        "description": "Returns all semester numbers available in the Materio course library. Use this as the first step to discover content.",
+        "responses": {
+          "200": {
+            "description": "List of semesters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "semesters": {
+                      "type": "array",
+                      "items": { "type": "string" },
+                      "description": "Array of semester identifiers"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "description": "Total number of semesters"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/subjects": {
+      "get": {
+        "operationId": "CourseDirectory",
+        "summary": "List subjects for a semester",
+        "description": "Returns all subjects available in a specific semester.",
+        "parameters": [
+          {
+            "name": "semester",
+            "in": "query",
+            "required": true,
+            "description": "Semester number (e.g. '1', '2', '3', '4', '5', '6')",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of subjects",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "semester": { "type": "string" },
+                    "subjects": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    },
+                    "count": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/resources": {
+      "get": {
+        "operationId": "ResourceLibrary",
+        "summary": "List all resources for a subject",
+        "description": "Returns all course materials (chapters, assignments, question banks, previous year papers, etc.) for a specific subject in a semester. Each item includes the topic name and PDF download URL.",
+        "parameters": [
+          {
+            "name": "semester",
+            "in": "query",
+            "required": true,
+            "description": "Semester number",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "description": "Subject name or partial match (case-insensitive)",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of resources",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "semester": { "type": "string" },
+                    "subject": { "type": "string" },
+                    "resources": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "semester": { "type": "string" },
+                          "subject": { "type": "string" },
+                          "sectionType": { "type": "string" },
+                          "topic": { "type": "string" },
+                          "pdfUrl": { "type": "string", "format": "uri" }
+                        }
+                      }
+                    },
+                    "count": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search": {
+      "get": {
+        "operationId": "GlobalSearch",
+        "summary": "Legacy metadata search (fallback)",
+        "description": "Legacy metadata-level search across subjects, section types, and topic names. Prefer /api/snap-search first for user Q&A because it searches actual text chunks.",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": true,
+            "description": "Search query. Matches case-insensitively against subject names, section types, and topic names. Examples: 'Deadlocks', 'Question Bank', 'Python', 'Sorting'",
+            "schema": { "type": "string", "minLength": 2 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "query": { "type": "string" },
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "semester": { "type": "string" },
+                          "subject": { "type": "string" },
+                          "sectionType": { "type": "string" },
+                          "topic": { "type": "string" },
+                          "pdfUrl": { "type": "string", "format": "uri" }
+                        }
+                      }
+                    },
+                    "count": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pdf-url": {
+      "get": {
+        "operationId": "ResourceAccess",
+        "summary": "Get PDF download URL",
+        "description": "Resolve the correct download URL for a specific PDF. Automatically detects pointer files (≤1KB) and returns the API proxy URL instead of the direct CDN URL.",
+        "parameters": [
+          {
+            "name": "semester",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "topic",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resolved PDF URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "semester": { "type": "string" },
+                    "subject": { "type": "string" },
+                    "topic": { "type": "string" },
+                    "pdfUrl": { "type": "string", "format": "uri" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/index": {
+      "get": {
+        "operationId": "KnowledgeAtlas",
+        "summary": "Get full library index",
+        "description": "Get a compact overview of the entire Materio course library. Returns all semesters, subjects, and section types with resource counts.",
+        "responses": {
+          "200": {
+            "description": "Full library index",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "totalSubjects": { "type": "integer" },
+                    "library": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "semester": { "type": "string" },
+                          "subject": { "type": "string" },
+                          "sections": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "type": { "type": "string" },
+                                "count": { "type": "integer" }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/concept-explorer": {
+      "get": {
+        "operationId": "ConceptExplorer",
+        "summary": "Get topic context and related resources",
+        "description": "Find a topic within a subject and semester, then return contextual metadata, related chapters, question banks, and previous year papers.",
+        "parameters": [
+          {
+            "name": "semester",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "topic",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Topic context",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "found": { "type": "boolean" },
+                    "topic": { "type": "string" },
+                    "semester": { "type": "string" },
+                    "subject": { "type": "string" },
+                    "sectionType": { "type": "string" },
+                    "pdfUrl": { "type": ["string", "null"], "format": "uri" },
+                    "relatedChapters": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    },
+                    "availableQuestionBanks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "topic": { "type": "string" },
+                          "pdfUrl": { "type": "string", "format": "uri" }
+                        }
+                      }
+                    },
+                    "previousYearPapers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "topic": { "type": "string" },
+                          "pdfUrl": { "type": "string", "format": "uri" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/snap-search": {
+      "get": {
+        "operationId": "SnapSearch",
+        "summary": "PRIMARY tool: vectorless full-text search",
+        "description": "PRIMARY retrieval endpoint for course Q&A. ALWAYS call this tool before drafting an answer. Do not answer from model knowledge without SnapSearch context. Fast keyword search over real text chunks with optional semester and subject filters.",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": true,
+            "description": "Search keywords or query string. MANDATORY: You MUST run this tool to retrieve real context before answering ANY course/content query. DO NOT self-answer from weights.",
+            "schema": { "type": "string", "minLength": 1 }
+          },
+          {
+            "name": "semester",
+            "in": "query",
+            "required": false,
+            "description": "Optional semester number (e.g. '7') to limit results and improve precision.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": false,
+            "description": "Optional subject name (e.g. 'Information and Network Security') to filter results. Highly recommended to use the exact subject name from CourseDirectory.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Result page number. Start at 1, increment to fetch more results if needed.",
+            "schema": { "type": "integer", "minimum": 1 }
+          },
+          {
+            "name": "results_per_page",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1, "maximum": 20 },
+            "description": "Number of chunk results to return per page. Prefer <= 5; max 20."
+          },
+          {
+            "name": "max_words",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 100, "maximum": 500 },
+            "description": "Maximum total words to return across the page of chunk content."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Vectorless search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "query": { "type": "string" },
+                    "semester": { "type": ["string", "null"] },
+                    "subject": { "type": ["string", "null"] },
+                    "page": { "type": "integer" },
+                    "resultsPerPage": { "type": "integer" },
+                    "maxWords": { "type": "integer" },
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "index": { "type": "integer" },
+                          "topic": { "type": "string" },
+                          "subject": { "type": "string" },
+                          "similarity": { "type": "number" },
+                          "excerpt": { "type": "string" }
+                        }
+                      }
+                    },
+                    "count": { "type": "integer" },
+                    "hasMore": { "type": "boolean" },
+                    "nextPage": { "type": ["integer", "null"] }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/deep-think": {
+      "get": {
+        "operationId": "DeepThink",
+        "summary": "Semantic deep RAG search",
+        "description": "Secondary retrieval endpoint. Use after /api/snap-search when context is insufficient or the query is highly conceptual.",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "semester",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Semantic context results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "query": { "type": "string" },
+                    "semester": { "type": "string" },
+                    "subject": { "type": "string" },
+                    "contexts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "content": { "type": "string" },
+                          "topic": { "type": "string" },
+                          "subject": { "type": "string" },
+                          "similarity": { "type": "number" }
+                        }
+                      }
+                    },
+                    "count": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/share-link": {
+      "get": {
+        "operationId": "ShareLinkGenerator",
+        "summary": "Generate secure masked share link",
+        "description": "MANDATORY for any user-facing link response. Creates a masked Materio share link from either a direct URL or from semester, subject, and topic. Return only shareLink to users.",
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": false,
+            "description": "Direct raw internal PDF URL. DO NOT guess or hallucinate. If not known, supply semester, subject, and topic instead.",
+            "schema": { "type": "string", "format": "uri" }
+          },
+          {
+            "name": "semester",
+            "in": "query",
+            "required": false,
+            "description": "Semester number (e.g. '7'). Must match the document's semester.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": false,
+            "description": "Subject name (e.g. 'Information and Network Security'). Must match the document's subject.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "topic",
+            "in": "query",
+            "required": false,
+            "description": "Topic / file name (e.g. 'practical 2 lab manual'). Must match the topic/chapter name exactly.",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Generated share link",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "shareLink": { "type": "string", "format": "uri" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/lookup-external-sources": {
+      "get": {
+        "operationId": "LookupExternalSources",
+        "summary": "Lookup external educational sources",
+        "description": "Fetches external educational context for a topic when local course material is insufficient. The default response asks whether Exa search should be used: 'No related material data was found - should I look for external sources?'. Set useExa=true to allow Exa search.",
+        "parameters": [
+          {
+            "name": "topic",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "useExa",
+            "in": "query",
+            "required": false,
+            "description": "Set to true to run Exa search after opt-in.",
+            "schema": { "type": "boolean" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "External source lookup result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "topic": { "type": "string" },
+                    "source": { "type": ["string", "null"], "format": "uri" },
+                    "content": { "type": "string" },
+                    "found": { "type": "boolean" },
+                    "provider": { "type": ["string", "null"], "enum": ["exa", "gfg", "wikipedia", null] },
+                    "shouldAskUser": { "type": "boolean" },
+                    "prompt": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mcp/elevated": {
+      "post": {
+        "operationId": "ProtectedMaterioAccess",
+        "summary": "Protected Materio access endpoint",
+        "description": "Authenticates the caller with OAuth client credentials and either a Materio bearer token or a handoff code (from the callback-handoff login flow). Access is granted only when the Materio user is an admin or plus user.",
+        "security": [
+          {
+            "materioClientId": [],
+            "materioClientSecret": [],
+            "materioBearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "clientId": { "type": "string" },
+                  "clientSecret": { "type": "string" },
+                  "token": { "type": "string" },
+                  "accessToken": { "type": "string" },
+                  "jwt": { "type": "string" },
+                  "handoffCode": { "type": "string" },
+                  "code": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authorized access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string" },
+                    "accessLevel": { "type": "string", "enum": ["admin", "plus"] },
+                    "user": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "username": { "type": "string" },
+                        "displayName": { "type": "string" },
+                        "email": { "type": "string" },
+                        "hasAdminPrivileges": { "type": "boolean" },
+                        "isPlusUser": { "type": "boolean" },
+                        "profilePicture": { "type": "string", "format": "uri" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing OAuth client credentials or invalid handoff payload"
+          },
+          "401": {
+            "description": "Invalid OAuth client credentials, expired Materio token, or expired handoff code"
+          },
+          "403": {
+            "description": "Authenticated user does not have admin or plus access"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "materioClientId": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-OAuth-Client-Id"
+      },
+      "materioClientSecret": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-OAuth-Client-Secret"
+      },
+      "materioBearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}

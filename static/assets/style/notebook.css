@@ -1,0 +1,1900 @@
+/* ================================================
+   NOTEBOOK FEATURE STYLES
+   Rich text note-taking with markdown support
+   ================================================ */
+
+/* ================================================
+   CSS CUSTOM PROPERTIES
+   ================================================ */
+:root {
+    --notebook-bg: #ffffff;
+    --notebook-border: rgba(0, 0, 0, 0.1);
+    --notebook-toolbar-bg: #f8f9fa;
+    --notebook-editor-bg: #ffffff;
+    --notebook-text: #1a1a1a;
+    --notebook-text-secondary: #666;
+    --notebook-text-muted: #999;
+    --notebook-accent: #ff8200;
+    --notebook-accent-hover: #e67400;
+    --notebook-accent-light: rgba(255, 130, 0, 0.1);
+    --notebook-success: #28c76f;
+    --notebook-error: #ea5455;
+    --notebook-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+    --notebook-radius: 24px;
+    --notebook-radius-sm: 12px;
+    --notebook-transition: 0.2s ease;
+}
+
+body.dark-mode {
+    --notebook-bg: #1e1e1e;
+    --notebook-border: rgba(255, 255, 255, 0.1);
+    --notebook-toolbar-bg: #2a2a2a;
+    --notebook-editor-bg: #252525;
+    --notebook-text: #f0f0f0;
+    --notebook-text-secondary: #aaa;
+    --notebook-text-muted: #777;
+    --notebook-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+}
+
+body.coffee-mode {
+    --notebook-bg: var(--color-bg-card, #eee8d5);
+    --notebook-border: var(--color-border-light, #dcd3b6);
+    --notebook-toolbar-bg: var(--color-bg-body, #fdf6e3);
+    --notebook-editor-bg: var(--color-bg-body, #fdf6e3);
+    --notebook-text: var(--color-text-primary, #4a3b32);
+    --notebook-text-secondary: var(--color-text-secondary, #655348);
+    --notebook-text-muted: var(--color-text-tertiary, #8a7b72);
+    --notebook-accent: var(--color-primary, #8a6c52);
+    --notebook-accent-hover: var(--color-primary-hover, #735942);
+    --notebook-accent-light: var(--color-primary-light, rgba(138, 108, 82, 0.15));
+    --notebook-shadow: 0 20px 60px rgba(74, 59, 50, 0.15);
+}
+
+body.coffee-dark-mode {
+    --notebook-bg: var(--color-bg-card, #251c19);
+    --notebook-border: var(--color-border-light, #362924);
+    --notebook-toolbar-bg: var(--color-bg-body, #1a1412);
+    --notebook-editor-bg: var(--color-bg-body, #1a1412);
+    --notebook-text: var(--color-text-primary, #ebdcd0);
+    --notebook-text-secondary: var(--color-text-secondary, #cbb8ac);
+    --notebook-text-muted: var(--color-text-muted, #826f63);
+    --notebook-accent: var(--color-primary, #cf9d75);
+    --notebook-accent-hover: var(--color-primary-hover, #e6b88a);
+    --notebook-accent-light: var(--color-primary-light, rgba(207, 157, 117, 0.15));
+    --notebook-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+/* ================================================
+   MODAL OVERLAY
+   ================================================ */
+.notebook-modal {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+.notebook-modal.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Backdrop */
+.notebook-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+/* ================================================
+   DIALOG BOX
+   ================================================ */
+.notebook-dialog {
+    position: relative;
+    background: var(--notebook-bg);
+    border-radius: var(--notebook-radius);
+    box-shadow: var(--notebook-shadow);
+    width: 90%;
+    max-width: 900px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transform: scale(0.9) translateY(20px);
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.notebook-modal.visible .notebook-dialog {
+    transform: scale(1) translateY(0);
+}
+
+/* Close Button */
+.notebook-close-btn {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 50%;
+    cursor: var(--f-cursor-pointer);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--notebook-text-secondary);
+    font-size: 16px;
+    transition: all var(--notebook-transition);
+    z-index: 10;
+}
+
+.notebook-close-btn:hover {
+    background: var(--notebook-accent-light);
+    color: var(--notebook-accent);
+}
+
+body.dark-mode .notebook-close-btn {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* ================================================
+   HEADER
+   ================================================ */
+.notebook-header {
+    padding: 24px 60px 16px 24px;
+    border-bottom: 1px solid var(--notebook-border);
+}
+
+.notebook-title-section {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.notebook-icon {
+    font-size: 24px;
+    color: var(--notebook-accent);
+}
+
+.notebook-title-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-family: 'Manrope', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--notebook-text);
+    outline: none;
+    padding: 4px 0;
+}
+
+.notebook-title-input::placeholder {
+    color: var(--notebook-text-muted);
+}
+
+.notebook-meta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 8px;
+    padding-left: 36px;
+}
+
+.notebook-date {
+    font-size: 12px;
+    color: var(--notebook-text-muted);
+}
+
+.notebook-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: var(--notebook-accent-light);
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--notebook-accent);
+}
+
+.notebook-link i {
+    font-size: 10px;
+}
+
+/* ================================================
+   TOOLBAR
+   ================================================ */
+.notebook-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 12px 24px;
+    background: var(--notebook-toolbar-bg);
+    border-bottom: 1px solid var(--notebook-border);
+}
+
+.toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.toolbar-divider {
+    width: 1px;
+    height: 24px;
+    background: var(--notebook-border);
+    margin: 0 8px;
+}
+
+.toolbar-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    cursor: var(--f-cursor-pointer);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--notebook-text-secondary);
+    font-size: 14px;
+    transition: all var(--notebook-transition);
+}
+
+.toolbar-btn:hover {
+    background: rgba(0, 0, 0, 0.08);
+    color: var(--notebook-text);
+}
+
+body.dark-mode .toolbar-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.toolbar-btn.active {
+    background: var(--notebook-accent-light);
+    color: var(--notebook-accent);
+}
+
+.toolbar-btn .heading-text {
+    font-size: 11px;
+    font-weight: 700;
+}
+
+/* AI Button - Special Styling */
+.toolbar-btn-ai {
+    width: auto;
+    padding: 0 12.5px;
+    gap: 6px;
+    background: var(--notebook-accent);
+    color: white !important;
+    border-radius: 24px;
+    corner-shape: squircle;
+}
+
+.toolbar-btn-ai:hover {
+    background: var(--notebook-accent-hover);
+    color: white !important;
+}
+
+.toolbar-btn-ai span {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* ================================================
+   EDITOR
+   ================================================ */
+.notebook-editor-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    min-height: 300px;
+}
+
+.notebook-editor {
+    width: 100%;
+    height: 100%;
+    min-height: 300px;
+    max-height: calc(90vh - 280px);
+    overflow-y: auto;
+    padding: 24px;
+    background: var(--notebook-editor-bg);
+    font-family: 'Manrope', sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+    color: var(--notebook-text);
+    outline: none;
+    box-sizing: border-box;
+}
+
+/* Scrollbar styling */
+.notebook-editor::-webkit-scrollbar {
+    width: 8px;
+}
+
+.notebook-editor::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.notebook-editor::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 4px;
+}
+
+body.dark-mode .notebook-editor::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+/* Placeholder */
+.notebook-editor:empty::before {
+    content: attr(data-placeholder);
+    color: var(--notebook-text-muted);
+    pointer-events: none;
+}
+
+/* Editor content styling */
+.notebook-editor h1 {
+    font-size: 2em;
+    font-weight: 700;
+    margin: 0.5em 0;
+    color: var(--notebook-text);
+}
+
+.notebook-editor h2 {
+    font-size: 1.5em;
+    font-weight: 700;
+    margin: 0.5em 0;
+    color: var(--notebook-text);
+}
+
+.notebook-editor h3 {
+    font-size: 1.25em;
+    font-weight: 600;
+    margin: 0.5em 0;
+    color: var(--notebook-text);
+}
+
+.notebook-editor p {
+    margin: 0.5em 0;
+}
+
+.notebook-editor ul,
+.notebook-editor ol {
+    padding-left: 1.5em;
+    margin: 0.5em 0;
+}
+
+.notebook-editor li {
+    margin: 0.25em 0;
+}
+
+.notebook-editor blockquote {
+    border-left: 4px solid var(--notebook-accent);
+    padding-left: 16px;
+    margin: 1em 0;
+    color: var(--notebook-text-secondary);
+    font-style: italic;
+}
+
+.notebook-editor pre {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    padding: 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    margin: 1em 0;
+}
+
+.notebook-editor code {
+    background: rgba(0, 0, 0, 0.06);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 13px;
+}
+
+body.dark-mode .notebook-editor code {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.notebook-editor pre code {
+    background: none;
+    padding: 0;
+}
+
+.notebook-editor a {
+    color: var(--notebook-accent);
+    text-decoration: none;
+}
+
+.notebook-editor a:hover {
+    text-decoration: underline;
+}
+
+.notebook-editor hr {
+    border: none;
+    height: 2px;
+    background: var(--notebook-border);
+    margin: 1.5em 0;
+}
+
+/* Checkbox styling */
+.notebook-editor .checkbox-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0.5em 0;
+}
+
+.notebook-editor .checkbox-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    accent-color: var(--notebook-accent);
+    cursor: var(--f-cursor-pointer);
+}
+
+/* Image styling */
+.notebook-editor img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 1em 0;
+}
+
+/* LaTeX/Math styling */
+.notebook-editor .katex-display {
+    margin: 1em 0;
+    overflow-x: auto;
+}
+
+/* ================================================
+   AI INPUT OVERLAY
+   ================================================ */
+.ai-input-overlay {
+    position: absolute;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 130, 0, 0.25);
+    border-radius: 20px;
+    padding: 14px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+    z-index: 100;
+    animation: aiOverlayIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    max-width: calc(100% - 32px);
+    width: 420px;
+}
+
+body.dark-mode .ai-input-overlay {
+    background: rgba(30, 30, 30, 0.85);
+    border-color: rgba(255, 130, 0, 0.3);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+body.coffee-mode .ai-input-overlay {
+    background: rgba(238, 232, 213, 0.85);
+    border-color: rgba(138, 108, 82, 0.3);
+    box-shadow: 0 12px 40px rgba(74, 59, 50, 0.2);
+}
+
+body.coffee-dark-mode .ai-input-overlay {
+    background: rgba(37, 28, 25, 0.85);
+    border-color: rgba(207, 157, 117, 0.3);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes aiOverlayIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.ai-input-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ai-sparkle-indicator {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--notebook-accent), var(--notebook-accent-hover));
+    border-radius: 50%;
+    color: white;
+    font-size: 15px;
+    box-shadow: 0 0 12px rgba(255, 130, 0, 0.3);
+}
+
+body.coffee-mode .ai-sparkle-indicator,
+body.coffee-dark-mode .ai-sparkle-indicator {
+    box-shadow: 0 0 12px rgba(207, 157, 117, 0.3);
+}
+
+.ai-prompt-input {
+    flex: 1;
+    padding: 10px 16px;
+    border: 1px solid var(--notebook-border);
+    border-radius: 20px;
+    corner-shape: squircle;
+    font-family: inherit;
+    font-size: 13.5px;
+    color: var(--notebook-text);
+    background: rgba(0, 0, 0, 0.03);
+    outline: none;
+    transition: all var(--notebook-transition);
+}
+
+body.dark-mode .ai-prompt-input,
+body.coffee-dark-mode .ai-prompt-input {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.ai-prompt-input:focus {
+    border-color: var(--notebook-accent);
+    background: var(--notebook-editor-bg);
+    box-shadow: 0 0 0 3px var(--notebook-accent-light);
+}
+
+.ai-submit-btn,
+.ai-cancel-btn {
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 50%;
+    cursor: var(--f-cursor-pointer);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: all var(--notebook-transition);
+}
+
+.ai-submit-btn {
+    background: var(--notebook-accent);
+    color: white;
+    box-shadow: 0 2px 8px var(--notebook-accent-light);
+}
+
+.ai-submit-btn:hover {
+    background: var(--notebook-accent-hover);
+    transform: scale(1.05);
+}
+
+.ai-cancel-btn {
+    background: rgba(0, 0, 0, 0.04);
+    color: var(--notebook-text-secondary);
+}
+
+body.dark-mode .ai-cancel-btn,
+body.coffee-dark-mode .ai-cancel-btn {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.ai-cancel-btn:hover {
+    background: rgba(234, 84, 85, 0.1);
+    color: var(--notebook-error);
+    transform: scale(1.05);
+}
+
+.ai-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--notebook-border);
+}
+
+.ai-suggestion {
+    padding: 6px 14px;
+    background: var(--notebook-accent-light);
+    border: 1px solid rgba(255, 130, 0, 0.05);
+    border-radius: 20px;
+    corner-shape: squircle;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--notebook-accent);
+    cursor: var(--f-cursor-pointer);
+    transition: all var(--notebook-transition);
+}
+
+body.coffee-mode .ai-suggestion,
+body.coffee-dark-mode .ai-suggestion {
+    border-color: rgba(138, 108, 82, 0.08);
+}
+
+.ai-suggestion:hover {
+    background: var(--notebook-accent);
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px var(--notebook-accent-light);
+}
+
+/* AI Writing Indicator */
+.ai-writing-indicator {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    background: linear-gradient(135deg, var(--notebook-accent), var(--notebook-accent-hover));
+    color: white;
+    border-radius: 24px;
+    corner-shape: squircle;
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: 0 4px 16px var(--notebook-accent-light);
+    animation: pulseIndicator 2s ease-in-out infinite;
+}
+
+@keyframes pulseIndicator {
+
+    0%,
+    100% {
+        box-shadow: 0 4px 16px rgba(124, 58, 237, 0.3);
+    }
+
+    50% {
+        box-shadow: 0 4px 24px rgba(124, 58, 237, 0.5);
+    }
+}
+
+.ai-stop-btn {
+    padding: 4px 12px;
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    border-radius: 15px;
+    color: white;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: var(--f-cursor-pointer);
+    transition: background var(--notebook-transition);
+}
+
+.ai-stop-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* ================================================
+   FOOTER
+   ================================================ */
+.notebook-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-top: 1px solid var(--notebook-border);
+    background: var(--notebook-toolbar-bg);
+}
+
+.notebook-status {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.save-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--notebook-success);
+}
+
+.save-status.saving {
+    color: var(--notebook-accent);
+}
+
+.save-status.error {
+    color: var(--notebook-error);
+}
+
+.word-count {
+    font-size: 12px;
+    color: var(--notebook-text-muted);
+}
+
+/* Manage Notebooks Link */
+.notebook-manage-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: rgba(255, 130, 0, 0.1);
+    border-radius: 20px;
+    corner-shape: squircle;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--notebook-accent);
+    text-decoration: none;
+    transition: all var(--notebook-transition);
+}
+
+.notebook-manage-link:hover {
+    background: rgba(255, 130, 0, 0.2);
+    color: var(--notebook-accent-hover);
+}
+
+.notebook-manage-link i {
+    font-size: 11px;
+}
+
+body.dark-mode .notebook-manage-link {
+    background: rgba(255, 130, 0, 0.15);
+}
+
+.notebook-footer-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.notebook-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 24px;
+    corner-shape: squircle;
+    font-family: 'Manrope', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: var(--f-cursor-pointer);
+    transition: all var(--notebook-transition);
+}
+
+.notebook-btn-secondary {
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--notebook-text-secondary);
+}
+
+.notebook-btn-secondary:hover {
+    background: rgba(0, 0, 0, 0.1);
+    color: var(--notebook-text);
+}
+
+body.dark-mode .notebook-btn-secondary {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+body.dark-mode .notebook-btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.notebook-btn-primary {
+    background: var(--notebook-accent);
+    color: white;
+}
+
+.notebook-btn-primary:hover {
+    background: var(--notebook-accent-hover);
+}
+
+/* ================================================
+   LINK PDF MODAL
+   ================================================ */
+.notebook-link-pdf-modal {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10002;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+}
+
+.link-pdf-dialog {
+    background: var(--notebook-bg);
+    border-radius: var(--notebook-radius-sm);
+    box-shadow: var(--notebook-shadow);
+    width: 90%;
+    max-width: 500px;
+    max-height: 70vh;
+    overflow: hidden;
+}
+
+.link-pdf-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--notebook-border);
+}
+
+.link-pdf-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--notebook-text);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.link-pdf-header h3 i {
+    color: var(--notebook-accent);
+}
+
+.link-pdf-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.link-new-note-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: var(--notebook-accent-light);
+    border: 1px solid var(--notebook-accent);
+    border-radius: 24px;
+    corner-shape: squircle;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--notebook-accent);
+    cursor: var(--f-cursor-pointer);
+    transition: all var(--notebook-transition);
+}
+
+.link-new-note-btn:hover {
+    background: var(--notebook-accent);
+    color: white;
+}
+
+.link-new-note-btn i {
+    font-size: 14px;
+}
+
+.link-pdf-close {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: rgba(0, 0, 0, 0.06);
+    border-radius: 50%;
+    cursor: var(--f-cursor-pointer);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--notebook-text-secondary);
+    transition: all var(--notebook-transition);
+}
+
+.link-pdf-close:hover {
+    background: var(--notebook-accent-light);
+    color: var(--notebook-accent);
+}
+
+.link-pdf-content {
+    padding: 20px 24px;
+    max-height: calc(70vh - 80px);
+    overflow-y: auto;
+}
+
+.link-pdf-description {
+    margin: 0 0 16px;
+    font-size: 14px;
+    color: var(--notebook-text-secondary);
+}
+
+.link-pdf-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: rgba(0, 0, 0, 0.03);
+    border-radius: 12px;
+    margin-bottom: 12px;
+    transition: background var(--notebook-transition);
+}
+
+.link-pdf-option:hover {
+    background: rgba(0, 0, 0, 0.06);
+}
+
+body.dark-mode .link-pdf-option {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+body.dark-mode .link-pdf-option:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.link-pdf-option>i {
+    font-size: 24px;
+    color: var(--notebook-accent);
+}
+
+.link-pdf-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.link-pdf-name {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--notebook-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.link-pdf-path {
+    display: block;
+    font-size: 12px;
+    color: var(--notebook-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.link-pdf-select-btn {
+    padding: 6px 16px;
+    background: var(--notebook-accent);
+    color: white;
+    border: none;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: var(--f-cursor-pointer);
+    transition: background var(--notebook-transition);
+}
+
+.link-pdf-select-btn:hover {
+    background: var(--notebook-accent-hover);
+}
+
+.link-pdf-search-container {
+    margin-bottom: 12px;
+}
+
+.link-pdf-search {
+    width: 100%;
+    padding: 10px 16px;
+    border: 1px solid var(--notebook-border);
+    border-radius: 25px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 14px;
+    color: var(--notebook-text);
+    background: var(--notebook-editor-bg);
+    outline: none;
+    box-sizing: border-box;
+}
+
+.link-pdf-search:focus {
+    border-color: var(--notebook-accent);
+}
+
+.link-pdf-list {
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.link-pdf-empty {
+    text-align: center;
+    padding: 24px;
+    color: var(--notebook-text-muted);
+    font-size: 14px;
+}
+
+/* ================================================
+   PREVIEW MODAL
+   ================================================ */
+.notebook-preview-modal {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10002;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+}
+
+.notebook-preview-dialog {
+    background: var(--notebook-bg);
+    border-radius: var(--notebook-radius);
+    box-shadow: var(--notebook-shadow);
+    width: 90%;
+    max-width: 800px;
+    max-height: 85vh;
+    overflow: hidden;
+}
+
+.notebook-preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--notebook-border);
+}
+
+.notebook-preview-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--notebook-text);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.notebook-preview-header h3 i {
+    color: var(--notebook-accent);
+}
+
+.notebook-preview-close {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: rgba(0, 0, 0, 0.06);
+    border-radius: 50%;
+    cursor: var(--f-cursor-pointer);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--notebook-text-secondary);
+    transition: all var(--notebook-transition);
+}
+
+.notebook-preview-close:hover {
+    background: var(--notebook-accent-light);
+    color: var(--notebook-accent);
+}
+
+.notebook-preview-content {
+    padding: 24px;
+    max-height: calc(85vh - 80px);
+    overflow-y: auto;
+    font-family: 'Manrope', sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+    color: var(--notebook-text);
+}
+
+/* ================================================
+   EXPORT MODAL
+   ================================================ */
+.notebook-export-modal {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10002;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+}
+
+.notebook-export-dialog {
+    background: var(--notebook-bg);
+    border-radius: var(--notebook-radius-sm);
+    box-shadow: var(--notebook-shadow);
+    width: 90%;
+    max-width: 350px;
+    overflow: hidden;
+}
+
+.notebook-export-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--notebook-border);
+}
+
+.notebook-export-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--notebook-text);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.notebook-export-header h3 i {
+    color: var(--notebook-accent);
+}
+
+.notebook-export-close {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: rgba(0, 0, 0, 0.06);
+    border-radius: 50%;
+    cursor: var(--f-cursor-pointer);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--notebook-text-secondary);
+    transition: all var(--notebook-transition);
+}
+
+.notebook-export-close:hover {
+    background: var(--notebook-accent-light);
+    color: var(--notebook-accent);
+}
+
+.notebook-export-content {
+    padding: 16px 24px 24px;
+}
+
+.export-option {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    cursor: var(--f-cursor-pointer);
+    transition: background var(--notebook-transition);
+    margin-bottom: 8px;
+}
+
+.export-option:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+body.dark-mode .export-option:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.export-option i {
+    font-size: 20px;
+    width: 28px;
+    color: var(--notebook-accent);
+}
+
+.export-option span {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--notebook-text);
+}
+
+/* ================================================
+   POPUP CONTROLS NOTEBOOK BUTTON
+   ================================================ */
+.popup-controls .notebook-btn-popup {
+    order: -1;
+    /* First position */
+}
+
+/* ================================================
+   NAVBAR NOTEBOOK BUTTON
+   ================================================ */
+.notebook-nav-btn {
+    color: var(--color-text-secondary, #666);
+    text-decoration: none;
+    padding: 12px;
+    width: 100%;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: larger;
+    transition: all 0.3s ease;
+    position: relative;
+    cursor: var(--f-cursor-pointer);
+    background: none;
+    border: none;
+}
+
+.notebook-nav-btn i {
+    color: var(--color-text-secondary, #666);
+    transition: color 0.2s ease;
+}
+
+.notebook-nav-btn:hover i {
+    color: var(--notebook-accent);
+}
+
+body.dark-mode .notebook-nav-btn i {
+    color: #888;
+}
+
+body.dark-mode .notebook-nav-btn:hover i {
+    color: var(--notebook-accent);
+}
+
+/* ================================================
+   MOBILE RESPONSIVE
+   ================================================ */
+@media (max-width: 768px) {
+    .notebook-dialog {
+        width: 100%;
+        max-width: 100%;
+        height: 100%;
+        max-height: 100%;
+        border-radius: 0;
+    }
+
+    .notebook-header {
+        padding: 16px 50px 12px 16px;
+    }
+
+    .notebook-title-input {
+        font-size: 1.25rem;
+    }
+
+    .notebook-toolbar {
+        padding: 8px 16px;
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .notebook-toolbar::-webkit-scrollbar {
+        display: none;
+    }
+
+    .toolbar-group {
+        flex-shrink: 0;
+    }
+
+    .toolbar-divider {
+        margin: 0 4px;
+    }
+
+    .notebook-editor {
+        padding: 16px;
+        max-height: calc(100vh - 220px);
+    }
+
+    .notebook-footer {
+        flex-direction: column;
+        gap: 12px;
+        padding: 12px 16px;
+    }
+
+    .notebook-status {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .notebook-footer-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .notebook-btn span {
+        display: none;
+    }
+
+    .notebook-btn i {
+        margin: 0;
+    }
+
+    /* AI input on mobile */
+    .ai-input-overlay {
+        left: 16px !important;
+        right: 16px !important;
+        width: auto !important;
+    }
+
+    .ai-prompt-input {
+        min-width: 0;
+        flex: 1;
+    }
+
+    .ai-suggestions {
+        display: none;
+    }
+
+    /* Notebooks list page responsive layout */
+    .notebooks-tab-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+    }
+
+    .notebooks-tab-actions {
+        width: 100%;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+}
+
+/* ================================================
+   NOTEBOOKS LIST PAGE
+   ================================================ */
+.notebooks-page {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 24px;
+}
+
+.notebooks-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+}
+
+.notebooks-header h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--notebook-text);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.notebooks-header h1 i {
+    color: var(--notebook-accent);
+}
+
+.notebooks-new-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    background: var(--notebook-accent);
+    color: white;
+    border: none;
+    border-radius: 25px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: var(--f-cursor-pointer);
+    transition: background var(--notebook-transition);
+}
+
+.notebooks-new-btn:hover {
+    background: var(--notebook-accent-hover);
+}
+
+.notebook-filter-select {
+    font-family: var(--font-primary);
+    background: var(--color-bg-card);
+    backdrop-filter: var(--blur-md);
+    -webkit-backdrop-filter: var(--blur-md);
+    border: 1px solid var(--notebook-border);
+    border-radius: 30px;
+    corner-shape: squircle;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--notebook-text);
+    cursor: var(--f-cursor-pointer);
+    outline: none;
+    transition: all var(--notebook-transition);
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23666' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: calc(100% - 12px) center;
+    padding-right: 32px;
+}
+
+.notebook-filter-select:hover {
+    border-color: var(--notebook-accent);
+}
+
+.notebook-filter-select:focus {
+    border-color: var(--notebook-accent);
+    box-shadow: 0 0 0 3px var(--notebook-accent-light);
+}
+
+body.dark-mode .notebook-filter-select {
+    background-color: rgba(30, 30, 30, 0.6);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23aaa' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+}
+
+.notebooks-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.notebooks-tab-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.notebooks-tab-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.notebooks-actions .site-button,
+.notebooks-tab-actions .site-button {
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 24px;
+    corner-shape: squircle;
+    font-family: 'Manrope', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: var(--f-cursor-pointer);
+    transition: all var(--notebook-transition);
+    background: var(--notebook-accent);
+    color: white;
+}
+
+.notebooks-actions .site-button:hover,
+.notebooks-tab-actions .site-button:hover {
+    background: var(--notebook-accent-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px var(--notebook-accent-light);
+}
+
+.notebooks-actions .site-button.secondary,
+.notebooks-tab-actions .site-button.secondary {
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--notebook-text-secondary);
+}
+
+.notebooks-actions .site-button.secondary:hover,
+.notebooks-tab-actions .site-button.secondary:hover {
+    background: rgba(0, 0, 0, 0.1);
+    color: var(--notebook-text);
+}
+
+body.dark-mode .notebooks-actions .site-button.secondary,
+body.dark-mode .notebooks-tab-actions .site-button.secondary,
+body.coffee-dark-mode .notebooks-actions .site-button.secondary,
+body.coffee-dark-mode .notebooks-tab-actions .site-button.secondary {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+body.dark-mode .notebooks-actions .site-button.secondary:hover,
+body.dark-mode .notebooks-tab-actions .site-button.secondary:hover,
+body.coffee-dark-mode .notebooks-actions .site-button.secondary:hover,
+body.coffee-dark-mode .notebooks-tab-actions .site-button.secondary:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+}
+
+/* Custom Dropdown Styling in notebooks page */
+.notebooks-tab-actions #notebookFilterSelector {
+    background: var(--color-bg-card);
+    border: 1px solid var(--notebook-border);
+    border-radius: 24px;
+    corner-shape: squircle;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--notebook-text);
+    cursor: var(--f-cursor-pointer);
+    transition: all var(--notebook-transition);
+}
+
+.notebooks-tab-actions #notebookFilterSelector:hover {
+    border-color: var(--notebook-accent);
+}
+
+.notebooks-tab-actions #notebookFilterDropdown {
+    min-width: 180px;
+}
+
+.notebook-card {
+    background: var(--notebook-bg);
+    backdrop-filter: var(--blur-md);
+    -webkit-backdrop-filter: var(--blur-md);
+    border: 1px solid var(--notebook-border);
+    border-radius: 24px;
+    corner-shape: squircle;
+    padding: 0;
+    cursor: var(--f-cursor-default);
+    transition: all var(--notebook-transition);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+body.dark-mode .notebook-card {
+    background: var(--notebook-bg);
+}
+
+.notebook-card-content {
+    padding: 20px;
+    cursor: var(--f-cursor-pointer);
+    flex: 1;
+}
+
+.notebook-card:hover {
+    border-color: var(--notebook-accent);
+    box-shadow: 0 4px 20px rgba(255, 130, 0, 0.1);
+    transform: translateY(-2px);
+}
+
+.notebook-card-actions-quick {
+    display: flex;
+    justify-content: flex-end;
+    padding: 8px 16px 12px;
+    gap: 8px;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    background: rgba(0, 0, 0, 0.01);
+}
+
+body.dark-mode .notebook-card-actions-quick {
+    border-top-color: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.01);
+}
+
+.card-action-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: var(--notebook-text-muted);
+    cursor: var(--f-cursor-pointer);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.card-action-btn:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--notebook-text);
+}
+
+body.dark-mode .card-action-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.card-action-btn.delete:hover {
+    background: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+}
+
+.notebook-card-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--notebook-text);
+    margin: 0 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.notebook-card-title i {
+    color: var(--notebook-accent);
+    font-size: 14px;
+}
+
+.notebook-card-preview {
+    font-size: 13px;
+    color: var(--notebook-text-secondary);
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.notebook-card-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--notebook-text-muted);
+}
+
+.notebook-card-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    background: var(--notebook-accent-light);
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--notebook-accent);
+}
+
+.notebook-card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--notebook-border);
+}
+
+.notebook-card-action {
+    flex: 1;
+    padding: 8px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    font-size: 12px;
+    color: var(--notebook-text-secondary);
+    cursor: var(--f-cursor-pointer);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all var(--notebook-transition);
+}
+
+.notebook-card-action:hover {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--notebook-text);
+}
+
+body.dark-mode .notebook-card-action:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.notebook-card-action.delete:hover {
+    background: rgba(234, 84, 85, 0.1);
+    color: var(--notebook-error);
+}
+
+.notebooks-empty {
+    text-align: center;
+    padding: 60px 24px;
+    color: var(--notebook-text-muted);
+}
+
+.notebooks-empty i {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
+
+.notebooks-empty p {
+    font-size: 16px;
+    margin: 0 0 8px;
+}
+
+.notebooks-empty span {
+    font-size: 14px;
+}
+
+/* Cloud sync indicator for Plus/Super users */
+.cloud-sync-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    color: white;
+}
+
+.cloud-sync-badge i {
+    font-size: 10px;
+}
+
+/* ================================================
+   VIEW MODE STYLES
+   ================================================ */
+
+.notebook-editor.view-mode {
+    cursor: var(--f-cursor-default);
+    background: transparent;
+}
+
+.notebook-editor.view-mode:focus {
+    outline: none;
+}
+
+/* Code blocks in view mode */
+.notebook-editor pre {
+    background: #1e1e1e;
+    border-radius: 8px;
+    padding: 16px;
+    overflow-x: auto;
+    margin: 16px 0;
+}
+
+.notebook-editor pre code {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #d4d4d4;
+}
+
+body.dark-mode .notebook-editor pre {
+    background: #0d1117;
+}
+
+/* LaTeX/Math styling */
+.notebook-editor .math-inline {
+    padding: 0 4px;
+    color: var(--notebook-accent);
+}
+
+.notebook-editor .katex-display {
+    margin: 16px 0;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.02);
+    border-radius: 8px;
+    overflow-x: auto;
+}
+
+body.dark-mode .notebook-editor .katex-display {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.notebook-editor .katex {
+    font-size: 1.1em;
+}
+
+/* Images in editor */
+.notebook-editor img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 12px 0;
+}
+
+/* File attachments */
+.notebook-editor .file-attachment {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--notebook-text);
+    margin: 8px 0;
+}
+
+.notebook-editor .file-attachment i {
+    color: var(--notebook-accent);
+}
+
+body.dark-mode .notebook-editor .file-attachment {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* Blockquotes */
+.notebook-editor blockquote {
+    border-left: 4px solid var(--notebook-accent);
+    margin: 16px 0;
+    padding: 12px 20px;
+    background: rgba(255, 130, 0, 0.05);
+    border-radius: 0 8px 8px 0;
+    font-style: italic;
+}
+
+body.dark-mode .notebook-editor blockquote {
+    background: rgba(255, 130, 0, 0.08);
+}
+
+/* Checkboxes */
+.notebook-editor input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin-right: 8px;
+    accent-color: var(--notebook-accent);
+}
+
+/* Links in editor */
+.notebook-editor a {
+    color: var(--notebook-accent);
+    text-decoration: none;
+}
+
+.notebook-editor a:hover {
+    text-decoration: underline;
+}
+
+/* Horizontal rules */
+.notebook-editor hr {
+    border: none;
+    border-top: 2px solid rgba(0, 0, 0, 0.1);
+    margin: 24px 0;
+}
+
+body.dark-mode .notebook-editor hr {
+    border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+/* ================================================
+   COFFEE DARK MODE OVERRIDES
+   ================================================ */
+body.coffee-dark-mode .notebook-close-btn {
+    background: rgba(255, 255, 255, 0.1);
+}
+body.coffee-dark-mode .toolbar-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+body.coffee-dark-mode .notebook-editor::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+}
+body.coffee-dark-mode .notebook-editor code {
+    background: rgba(255, 255, 255, 0.1);
+}
+body.coffee-dark-mode .notebook-manage-link {
+    background: var(--notebook-accent-light);
+}
+body.coffee-dark-mode .notebook-btn-secondary {
+    background: rgba(255, 255, 255, 0.1);
+}
+body.coffee-dark-mode .notebook-btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+body.coffee-dark-mode .link-pdf-option {
+    background: rgba(255, 255, 255, 0.05);
+}
+body.coffee-dark-mode .link-pdf-option:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+body.coffee-dark-mode .export-option:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+body.coffee-dark-mode .notebook-nav-btn i {
+    color: #888;
+}
+body.coffee-dark-mode .notebook-nav-btn:hover i {
+    color: var(--notebook-accent);
+}
+body.coffee-dark-mode .notebook-filter-select {
+    background-color: rgba(30, 30, 30, 0.6);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23aaa' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+}
+body.coffee-dark-mode .notebook-card {
+    background: var(--notebook-bg);
+}
+body.coffee-dark-mode .notebook-card-actions-quick {
+    border-top-color: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.01);
+}
+body.coffee-dark-mode .card-action-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+body.coffee-dark-mode .notebook-card-action:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+body.coffee-dark-mode .notebook-editor pre {
+    background: #0d1117;
+}
+body.coffee-dark-mode .notebook-editor .katex-display {
+    background: rgba(255, 255, 255, 0.03);
+}
+body.coffee-dark-mode .notebook-editor .file-attachment {
+    background: rgba(255, 255, 255, 0.08);
+}
+body.coffee-dark-mode .notebook-editor blockquote {
+    background: var(--notebook-accent-light);
+}
+body.coffee-dark-mode .notebook-editor hr {
+    border-top-color: rgba(255, 255, 255, 0.1);
+}

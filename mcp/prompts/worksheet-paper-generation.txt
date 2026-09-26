@@ -1,0 +1,92 @@
+---
+name: worksheet-paper-generation
+version: 1.0.0
+description: "Prompt workflow for creating worksheets, sample papers, question papers, question banks, and reusable layout templates."
+author: Materio Team
+applyTo: "**"
+---
+
+# Worksheet / Sample Paper Generation
+
+## Intent
+
+Generate polished worksheets, sample papers, question papers, and question banks using a reusable academic template. The default layout follows a formal exam-paper style with a centered institution header, metadata blocks, numbered instructions, section headings, and bordered question tables with marks, CO, and BT columns.
+
+## Tools
+
+- `CreateWorksheetPaper` — returns the final generation prompt once required paper settings are available. **IMPORTANT: Once you receive this prompt, you MUST immediately output the generated worksheet content in markdown format. DO NOT echo the prompt back to the user.**
+- `CreateOrEditPaperTemplate` — creates or edits a reusable `Skill.md` template based on the user's described layout.
+
+## Required Inputs
+
+Before generation, collect:
+
+1. Answer key: none, at last, or after each question.
+2. Bloom's taxonomy: yes/no. If yes, levels to include: remember, understand, apply, analyse, evaluate, create.
+3. Difficulty: easy, medium, or hard.
+4. Question types and marks distribution: MCQ, fill blanks, short answer, long answer, case study, numericals, etc.
+5. Output format: docx, pdf, or md. **CRITICAL**: If the user selects 'pdf' or 'docx', you must STILL only output raw Markdown. Do NOT apologize or explain that you cannot create a PDF/DOCX. The system frontend will automatically handle the conversion. Just output the markdown content directly.
+
+## Grounding And Validation
+
+Before generating questions, ground the content in available source material:
+
+- If the request maps to Materio content, gather relevant syllabus and chapter/question-bank material using Materio tools such as `SnapSearch` or `DeepThink`.
+- **CRITICAL**: If you do not know the exact topic names, you MUST use `ResourceLibrary` FIRST to get the list of exact topics before searching.
+- **IMPORTANT**: When using `SnapSearch` or `DeepThink`, use exact topic names found via `ResourceLibrary` (e.g. "Android Components and Resource Handling") rather than vague terms like "chapter 2", as they rely on keyword and semantic matching against actual course content.
+- Do not use `Finder` or `ResourceLibrary` for content grounding; they are topic discovery tools, not content retrieval tools.
+- If the user provides attached PDFs, notes, or other resources outside Materio, ground the output in those materials instead.
+- Mixed-source mode is allowed, but the generated questions should stay faithful to the validated scope.
+- Do not invent syllabus coverage or unsupported facts when source material is thin.
+
+## Modal Flow (Required)
+
+Whenever any required input is missing, you MUST call the `ask_user_input_v0` tool as a modal or sequence of questions. After collecting answers, you MUST call `CreateWorksheetPaper` with the completed values. NEVER generate a worksheet directly from scratch without calling `CreateWorksheetPaper` first.
+
+Ask all required inputs before generating. Do not skip or infer missing fields.
+
+Recommended modal questions:
+
+1. Do you want an answer key? If yes, should it be at the end or after each question?
+2. Should the paper follow Bloom's taxonomy? If yes, which levels should be included?
+3. What difficulty should the paper use: easy, medium, or hard?
+4. Which question types should be included, and what marks distribution should each type have?
+5. Which output format should be created: docx, pdf, or md?
+
+## Template Customization
+
+If the user wants a custom format, call `CreateOrEditPaperTemplate`.
+
+The user can describe:
+
+- Header format, logo placement, title hierarchy, metadata fields, and alignment.
+- Font family, font sizes, margins, spacing, and section styles.
+- Body format, question table columns, marks placement, answer-key placement, and page-break rules.
+- Separate variants for worksheet, sample paper, question paper, and question bank if needed.
+
+The tool returns a `Skill.md` template. Keep that template in the same chat context and pass it to `CreateWorksheetPaper` as `templateSkillMd` for later worksheets, papers, or question banks. The user can also reuse the returned Markdown in a future chat to restore the template context.
+
+## Diagram Question Workflow
+
+For any question where a diagram is possible:
+
+1. Solve the question.
+2. If in ChatGPT/Claude/Perplexity, generate the diagram using the platform sandbox (Python graphviz/networkx/matplotlib/schemdraw as appropriate) and attach the resulting image.
+3. If in the Custom Web Client (Materio Chat Client), generate the diagram as an HTML or React Web Artifact using frontend visualization libraries (chart.js, d3-graphviz, tscircuit, etc.). The WebArtifactSandbox will automatically execute and capture the image URL.
+4. Embed the resulting image URL or attached image in the document (question and answer key, if present).
+
+## Quality Rules
+
+- Keep the layout print-friendly.
+- Make marks add up when total marks are provided.
+- Keep questions age/level appropriate.
+- Ground the output in validated source material before writing questions.
+- If Bloom's taxonomy is enabled, include BT labels.
+- Use CO labels consistently when the template includes a CO column.
+- Wait until the user has fully answered the 5 questions before generating the worksheet. Don't jump ahead.
+- For diagram-type questions, do not describe the diagram in text. If using Python sandboxes, embed the resulting image in the document. If using the Custom Web Client, generate the diagram as a Web Artifact (HTML/React) and let the sandbox capture and return the image, then embed the URL.
+- **CRITICAL:** If the user selects "pdf", "docx", or "md", DO NOT apologize or explain that you cannot create a PDF. 
+  - ALWAYS default to calling `execute_js` and using the injected `pdfkit` or `htmlToDocx` libraries to build the document buffer manually, then use `uploadBufferToSupabase(buffer, filename, contentType)` to get a public URL. Output the returned link in the format `[Document: pdf | Title](url)`.
+  - FALLBACK: If the `execute_js` tool fails, errors out, or something goes wrong, ONLY THEN fallback to calling the `generate_document` tool with your raw Markdown content and the requested format. Output the link it returns.
+- If using `generate_document` or `execute_js`, wait for it to return the link, then display it in the chat exactly as returned (e.g., `[Document: pdf | Worksheet](url)`). The frontend will automatically convert this link into an interactive Document Card.
+- NEVER try to use `ShareLinkGenerator` for a newly generated worksheet. `ShareLinkGenerator` is only for existing PDFs in the Materio library.

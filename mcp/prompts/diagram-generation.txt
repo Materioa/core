@@ -1,0 +1,210 @@
+---
+name: accurate-diagrams
+version: 2.0.0
+description: "Prompt templates for generating highly-accurate diagram specifications (Mermaid/DOT) that render deterministically across ChatGPT, Claude, and Perplexity"
+author: Materio Team
+applyTo: "**"
+---
+
+# Accurate Diagram Generation
+
+## Intent
+
+Generate reliable, machine-readable diagram specs (Mermaid or Graphviz/DOT) from user requests. Prefer native Mermaid rendering for simple diagrams, JS-based server rendering for Mermaid/DOT when needed, and the LLM web-interface sandbox for Python-heavy or precision-sensitive diagram workflows.
+
+## Core Rules
+
+- **Output ONLY the spec** in a fenced code block: ```mermaid``` or ```dot```.
+- **No prose, no explanation, no extra sections.** Only the code block.
+- **Be deterministic:** avoid invented nodes, extra states, or speculative behavior.
+- **MCP will validate** syntax + domain rules (determinism, reachability, etc.) before rendering.
+- **Do not use any retrieval, search, or reasoning-assist tool** (DeepThink, SnapSearch, or any RAG/semantic lookup) for diagram generation.
+- **Do not route diagram requests through DeepThink for reasoning.** Diagram requests must go directly to the diagram workflow.
+- **Never convert DOT to Mermaid** or relabel DOT output as Mermaid.
+- **If the user asks to draw or render a diagram, you must return a diagram image. Do not answer with text-only tables or descriptions.**
+
+## Platform-Specific Rendering
+
+### ChatGPT
+- Fenced ```mermaid code blocks render **natively in the canvas** — just include the block in your response.
+- Raw SVG should be rendered natively (HTML artifact) when available.
+- DOT format must be rendered in the sandbox with Python (graphviz). Do not use server-side rendering for DOT.
+- Do not re-render DOT as Mermaid. If DOT is used, render DOT directly or via sandbox and provide a download link.
+- For Python-heavy diagrams such as circuits, plots, Gantt charts, or logic diagrams, use the ChatGPT web-interface sandbox rather than any server-side Python execution.
+- When a tool returns diagram output (DOT/SVG/PNG), use it as-is and render via the ChatGPT sandbox with Python, then provide a download link. Only render natively if the response is Mermaid or SVG.
+- Use python_user_visible for inline image rendering in ChatGPT when running the sandbox script.
+- Save the image to /mnt/data or ./output and return a download link or artifact pointing to that saved file. Do not output base64.
+- Do not skip diagram rendering and do not answer with text or ASCII drawings.
+- If the tool returns HTML, **create an artifact** so the native renderer can display it.
+- If the tool returns raw SVG text, **wrap it in a minimal HTML artifact** (e.g., `<html><body>...svg...</body></html>`) so it renders. Do not return the raw SVG or JSON-wrapped SVG text in chat.
+- Never trim or shorten SVG output before embedding; truncated SVG will not render.
+- If the tool returns an image file (SVG/PNG), **provide a download link** instead of trying to render it inline.
+- Call GenerateDiagramFromRequest with `environment="python"`.
+
+### Claude
+- Fenced ```mermaid code blocks render **natively in artifacts/canvas** — include the block directly.
+- Raw SVG should be rendered natively (HTML artifact) when available.
+- DOT format must be rendered in the sandbox with Python (graphviz). Do not use server-side rendering for DOT.
+- Perplexity-style sandboxing: for any non-Mermaid/SVG diagram, render in the sandbox and return a download link.
+- Do not use DeepThink for diagram requests, diagram planning, or diagram reasoning.
+- Do not re-render DOT as Mermaid. If DOT is used, render DOT directly or via sandbox and provide a download link.
+- For Python-heavy diagrams such as circuits, plots, Gantt charts, or logic diagrams, use the Claude web-interface sandbox rather than any server-side Python execution.
+- When a tool returns diagram output (DOT/SVG/PNG), use it as-is and render via the Claude sandbox with Python, then provide a download link. Only render natively if the response is Mermaid or SVG.
+- Save the image to /mnt/data or ./output and return a download link or artifact pointing to that saved file. Do not output base64.
+- Do not skip diagram rendering and do not answer with text or ASCII drawings.
+- If the tool returns raw SVG text, **wrap it in an HTML artifact** so it renders.
+- If the tool returns an image file (SVG/PNG), **provide a download link** instead of trying to render it inline.
+- Call GenerateDiagramFromRequest with `environment="python"`.
+
+### Perplexity
+- Perplexity does **NOT** natively render Mermaid or DOT in responses.
+- Always use the Perplexity sandbox with Python to render diagram requests (graphviz/networkx/matplotlib/schemdraw as appropriate).
+- Always return a download link to the generated image. Do not inline images and do not return text-only descriptions.
+- Save the image to /mnt/data or ./output and return a download link or artifact pointing to that saved file. Do not output base64.
+- Call GenerateDiagramFromRequest with `environment="python"`.
+
+### Custom Web Client (Materio Chat Client)
+- Custom Web Client natively supports Mermaid (fenced codeblock) and HTML/React Web Artifacts for everything else.
+- DO NOT use Python sandboxing. The client has no Python runtime.
+- For complex diagrams such as circuits, plots, Gantt charts, logic diagrams, or DOT, output a Web Artifact (HTML/React code block).
+- The platform's Web Artifact Sandbox will execute your code, capture the image, and save it to the Supabase bucket automatically.
+- Call GenerateDiagramFromRequest with `environment="web"`.
+
+## Rendering Fallback Rule
+
+- For all platforms: if native rendering is unavailable or fails, use the platform sandbox as a fallback to render the diagram into an image.
+- If a tool returns raw SVG/XML (e.g., the DiagramGenerator response body), you MUST pass that exact SVG into the platform sandbox, render it with Python, and return the image output. Do not answer until the image is generated. No text or ASCII fallback.
+- For any diagram type other than Mermaid or DOT (plots, visualizations, circuits, Gantt charts, logic gates, timelines), always use the platform sandbox with Python to render the diagram image. Do not ASCII-draw or describe these diagrams.
+- Only after the image is delivered may you provide a text explanation.
+
+## Prompt Template: Mermaid (DFA/FSM)
+
+**System prompt:**
+```
+You are a deterministic diagram generator. 
+Output ONLY a Mermaid state diagram code block.
+Do not add prose, explanation, or anything outside the code block.
+```
+
+**User query (example):**
+```
+Generate a deterministic finite automaton (DFA) that recognizes binary strings over {0,1} ending in "01".
+Use states q0, q1, q2 (no more).
+Mark the start state with [*] --> q0.
+Mark accept states with (accept).
+```
+
+**Expected model output:**
+```mermaid
+stateDiagram-v2
+  [*] --> q0
+  q0 --> q0: 0
+  q0 --> q1: 1
+  q1 --> q2: 0
+  q1 --> q0: 1
+  q2 --> q1: 1
+  q2 --> q2: 0
+  q2: (accept)
+```
+
+## Prompt Template: Graphviz/DOT (Flowchart)
+
+**System prompt:**
+```
+Output ONLY a DOT code block describing the flowchart.
+Do not add prose or explanation outside the code block.
+```
+
+**User query (example):**
+```
+Create a flowchart: Start -> Validate Input -> if valid: Process -> End; if invalid: Error -> End.
+```
+
+**Expected model output:**
+```dot
+digraph flowchart {
+  Start -> ValidateInput;
+  ValidateInput -> Process [label="valid"];
+  ValidateInput -> Error [label="invalid"];
+  Process -> End;
+  Error -> End;
+}
+```
+
+## Validation & Constraints (enforced by MCP)
+
+**Syntax checks:**
+- Mermaid: must pass `mermaid.parse()`.
+- DOT: must pass Viz.js render without error.
+
+**Domain rules (for DFA/FSM):**
+- **Determinism:** Each state + input symbol → at most one transition (no ambiguity).
+- **Reachability:** All states reachable from start state.
+- **Completeness:** DFA should define all transitions or clearly allow implicit failure.
+- **Start & Accept:** Exactly one start state; accept states marked unambiguously.
+
+**Limits:**
+- Max 10 nodes (configurable).
+- Max 20 edges (configurable).
+
+## Workflow (MCP tool orchestration)
+
+1. **User requests a diagram** → call `GenerateDiagramFromRequest` to get spec instructions.
+2. **Generate the spec** using the instructions and these prompt templates.
+3. **Validate syntax** via `DiagramValidator` (optional but recommended).
+4. **If invalid:** fix syntax errors based on validator feedback, don't re-prompt from scratch.
+5. **If valid:**
+   - On ChatGPT/Claude: include the fenced Mermaid block directly for simple native rendering when appropriate.
+   - When a rendered Mermaid or DOT asset is needed, use `DiagramGenerator` for JS-based server-side rendering.
+   - For circuits, plots, Gantt charts, logic diagrams, and other Python-heavy outputs, use the platform's web-interface sandbox instead of any server-side Python runtime.
+6. **Return the result** (rendered diagram or fenced code block) to the user.
+
+## Strict Draw/Visualize Workflow
+
+If the user prompt contains "draw" or "visualize":
+
+1. Call the appropriate diagram tool and wait for the response.
+2. Copy the tool response into the platform sandbox as-is, without truncating, summarizing, or rewriting any part of it.
+3. Render the visualization using Python libraries (graphviz/networkx/matplotlib/schemdraw as appropriate).
+4. Return the rendered image to the user (download link or artifact).
+
+This workflow is mandatory. Do not respond with text-only output or skip rendering.
+
+Priority order for any diagram request:
+1. Image
+2. Diagram artifact / rendered asset
+3. Text, tables, or explanation only if the image route is impossible and must be explicitly signaled as a failure
+
+ASCII drawings are never allowed.
+
+## Anti-Hallucination Guidance
+
+- **Constrain the request:** specify node names, max count, and allowed symbols/labels.
+- **Ask for deterministic behavior only:** "DFA means exactly one transition per state-symbol pair."
+- **No invented states:** "Do not add helper or intermediate states beyond what is necessary."
+- **Reachability:** "All states must be reachable from the start state."
+
+## Example: Marking Acceptance in Mermaid
+
+States that accept:
+```
+q_final: (accept)
+```
+
+Transitions with labels:
+```
+q0 --> q1: a
+q1 --> q2: b | c
+```
+
+## Troubleshooting
+
+- **"Ambiguous transitions"** → Ask model to ensure each state-symbol pair has exactly one target.
+- **"Unreachable state"** → Ask model to remove it or add a path from start.
+- **"Invalid syntax"** → Return the exact parse error from Mermaid/Viz.js; ask model to fix only that issue.
+
+## See Also
+
+- `DiagramValidator` — MCP tool that checks syntax + domain rules.
+- `DiagramGenerator` — MCP tool that renders Mermaid/DOT with JS-based server-side tooling.
+- `GenerateDiagramFromRequest` — MCP tool that provides spec generation instructions.

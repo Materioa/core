@@ -1,0 +1,111 @@
+{
+    "enabled": true,
+    "activities": [
+        {
+            "id": "satisfaction-survey",
+            "enabled": false,
+            "formType": "satisfaction",
+            "trigger": {
+                "type": "pageLoad",
+                "delay": 3000,
+                "conditions": {
+                    "minVisits": 3,
+                    "minDaysSinceFirstVisit": 0,
+                    "pages": [
+                        "home"
+                    ],
+                    "excludePages": [],
+                    "userType": "any"
+                }
+            },
+            "frequency": "every-30days",
+            "customFrequencyHours": null,
+            "showOn": "all",
+            "startDate": null,
+            "endDate": null,
+            "priority": 1,
+            "lastUpdated": "2026-01-01T00:00:00Z"
+        },
+        {
+            "id": "contribution-reminder",
+            "enabled": false,
+            "formType": "contribution",
+            "trigger": {
+                "type": "pageLoad",
+                "delay": 0,
+                "conditions": {
+                    "minVisits": 1,
+                    "minDaysSinceFirstVisit": 0,
+                    "pages": [
+                        "home"
+                    ],
+                    "excludePages": [],
+                    "userType": "any"
+                }
+            },
+            "frequency": "daily",
+            "customFrequencyHours": null,
+            "showOn": "all",
+            "startDate": null,
+            "endDate": null,
+            "priority": 2,
+            "lastUpdated": "2026-01-01T00:00:00Z"
+        },
+        {
+            "id": "feedback-request",
+            "enabled": false,
+            "formType": "feedback",
+            "trigger": {
+                "type": "pageLoad",
+                "delay": 30000,
+                "conditions": {
+                    "minVisits": 10,
+                    "minDaysSinceFirstVisit": 7,
+                    "pages": [],
+                    "excludePages": [
+                        "account"
+                    ],
+                    "userType": "authenticated"
+                }
+            },
+            "frequency": "every-30days",
+            "customFrequencyHours": null,
+            "showOn": "all",
+            "startDate": null,
+            "endDate": null,
+            "priority": 3,
+            "lastUpdated": "2026-01-01T00:00:00Z"
+        },
+        {
+            "id": "beta-review-invite",
+            "enabled": false,
+            "formType": "beta-review",
+            "trigger": {
+                "type": "pageLoad",
+                "delay": 3000,
+                "conditions": {
+                    "minVisits": 1,
+                    "minDaysSinceFirstVisit": 0,
+                    "pages": [
+                        "home"
+                    ],
+                    "excludePages": [],
+                    "userType": "any"
+                }
+            },
+            "frequency": "once",
+            "customFrequencyHours": null,
+            "showOn": "all",
+            "startDate": "2026-01-01T00:00:00Z",
+            "endDate": "2026-01-31T23:59:59Z",
+            "priority": 4,
+            "lastUpdated": "2026-01-01T00:00:00Z"
+        }
+    ],
+    "settings": {
+        "maxFormsPerSession": 1,
+        "minTimeBetweenForms": 300000,
+        "respectDoNotDisturb": true,
+        "doNotDisturbKey": "materio_dnd_forms"
+    }
+}

@@ -1,0 +1,43 @@
+{
+  "enabled": true,
+  "category": "whats-new",
+  "frequency": "daily",
+  "customFrequencyHours": "0",
+  "title": "Materio v5 is here",
+  "link": "/whats-new/introducing-materio-v5/",
+  "description": "Search is rebuilt from the ground up, AI Mode now searches inside your PDFs, and Thinklet, our new AI study assistant, launches today",
+  "media": [
+    "https://res.cloudinary.com/dvsdsl7iw/image/upload/v1780291254/insightroom/szthf1e5qdqcyqk8idvq.webp"
+  ],
+  "mediaFit": "scale-down",
+  "showImageOnMaintenance": false,
+  "orientation": "vertical",
+  "imageRotationInterval": 2500,
+  "imageAnimation": {
+    "type": "fade",
+    "duration": 600
+  },
+  "isLimitedOffer": true,
+  "startDate": "2026-06-01T00:00",
+  "endDate": "2026-06-30T00:00",
+  "showDateInfo": false,
+  "lastUpdated": "2026-06-01T15:09:00",
+  "buttons": {
+    "primary": {
+      "show": true,
+      "text": "Read Release Notes",
+      "icon": "&#8206;"
+    },
+    "secondary": {
+      "show": true,
+      "text": "Got it",
+      "icon": "&#8206;"
+    }
+  },
+  "disclaimer": {
+    "show": false,
+    "text": "Terms and conditions.",
+    "linkText": "Read more",
+    "linkUrl": ""
+  }
+}

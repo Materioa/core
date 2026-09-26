@@ -1,0 +1,23 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "materio",
+	"workers_dev": true,
+	"compatibility_date": "2026-09-16",
+	"observability": {
+		"enabled": true
+	},
+	"main": ".svelte-kit/cloudflare/_worker.js",
+	"assets": {
+		"binding": "ASSETS",
+		"directory": ".svelte-kit/cloudflare"
+	},
+	"routes": [
+		{
+			"pattern": "beta.getmaterio.app/*",
+			"zone_name": "getmaterio.app"
+		}
+	],
+	"compatibility_flags": [
+		"nodejs_compat"
+	]
+}

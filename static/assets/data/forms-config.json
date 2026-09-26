@@ -1,0 +1,525 @@
+{
+    "forms": {
+        "contribution": {
+            "id": "contribution",
+            "title": "Community Contributions",
+            "icon": "fa-solid fa-users",
+            "description": "Help grow materio's content library by contributing your study materials",
+            "wizard": {
+                "enabled": false,
+                "pages": [
+                    {
+                        "id": "cover",
+                        "type": "cover",
+                        "backgroundImage": "/assets/img/gradient.jpg",
+                        "title": "Share Your Knowledge",
+                        "subtitle": "Help fellow students succeed",
+                        "icon": "fa-solid fa-gift",
+                        "nextButton": {
+                            "text": "Get Started",
+                            "icon": "fa-arrow-right"
+                        }
+                    },
+                    {
+                        "id": "explain",
+                        "type": "info",
+                        "title": "Why Contribute?",
+                        "content": [
+                            "Your notes could help hundreds of students ace their exams",
+                            {
+                                "title": "Help Community",
+                                "description": "Be part of something bigger than yourself"
+                            }
+                        ],
+                        "continueButton": {
+                            "text": "Continue",
+                            "icon": "fa-arrow-right"
+                        },
+                        "exitButton": {
+                            "text": "Maybe Later",
+                            "icon": ""
+                        }
+                    },
+                    {
+                        "id": "form",
+                        "type": "form",
+                        "title": "Upload Materials",
+                        "description": "Fill in the details and upload your files"
+                    }
+                ]
+            },
+            "fields": [
+                {
+                    "name": "userIdentity",
+                    "type": "select",
+                    "label": "How would you like to be identified?",
+                    "required": true,
+                    "options": [
+                        {
+                            "value": "authenticated",
+                            "label": "Materio Account"
+                        },
+                        {
+                            "value": "github",
+                            "label": "Github"
+                        },
+                        {
+                            "value": "anonymous",
+                            "label": "Stay Anonymous"
+                        }
+                    ],
+                    "defaultValue": "anonymous"
+                },
+                {
+                    "name": "githubUsername",
+                    "type": "text",
+                    "label": "GitHub Username",
+                    "placeholder": "Enter your GitHub username",
+                    "required": false,
+                    "showWhen": {
+                        "field": "userIdentity",
+                        "value": "github"
+                    }
+                },
+                {
+                    "name": "semester",
+                    "type": "select",
+                    "label": "Semester",
+                    "required": true,
+                    "options": [
+                        {
+                            "value": "1",
+                            "label": "Semester 1"
+                        },
+                        {
+                            "value": "2",
+                            "label": "Semester 2"
+                        },
+                        {
+                            "value": "3",
+                            "label": "Semester 3"
+                        },
+                        {
+                            "value": "4",
+                            "label": "Semester 4"
+                        },
+                        {
+                            "value": "5",
+                            "label": "Semester 5"
+                        },
+                        {
+                            "value": "6",
+                            "label": "Semester 6"
+                        },
+                        {
+                            "value": "7",
+                            "label": "Semester 7"
+                        },
+                        {
+                            "value": "8",
+                            "label": "Semester 8"
+                        },
+                        {
+                            "value": "9",
+                            "label": "Miscellaneous"
+                        }
+                    ],
+                    "dynamicSubject": true
+                },
+                {
+                    "name": "subject",
+                    "type": "select",
+                    "label": "Subject",
+                    "required": true,
+                    "dynamicFromSemester": true,
+                    "allowOther": true,
+                    "otherPlaceholder": "Enter subject name"
+                },
+                {
+                    "name": "category",
+                    "type": "select",
+                    "label": "Category",
+                    "required": true,
+                    "options": [
+                        {
+                            "value": "Chapters",
+                            "label": "Chapters"
+                        },
+                        {
+                            "value": "Presentations",
+                            "label": "Presentations"
+                        },
+                        {
+                            "value": "Assignments",
+                            "label": "Assignments"
+                        },
+                        {
+                            "value": "Question Banks",
+                            "label": "Question Banks"
+                        },
+                        {
+                            "value": "Lab",
+                            "label": "Lab"
+                        },
+                        {
+                            "value": "Previous Year Papers",
+                            "label": "Previous Year Papers"
+                        },
+                        {
+                            "value": "Reference Books",
+                            "label": "Reference Books"
+                        },
+                        {
+                            "value": "Lecture Notes",
+                            "label": "Lecture Notes"
+                        },
+                        {
+                            "value": "Handwritten Notes",
+                            "label": "Handwritten Notes"
+                        },
+                        {
+                            "value": "NPTEL Book",
+                            "label": "NPTEL Book"
+                        },
+                        {
+                            "value": "NPTEL Assignment with Solutions",
+                            "label": "NPTEL Assignment with Solutions"
+                        },
+                        {
+                            "value": "NPTEL Weekly Materials",
+                            "label": "NPTEL Weekly Materials"
+                        },
+                        {
+                            "value": "Other",
+                            "label": "Other"
+                        }
+                    ],
+                    "allowOther": true,
+                    "otherPlaceholder": "Enter category name"
+                },
+                {
+                    "name": "files",
+                    "type": "file",
+                    "label": "Upload Files",
+                    "required": true,
+                    "accept": ".pdf",
+                    "multiple": true,
+                    "maxSize": 6291456,
+                    "maxSizeLabel": "6MB",
+                    "hint": "PDF files only. Total size must not exceed 6MB."
+                }
+            ],
+            "confirmations": [
+                {
+                    "name": "accuracyConfirm",
+                    "label": "I confirm that the information and files I'm providing are accurate and appropriate for educational purposes",
+                    "required": true
+                }
+            ],
+            "submitButton": {
+                "text": "Submit Contribution",
+                "icon": ""
+            },
+            "fileUpload": {
+                "enabled": true,
+                "uploadToGitHub": true,
+                "repository": "Materioa/static",
+                "branch": "main",
+                "basePath": "pdfs"
+            }
+        },
+        "feedback": {
+            "id": "feedback",
+            "title": "Share Feedback",
+            "icon": "fa-comment-dots",
+            "description": "Help us improve Materio with your valuable feedback",
+            "fields": [
+                {
+                    "name": "category",
+                    "type": "select",
+                    "label": "Feedback Category",
+                    "required": true,
+                    "options": [
+                        {
+                            "value": "bug",
+                            "label": "Bug Report"
+                        },
+                        {
+                            "value": "feature",
+                            "label": "Feature Request"
+                        },
+                        {
+                            "value": "ui-ux",
+                            "label": "UI/UX Improvement"
+                        },
+                        {
+                            "value": "performance",
+                            "label": "Performance Issue"
+                        },
+                        {
+                            "value": "content",
+                            "label": "Content Request"
+                        },
+                        {
+                            "value": "other",
+                            "label": "Other"
+                        }
+                    ]
+                },
+                {
+                    "name": "rating",
+                    "type": "rating",
+                    "label": "How would you rate your experience?",
+                    "required": true,
+                    "max": 5
+                },
+                {
+                    "name": "message",
+                    "type": "textarea",
+                    "label": "Your Feedback",
+                    "placeholder": "Tell us what's on your mind...",
+                    "required": true,
+                    "minLength": 10,
+                    "maxLength": 2000
+                },
+                {
+                    "name": "email",
+                    "type": "email",
+                    "label": "Email (optional)",
+                    "placeholder": "your@email.com",
+                    "required": false,
+                    "hint": "Provide your email if you'd like us to follow up"
+                }
+            ],
+            "confirmations": [],
+            "submitButton": {
+                "text": "Submit Feedback",
+                "icon": "fa-paper-plane"
+            }
+        },
+        "beta-review": {
+            "id": "beta-review",
+            "title": "Beta Tester Review",
+            "icon": "fa-flask",
+            "description": "Share your experience testing new features",
+            "requiresAuth": true,
+            "fields": [
+                {
+                    "name": "feature",
+                    "type": "select",
+                    "label": "Feature Tested",
+                    "required": true,
+                    "options": [
+                        {
+                            "value": "dynamic-forms",
+                            "label": "Dynamic Forms System"
+                        },
+                        {
+                            "value": "ai-search",
+                            "label": "AI Search"
+                        },
+                        {
+                            "value": "insightroom",
+                            "label": "Insightroom Feed"
+                        },
+                        {
+                            "value": "local-cdn",
+                            "label": "Local CDN"
+                        },
+                        {
+                            "value": "pdf-viewer",
+                            "label": "PDF Viewer"
+                        },
+                        {
+                            "value": "other",
+                            "label": "Other Feature"
+                        }
+                    ]
+                },
+                {
+                    "name": "rating",
+                    "type": "rating",
+                    "label": "Overall Rating",
+                    "required": true,
+                    "max": 5
+                },
+                {
+                    "name": "bugs",
+                    "type": "textarea",
+                    "label": "Bugs Found",
+                    "placeholder": "Describe any bugs or issues you encountered...",
+                    "required": false,
+                    "maxLength": 2000
+                },
+                {
+                    "name": "suggestions",
+                    "type": "textarea",
+                    "label": "Suggestions",
+                    "placeholder": "Any suggestions for improvement?",
+                    "required": false,
+                    "maxLength": 2000
+                }
+            ],
+            "confirmations": [
+                {
+                    "name": "betaTerms",
+                    "label": "I understand that beta features may have bugs and agree to provide constructive feedback",
+                    "required": true
+                }
+            ],
+            "submitButton": {
+                "text": "Submit Review",
+                "icon": "fa-check"
+            }
+        },
+        "satisfaction": {
+            "id": "satisfaction",
+            "title": "Quick Feedback",
+            "icon": "fa-heart",
+            "description": "We'd love to hear how you're enjoying Materio!",
+            "fields": [
+                {
+                    "name": "rating",
+                    "type": "rating",
+                    "label": "How are you enjoying Materio?",
+                    "required": true,
+                    "max": 5
+                },
+                {
+                    "name": "comment",
+                    "type": "textarea",
+                    "label": "Anything else you'd like to share? (optional)",
+                    "placeholder": "Your thoughts help us improve...",
+                    "required": false,
+                    "maxLength": 500
+                }
+            ],
+            "confirmations": [],
+            "submitButton": {
+                "text": "Send Feedback",
+                "icon": ""
+            }
+        },
+        "bug-report": {
+            "id": "bug-report",
+            "title": "Report a Bug",
+            "icon": "fa-bug",
+            "description": "Help us squash bugs by reporting issues you encounter",
+            "fields": [
+                {
+                    "name": "title",
+                    "type": "text",
+                    "label": "Bug Title",
+                    "placeholder": "Brief description of the issue",
+                    "required": true,
+                    "minLength": 5,
+                    "maxLength": 150
+                },
+                {
+                    "name": "severity",
+                    "type": "select",
+                    "label": "Severity",
+                    "required": true,
+                    "options": [
+                        {
+                            "value": "critical",
+                            "label": "Critical - App is unusable"
+                        },
+                        {
+                            "value": "major",
+                            "label": "Major - Feature broken"
+                        },
+                        {
+                            "value": "minor",
+                            "label": "Minor - Small issue"
+                        },
+                        {
+                            "value": "cosmetic",
+                            "label": "Cosmetic - Visual glitch"
+                        }
+                    ]
+                },
+                {
+                    "name": "affectedArea",
+                    "type": "select",
+                    "label": "Affected Area",
+                    "required": true,
+                    "options": [
+                        {
+                            "value": "pdf-viewer",
+                            "label": "PDF Viewer"
+                        },
+                        {
+                            "value": "search",
+                            "label": "Search"
+                        },
+                        {
+                            "value": "navigation",
+                            "label": "Navigation"
+                        },
+                        {
+                            "value": "downloads",
+                            "label": "Downloads"
+                        },
+                        {
+                            "value": "auth",
+                            "label": "Login / Account"
+                        },
+                        {
+                            "value": "ai-features",
+                            "label": "AI Features"
+                        },
+                        {
+                            "value": "ui",
+                            "label": "UI / Layout"
+                        },
+                        {
+                            "value": "performance",
+                            "label": "Performance"
+                        },
+                        {
+                            "value": "other",
+                            "label": "Other"
+                        }
+                    ]
+                },
+                {
+                    "name": "description",
+                    "type": "textarea",
+                    "label": "What happened?",
+                    "placeholder": "Describe the bug in detail. What did you expect to happen vs what actually happened?",
+                    "required": true,
+                    "minLength": 20,
+                    "maxLength": 3000
+                },
+                {
+                    "name": "stepsToReproduce",
+                    "type": "textarea",
+                    "label": "Steps to Reproduce (optional)",
+                    "placeholder": "1. Go to...\n2. Click on...\n3. See error...",
+                    "required": false,
+                    "maxLength": 2000
+                },
+                {
+                    "name": "email",
+                    "type": "email",
+                    "label": "Email (optional)",
+                    "placeholder": "your@email.com",
+                    "required": false,
+                    "hint": "We'll notify you when the bug is fixed"
+                }
+            ],
+            "confirmations": [
+                {
+                    "name": "accuracyConfirm",
+                    "label": "I confirm this is a genuine bug report and not a duplicate",
+                    "required": true
+                }
+            ],
+            "submitButton": {
+                "text": "Submit Bug Report",
+                "icon": "fa-bug"
+            }
+        }
+    }
+}

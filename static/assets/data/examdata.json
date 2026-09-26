@@ -1,0 +1,105 @@
+{
+    "enabled": true,
+    "viewRotationInterval": 15000,
+    "showBeforeDays": 9,
+    "showBeforeDaysViva": 3,
+    "semesters": [
+        {
+            "semester": 7,
+            "examPeriod": {
+                "name": "Mid Semester",
+                "shortName": "Mid Sem",
+                "startDate": "2026-08-17T12:30:00",
+                "endDate": "2026-08-20T14:30:00"
+            },
+            "exams": [
+                {
+                    "id": 1,
+                    "subject": "Information and Network Security",
+                    "aliases": [
+                        "INS",
+                        "Information and Network Security"
+                    ],
+                    "code": "303105375",
+                    "date": "2026-08-17",
+                    "time": "12:30",
+                    "duration": "1.5 hours",
+                    "syllabus": [
+                        "Unit 1",
+                        "Unit 2",
+                        "Unit 3"
+                    ]
+                },
+                {
+                    "id": 2,
+                    "subject": "Data Science",
+                    "aliases": [
+                        "DS"
+                    ],
+                    "code": "303105391",
+                    "date": "2026-08-18",
+                    "time": "12:30",
+                    "duration": "1.5 hours",
+                    "syllabus": [
+                        "Unit 1",
+                        "Unit 2",
+                        "Unit 3"
+                    ]
+                },
+                {
+                    "id": 3,
+                    "subject": "Cybersecurity",
+                    "aliases": [
+                        "CS",
+                        "Cybersecurity",
+                        "Cyber Security"
+                    ],
+                    "code": "303105341",
+                    "date": "2026-08-19",
+                    "time": "12:30",
+                    "duration": "1.5 hours",
+                    "syllabus": [
+                        "Unit 1",
+                        "Unit 2",
+                        "Unit 3"
+                    ]
+                },
+                {
+                    "id": 4,
+                    "subject": "Big Data Analytics",
+                    "global": true,
+                    "aliases": [
+                        "BDA",
+                        "Big Data",
+                        "Big Data Analytics"
+                    ],
+                    "code": "303105361",
+                    "date": "2026-08-20",
+                    "time": "12:30",
+                    "duration": "1.5 hours",
+                    "syllabus": [
+                        "Unit 1",
+                        "Unit 2"
+                    ]
+                },
+                {
+                    "id": 5,
+                    "subject": "High Performance Computing",
+                    "global": true,
+                    "aliases": [
+                        "HPC"
+                    ],
+                    "code": "303105355",
+                    "date": "2026-08-20",
+                    "time": "12:30",
+                    "duration": "1.5 hours",
+                    "syllabus": [
+                        "Unit 1",
+                        "Unit 2",
+                        "Unit 3"
+                    ]
+                }
+            ]
+        }
+    ]
+}

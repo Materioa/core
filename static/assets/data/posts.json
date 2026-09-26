@@ -1,0 +1,16 @@
+---
+layout: null
+---
+[
+  {% assign posts = site.posts | where: "category", "whats-new" %}
+  {% for post in posts limit: 10 %}
+  {
+    "title": {{ post.title | jsonify }},
+    "date": "{{ post.date | date: "%Y-%m-%dT%H:%M:%S%z" }}",
+    "url": {{ post.url | absolute_url | jsonify }},
+    "category": {{ post.category | jsonify }},
+    "excerpt": {{ post.excerpt | strip_html | strip_newlines | truncate: 160 | jsonify }},
+    "image": {{ post.image | absolute_url | jsonify }}
+  }{% unless forloop.last %},{% endunless %}
+  {% endfor %}
+]

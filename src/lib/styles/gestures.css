@@ -1,0 +1,110 @@
+/* Mobile swipe navigation styles */
+@media (max-width: 768px) {
+    .content {
+        /* Enable smooth touch scrolling */
+        -webkit-overflow-scrolling: touch;
+        /* Prevent horizontal scrolling during swipe */
+        overflow-x: hidden;
+        /* Add touch action for better swipe performance */
+        touch-action: pan-y;
+    }
+
+    /* Improve tab transitions on mobile */
+    .tab-content {
+        transition: opacity 0.3s cubic-bezier(0.4, 0.0, 0.2, 1),
+            visibility 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+    }
+
+    /* Adjust navbar for mobile if needed */
+    .navbar {
+        /* Ensure navbar doesn't interfere with swipe gestures */
+        pointer-events: auto;
+    }
+
+    .navbar a {
+        /* Improve touch targets on mobile */
+        min-height: 44px;
+        min-width: 44px;
+    }
+
+    /* Hide text selection during swipe */
+    .content * {
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+    }
+
+    /* Re-enable text selection for input elements */
+    .content input,
+    .content textarea,
+    .content select {
+        -webkit-user-select: auto;
+        -moz-user-select: auto;
+        -ms-user-select: auto;
+        user-select: auto;
+    }
+}
+
+/* Small mobile devices */
+@media (max-width: 480px) {
+    .container {
+        padding-top: 60px;
+    }
+
+    .content {
+        padding: 15px;
+    }
+
+    /* Adjust card spacing for smaller screens */
+    .card-one,
+    .card-layout {
+        margin: 15px 0;
+        padding: 15px;
+    }
+}
+
+/* Touch feedback for mobile interactions */
+@media (hover: none) and (pointer: coarse) {
+    .tab-link {
+        /* Add touch feedback */
+        transition: background-color 0.2s ease, transform 0.2s ease;
+    }
+
+    .tab-link:active {
+        background-color: rgba(255, 132, 0, 0.1);
+        transform: scale(0.95);
+    }
+}
+
+/* Swipe indicator styles */
+/* .swipe-indicator {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: rgba(255, 132, 0, 0.8);
+    color: white;
+    padding: 10px 15px;
+    border-radius: 25px;
+    font-size: 14px;
+    font-weight: 600;
+    z-index: 10000;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+} */
+
+.swipe-indicator.left {
+    left: 20px;
+}
+
+.swipe-indicator.right {
+    right: 20px;
+}
+
+.swipe-indicator.show {
+    opacity: 1;
+}

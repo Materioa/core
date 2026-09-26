@@ -1,0 +1,1375 @@
+/* Post navigation pills and buttons dark mode */
+.post-date-pill {
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  color: #333;
+}
+
+.post-nav-button {
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  color: #333;
+}
+
+.post-image-frame {
+  background: #e7e3df;
+}
+
+.ai-summary-section {
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  color: #333;
+}
+
+body.dark-mode .post-date-pill {
+  background: #444444;
+  border: 1px solid #555555;
+  color: #ffffff;
+}
+
+body.dark-mode .post-nav-button {
+  background: #444444;
+  border: 1px solid #555555;
+  color: #ffffff;
+}
+
+body.dark-mode .post-image-frame {
+  background: #1a1a1a;
+}
+
+body.dark-mode .ai-summary-section {
+  background: #282828;
+  border: 1px solid #555555;
+  color: #ffffff;
+}
+
+body.dark-mode #followup-input {
+  background: transparent !important;
+  color: #ffffff !important;
+}
+
+body.dark-mode #followup-input::placeholder {
+  color: #aaaaaa !important;
+}
+
+body.dark-mode .followup-pill {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid #555555 !important;
+}
+
+body.dark-mode #followup-response {
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Attachment Card Styles */
+.attachment-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  background: #f8f9f8;
+  border-radius: 12px;
+  padding: 16px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  margin: 1rem 0;
+  cursor: var(--f-cursor-pointer);
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+}
+
+.attachment-card:hover {
+  border-color: #ff5400;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.attachment-details {
+  flex: 1;
+  z-index: 1;
+  min-width: 0;
+  padding-right: 120px;
+}
+
+.attachment-title {
+  font-weight: bold;
+  font-size: 16px;
+  margin-bottom: 8px;
+  color: #333;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.attachment-meta {
+  font-size: 14px;
+  color: #777;
+}
+
+.attachment-preview {
+  position: absolute;
+  bottom: -70px;
+  right: 20px;
+  transform: rotate(8deg);
+  border: 1px solid #ccc;
+  background: #fffbea;
+  width: 100px;
+  height: 130px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Video embed styles */
+.video-embed {
+  position: relative;
+  margin: 1.5rem 0;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  background: #f8f9fa;
+}
+
+.video-embed video {
+  width: 100%;
+  height: auto;
+  min-height: 200px;
+  display: block;
+  border-radius: 12px;
+  background: #000;
+}
+
+.video-controls {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  cursor: var(--f-cursor-pointer);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+.video-embed:hover .video-controls {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.video-controls:hover {
+  background: rgba(0, 0, 0, 0.9);
+  transform: scale(1.1);
+}
+
+.video-controls i {
+  color: white;
+  font-size: 16px;
+  margin-left: 2px;
+  /* Slight offset for play icon visual balance */
+}
+
+.video-controls.paused i {
+  margin-left: 2px;
+}
+
+.video-controls.playing i {
+  margin-left: 0;
+}
+
+/* Video cover styles */
+.video-cover {
+  position: relative;
+  width: 100%;
+  height: 300px;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 2rem;
+}
+
+.video-cover video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+
+.video-cover .video-controls {
+  width: 60px;
+  height: 60px;
+  top: 20px;
+  right: 20px;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.video-cover .video-controls i {
+  font-size: 18px;
+}
+
+/* Dark mode video styles */
+.dark-mode .video-embed {
+  background: #2a2a2a;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.dark-mode .video-controls {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.dark-mode .video-controls:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+  .attachment-card {
+    padding: 12px;
+    margin: 0.75rem 0;
+  }
+
+  .attachment-details {
+    padding-right: 90px;
+  }
+
+  .attachment-title {
+    font-size: 14px;
+    margin-bottom: 6px;
+  }
+
+  .attachment-meta {
+    font-size: 12px;
+  }
+
+  .attachment-preview {
+    width: 80px;
+    height: 100px;
+    right: 10px;
+    bottom: -50px;
+  }
+
+  /* Video responsive adjustments */
+  .video-cover {
+    height: 200px;
+    margin-bottom: 1.5rem;
+  }
+
+  .video-controls {
+    width: 40px;
+    height: 40px;
+    top: 10px;
+    right: 10px;
+  }
+
+  .video-controls i {
+    font-size: 14px;
+  }
+
+  .video-cover .video-controls {
+    width: 50px;
+    height: 50px;
+    top: 15px;
+    right: 15px;
+  }
+
+  .video-cover .video-controls i {
+    font-size: 18px;
+  }
+}
+
+@media (max-width: 480px) {
+  .attachment-card {
+    padding: 10px;
+  }
+
+  .attachment-details {
+    padding-right: 70px;
+  }
+
+  .attachment-title {
+    font-size: 13px;
+  }
+
+  .attachment-meta {
+    font-size: 11px;
+  }
+
+  .attachment-preview {
+    width: 60px;
+    height: 80px;
+    right: 8px;
+    bottom: -40px;
+  }
+}
+
+/* Seek controls styling */
+.seek-btn:hover {
+  background: rgba(0, 0, 0, 0.1) !important;
+  transform: scale(1.1);
+}
+
+.seek-btn:active {
+  transform: scale(0.95);
+}
+
+/* Dark mode seek controls */
+.dark-mode .seek-btn {
+  color: #bbb !important;
+}
+
+.dark-mode .seek-btn:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.dark-mode .seek-btn.stop-btn {
+  color: #f44336 !important;
+}
+
+/* Mobile responsive for seek controls */
+@media (max-width: 768px) {
+  .seek-controls {
+    gap: 0.2rem !important;
+  }
+
+  .seek-btn {
+    padding: 0.15rem !important;
+  }
+
+  .seek-btn i {
+    font-size: 9px !important;
+  }
+}
+
+.attachment-preview canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.attachment-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Dark mode styles for attachments */
+body.dark-mode .attachment-card {
+  background: #333333;
+  border-color: transparent;
+}
+
+/* Author Profile Styles */
+.author-avatar {
+  transition: transform 0.2s ease;
+}
+
+.author-avatar:hover {
+  transform: scale(1.05);
+}
+
+.author-info .author-name {
+  transition: color 0.2s ease;
+  cursor: var(--f-cursor-pointer);
+}
+
+.author-info .author-name:hover {
+  color: #ff5400 !important;
+}
+
+/* Dark mode author styles */
+body.dark-mode .author-avatar {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+body.dark-mode .author-info .author-name {
+  color: var(--text-dark, #ffffff) !important;
+}
+
+/* Responsive author layout */
+@media (max-width: 768px) {
+  .author-avatar {
+    width: 30px !important;
+    height: 30px !important;
+  }
+
+  .author-info .author-name {
+    font-size: 13px !important;
+  }
+}
+
+body.dark-mode .attachment-card:hover {
+  border-color: #ff5400;
+}
+
+body.dark-mode .attachment-title {
+  color: #ffffff;
+}
+
+body.dark-mode .attachment-meta {
+  color: #aaaaaa;
+}
+
+body.dark-mode .attachment-preview {
+  background: #444444;
+  border-color: #555555;
+}
+
+/* Listen Component Styles */
+.listen-pill {
+  transition: all 0.2s ease;
+}
+
+.listen-pill:hover {
+  background: rgba(255, 130, 0, 0.1) !important;
+  transform: translateY(-1px);
+}
+
+.listen-pill.playing {
+  background: rgba(255, 130, 0, 0.15) !important;
+}
+
+.listen-pill.playing .wave-bar {
+  animation: none;
+  /* Remove static animation, we'll use JavaScript */
+}
+
+.wave-bar {
+  transition: height 0.2s ease, opacity 0.2s ease;
+}
+
+/* Remove static animation delays - we'll use dynamic JavaScript animation */
+
+/* Dark mode styles for listen component */
+body.dark-mode .listen-pill {
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+body.dark-mode .listen-pill:hover {
+  background: rgba(255, 130, 0, 0.2) !important;
+}
+
+body.dark-mode .listen-pill #listen-icon,
+body.dark-mode .listen-pill #listen-duration {
+  color: #ffffff !important;
+}
+
+body.dark-mode .listen-pill .wave-bar {
+  background: #aaaaaa !important;
+}
+
+/* Code Tabs Styling */
+.code-tabs {
+  margin: 1.5rem 0;
+  background: #fdfdfd;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+body.dark-mode .code-tabs {
+  background: #1e1e1e;
+  border-color: #333;
+}
+
+.code-tabs-nav {
+  display: flex;
+  background: #f5f5f5;
+  border-bottom: 1px solid #e0e0e0;
+  padding: 8px;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.code-tabs-nav::-webkit-scrollbar {
+  display: none;
+}
+
+body.dark-mode .code-tabs-nav {
+  background: #252525;
+  border-color: #333;
+}
+
+.code-tab-btn {
+  padding: 6px 16px;
+  background: none;
+  border: none;
+  font-family: 'Manrope', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #666;
+  cursor: var(--f-cursor-pointer);
+  border-radius: 20px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+body.dark-mode .code-tab-btn {
+  color: #aaa;
+}
+
+.code-tab-btn:hover {
+  background: rgba(255, 130, 0, 0.05);
+  color: #ff5400;
+}
+
+.code-tab-btn.active {
+  background: #ff5400;
+  color: #ffffff !important;
+}
+
+body.dark-mode .code-tab-btn.active {
+  background: #ff5400;
+  color: #ffffff !important;
+}
+
+.code-tab-content {
+  position: relative;
+}
+
+.code-tab-pane {
+  display: none;
+  padding: 0;
+}
+
+.code-tab-pane.active {
+  display: block;
+}
+
+/* Ensure code blocks inside tabs look consistent with normal code blocks */
+.code-tab-pane pre {
+  margin: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+}
+
+.code-tab-pane .code-copy-btn {
+  top: 10px !important;
+  right: 12px !important;
+}
+
+/* Scroll to top button */
+#scroll-to-top {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--primary, #ff5400);
+  border: 2px solid var(--primary, #ff5400);
+  color: white;
+  cursor: var(--f-cursor-pointer);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+#scroll-to-top.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+#scroll-to-top:hover {
+  background: white;
+  color: var(--primary, #ff5400);
+}
+
+#scroll-to-top i {
+  font-size: 15px;
+}
+
+body.dark-mode #scroll-to-top {
+  background: var(--primary, #ff5400);
+  border-color: var(--primary, #ff5400);
+}
+
+body.dark-mode #scroll-to-top:hover {
+  background: #444444;
+  border-color: #555555;
+  color: var(--primary, #ff5400);
+}
+
+/* Print styles for code */
+@media print {
+  code {
+    font-family: 'JetBrains Mono', 'Consolas', 'Monaco', 'Courier New', monospace !important;
+    background: #f5f5f5 !important;
+    color: #333 !important;
+    padding: 2px 4px !important;
+    border-radius: 3px !important;
+    font-size: 0.85em !important;
+    page-break-inside: avoid;
+  }
+}
+
+/* Table of Contents (right-side) */
+.post-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.post-layout .post-body {
+  flex: 1 1 0;
+  max-width: 700px;
+}
+
+.post-toc {
+  width: 260px;
+  flex: 0 0 260px;
+  position: sticky;
+  top: 110px;
+  align-self: flex-start;
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.04);
+  font-size: 14px;
+  line-height: 1.5;
+  /* Performance optimizations for sticky element */
+  transform: translateZ(0);
+  will-change: transform;
+  contain: layout style paint;
+}
+
+.post-toc .toc {
+  margin: 0;
+  padding: 0;
+}
+
+.post-toc .toc h2 {
+  font-size: 15px;
+  margin: 0 0 8px 0;
+  font-weight: 700;
+}
+
+.post-toc .toc ul {
+  list-style: none;
+  padding-left: 0.25rem;
+  margin: 0;
+}
+
+.post-toc .toc li {
+  margin: 6px 0;
+}
+
+.post-toc .toc a {
+  color: var(--text, #333);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.post-toc .toc a:hover {
+  color: var(--primary, #ff5400);
+  text-decoration: underline;
+}
+
+/* Dark mode adjustments */
+body.dark-mode .post-toc {
+  background: #232323;
+  border-color: #3a3a3a;
+  color: #eaeaea;
+}
+
+body.dark-mode .post-toc .toc a {
+  color: #dcdcdc;
+}
+
+/* TOC level indentation helpers generated by JS fallback */
+.post-toc .toc .toc-level-2 {
+  margin-left: 0;
+}
+
+.post-toc .toc .toc-level-3 {
+  margin-left: 8px;
+  font-size: 13px;
+}
+
+.post-toc .toc .toc-level-4 {
+  margin-left: 16px;
+  font-size: 13px;
+}
+
+/* Responsive: hide TOC on smaller screens */
+@media (max-width: 980px) {
+  .post-layout {
+    display: block;
+  }
+
+  .post-toc {
+    display: none;
+  }
+}
+
+/* Site TOC sidebar (toggleable) */
+
+.toc-toggle {
+  position: absolute;
+  left: 140px;
+  /* ensure it sits to the right of the logo (>=100px from left) */
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--text, #222);
+  font-size: 18px;
+  cursor: var(--f-cursor-pointer);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1101;
+}
+
+.toc-toggle:focus {
+  outline: none;
+}
+
+
+.site-toc-sidebar {
+  position: fixed;
+  left: 0;
+  top: 60px;
+  /* start below the header so it doesn't overlap */
+  height: calc(100dvh - 60px);
+  /* Use dvh for stable mobile height */
+  height: calc(100vh - 60px);
+  /* Fallback for older browsers */
+  width: 320px;
+  max-width: 100%;
+  transform: translateX(-110%);
+  transition: transform 300ms ease, opacity 300ms ease;
+  z-index: 1200;
+  display: block;
+  padding: 10px 8px 100px 8px;
+  /* add extra bottom padding so last item doesn't touch screen */
+  /* Match header visual: same translucent background + blur */
+  background-color: rgba(219, 213, 207, 0.5);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  /* Remove header artwork from sidebar for a cleaner look */
+  background-image: none;
+  background-repeat: no-repeat;
+  background-size: 120px 32px;
+  background-position: 20px center;
+  overflow: auto;
+}
+
+.site-toc-close {
+  display: none !important;
+}
+
+.site-toc-overlay {
+  position: fixed;
+  inset: 0;
+  /* Keep overlay clickable for closing the sidebar, but do not tint page content */
+  background: transparent;
+  /* removed tint */
+  /* Allow page content to continue scrolling while sidebar is open by not intercepting pointer events */
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 200ms ease, visibility 200ms ease;
+  z-index: 1100;
+}
+
+/* When TOC is open */
+body.toc-open .site-toc-sidebar {
+  transform: translateX(0);
+}
+
+body.toc-open #site-toc-sidebar[aria-hidden="false"] {
+  transform: translateX(0);
+}
+
+body.toc-open .site-toc-overlay {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Dark mode */
+/* Dark mode: match dark header color */
+.dark .site-toc-sidebar,
+body.dark-mode .site-toc-sidebar {
+  background-color: rgba(33, 33, 33, 0.5);
+  border-color: rgba(255, 255, 255, 0.06);
+  color: #eaeaea;
+  background-image: none;
+  background-repeat: no-repeat;
+  background-size: 120px 32px;
+  background-position: 20px center;
+}
+
+@media (max-width: 700px) {
+  .site-toc-sidebar {
+    width: 92%;
+    max-width: 420px;
+  }
+}
+
+/* Override inline/header fixed width on small screens to prevent forcing horizontal scroll */
+@media (max-width: 980px) {
+
+  .site-header,
+  body.blog-layout .site-header {
+    width: 100% !important;
+    max-width: 100% !important;
+    left: 0 !important;
+    right: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Adjust sidebar top position for header */
+  .site-toc-sidebar {
+    top: 60px !important;
+    height: calc(100dvh - 60px) !important;
+    height: calc(100vh - 60px) !important;
+  }
+
+  /* Prevent post container from creating horizontal overflow */
+  main.post-container,
+  .post-layout {
+    overflow-x: hidden !important;
+  }
+}
+
+/* Ensure the back/exit icon stays fully visible on small screens */
+@media (max-width: 700px) {
+  .site-header {
+    padding-right: 64px !important;
+    box-sizing: border-box;
+    overflow: visible !important;
+  }
+
+  .site-header a[aria-label="Back"] {
+    position: absolute !important;
+    right: 12px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    z-index: 1400 !important;
+    font-size: 1rem !important;
+  }
+
+  /* Slightly nudge the TOC toggle left on very small screens to avoid overlap */
+  .toc-toggle {
+    left: 110px !important;
+  }
+}
+
+/* Mobile: nudge the sidebar toggle 15px left for better alignment */
+@media (max-width: 700px) {
+  .toc-toggle {
+    left: 125px;
+    /* 140px - 15px */
+  }
+}
+
+/* Hide scrollbars visually but keep scrolling functional */
+.site-toc-sidebar {
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+.site-toc-sidebar::-webkit-scrollbar {
+  display: none;
+}
+
+.site-toc-sidebar *::-webkit-scrollbar {
+  display: none;
+}
+
+.site-toc-sidebar * {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+/* Merge TOC into sidebar: remove card/container styling for TOC elements */
+.site-toc-sidebar .post-toc,
+.site-toc-sidebar .toc {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  color: inherit !important;
+}
+
+/* When the .post-toc is placed inside the sidebar, disable sticky behavior and add bottom buffer */
+.site-toc-sidebar>.post-toc {
+  position: static !important;
+  top: auto !important;
+  width: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.site-toc-sidebar>.post-toc .toc,
+.site-toc-sidebar>.post-toc ul {
+  padding-bottom: 120px;
+  /* ensure at least ~100px extra space after last item */
+  margin-bottom: 0;
+}
+
+.site-toc-sidebar .toc h2 {
+  margin: 0 0 8px 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.site-toc-sidebar .toc ul {
+  padding-left: 0.25rem;
+}
+
+.site-toc-sidebar .toc a {
+  color: var(--text, #222);
+  display: block;
+  padding: 10px 8px;
+  font-size: 16px;
+  /* larger readable size */
+  line-height: 1.4;
+}
+
+.site-toc-sidebar .toc a:hover {
+  color: var(--primary, #ff5400);
+  text-decoration: none;
+}
+
+/* Active/Current TOC item */
+.site-toc-sidebar .toc li {
+  position: relative;
+}
+
+.site-toc-sidebar .toc a.active {
+  color: var(--primary, #ff5400);
+  font-weight: 600;
+}
+
+.site-toc-sidebar .toc a.active::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  /* a small offset to show bar just outside text */
+  top: 8px;
+  bottom: 8px;
+  width: 4px;
+  background: var(--primary, #ff5400);
+  border-radius: 2px;
+}
+
+/* make everything bigger and easier to tap */
+.site-toc-sidebar .toc {
+  font-size: 16px;
+}
+
+.site-toc-sidebar .toc h2 {
+  font-size: 18px;
+  margin-bottom: 12px;
+}
+
+.site-toc-sidebar .toc li {
+  margin: 8px 0;
+}
+
+/* smooth transition when active changes */
+.site-toc-sidebar .toc a,
+.site-toc-sidebar .toc a.active::before {
+  transition: color 160ms ease, background-color 160ms ease;
+}
+
+/* Slight indent for level markers */
+.site-toc-sidebar .toc .toc-level-3 a {
+  padding-left: 14px;
+  font-size: 15px;
+}
+
+.site-toc-sidebar .toc .toc-level-4 a {
+  padding-left: 20px;
+  font-size: 14px;
+}
+
+/* Mobile-friendliness fixes: prevent long words/URLs from breaking viewport */
+.post-body,
+.post-body * {
+  -webkit-overflow-scrolling: touch;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  hyphens: auto;
+}
+
+/* Prevent mobile scroll shake from address bar show/hide */
+html,
+body {
+  overscroll-behavior-y: none;
+}
+
+@supports (height: 100dvh) {
+  .site-toc-sidebar {
+    height: calc(100dvh - 60px) !important;
+  }
+}
+
+/* Ensure media and generated previews scale to container */
+.post-body img,
+.post-body video,
+.post-body canvas,
+.attachment-card,
+.attachment-card * {
+  max-width: 100% !important;
+  height: auto !important;
+}
+
+/* Tables: allow horizontal scrolling on small screens without breaking layout */
+.post-body table {
+  width: 100%;
+  max-width: 100%;
+  display: block;
+  overflow: auto;
+}
+
+/* Instead of locking the whole document scroll while TOC is open,
+   keep document scrolling enabled and rely on the sidebar's
+   own scrolling (with overscroll containment) so only the area
+   covered by the sidebar captures scrolling. */
+
+.site-toc-sidebar {
+  /* ensure sidebar scroll doesn't chain to the page behind */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+/* Pre/code: wrap long lines instead of creating horizontal overflow */
+.post-body pre,
+.post-body code {
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+}
+
+/* Scroll performance optimizations */
+.post-container,
+.post-body,
+.post-layout {
+  /* Promote to compositing layer for smoother scrolling */
+  will-change: auto;
+  contain: layout style;
+}
+
+/* Prevent sticky TOC from causing layout recalculations during scroll */
+.post-toc {
+  will-change: auto;
+  contain: layout style paint;
+  backface-visibility: hidden;
+}
+
+/* Heading anchor links */
+.post-body h1,
+.post-body h2,
+.post-body h3 {
+  position: relative;
+  scroll-margin-top: 80px;
+}
+
+.post-body h1:hover .heading-anchor,
+.post-body h2:hover .heading-anchor,
+.post-body h3:hover .heading-anchor {
+  opacity: 1;
+}
+
+.heading-anchor {
+  display: inline-block;
+  margin-left: 10px;
+  font-size: 0.65em;
+  color: #ff5400;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  text-decoration: none;
+  padding: 4px 8px;
+  cursor: var(--f-cursor-pointer);
+  vertical-align: middle;
+}
+
+.heading-anchor:hover {
+  opacity: 1 !important;
+  color: #e67300;
+}
+
+.heading-anchor i {
+  font-weight: 400;
+}
+
+/* Mobile: always show anchor on tap-capable devices */
+@media (hover: none) {
+  .heading-anchor {
+    opacity: 0.5;
+  }
+}
+
+/* Toast notification for copied link */
+.anchor-toast {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: rgba(0, 0, 0, 0.85);
+  color: white;
+  padding: 12px 24px;
+  border-radius: 25px;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 10000;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: none;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.anchor-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.anchor-toast i {
+  margin-right: 8px;
+  color: #4CAF50;
+}
+
+/* Dark mode */
+body.dark-mode .heading-anchor {
+  color: #ff9933;
+}
+
+body.dark-mode .heading-anchor:hover {
+  color: #ffaa55;
+}
+
+body.dark-mode .anchor-toast {
+  background: rgba(50, 50, 50, 0.95);
+}
+
+/* Ensure smooth scrolling on the main document */
+html {
+  scroll-behavior: smooth;
+  /* Prevent overscroll bounce/glitch effects */
+  overscroll-behavior: none;
+}
+
+body {
+  /* Prevent overscroll bounce on iOS and Android */
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Disable smooth scroll for users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* ===== Link Card Tooltip Styles ===== */
+.link-card-wrapper {
+  display: inline;
+}
+
+.link-card {
+  display: inline-flex;
+  align-items: stretch;
+  position: relative;
+  width: auto;
+  max-width: 100%;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 25px;
+  corner-shape: squircle;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  overflow: visible;
+  font-family: 'Manrope', sans-serif;
+  margin-top: 12px;
+}
+
+/* Arrow pointing up towards the link */
+.link-card::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: var(--arrow-left, 24px);
+  transform: rotate(45deg);
+  width: 12px;
+  height: 12px;
+  background: #ffffff;
+  border-left: 1px solid rgba(0, 0, 0, 0.1);
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.link-card-image {
+  width: 150px !important;
+  height: 128px !important;
+  min-width: 150px;
+  max-width: 150px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #f0f0f0 0%, #e0e0e0 100%);
+  margin: 12px !important;
+  corner-shape: squircle;
+  border-radius: 18px !important;
+}
+
+.link-card-content {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
+.link-card-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #333;
+  margin: 0 0 6px 0;
+  line-height: 1.3;
+}
+
+.link-card-excerpt {
+  font-size: 12px;
+  color: #666;
+  margin: 0;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.link-card-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 4px 8px;
+  background: linear-gradient(135deg, #ff5400 0%, #ff6b00 100%);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  width: fit-content;
+}
+
+.link-card-badge i {
+  font-size: 9px;
+}
+
+/* Close button */
+.link-card-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: var(--f-cursor-pointer);
+  font-size: 12px;
+  color: #666;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+}
+
+.link-card-close:hover {
+  background: #fff;
+  color: #ff4444;
+  border-color: #999;
+  border-width: 2px;
+}
+
+body.dark-mode .link-card-close {
+  background: #444;
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #ccc;
+}
+
+body.dark-mode .link-card-close:hover {
+  background: #444;
+  color: #ff4444;
+  border-color: #515151;
+  border-width: 2px;
+}
+
+/* Dark mode styles */
+body.dark-mode .link-card {
+  background: #2a2a2a;
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-mode .link-card::before {
+  background: #2a2a2a;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+body.dark-mode .link-card-title {
+  color: #f0f0f0;
+}
+
+body.dark-mode .link-card-excerpt {
+  color: #aaa;
+}
+
+body.dark-mode .link-card-image {
+  background: linear-gradient(135deg, #333 0%, #444 100%);
+}
+
+/* Special styling for the link that has a card */
+a.has-link-card {
+  position: relative;
+}
+
+/* Mobile responsive */
+@media (max-width: 480px) {
+  .link-card {
+    margin-left: 0;
+  }
+
+  .link-card::before {
+    left: 24px;
+  }
+
+  .link-card-content {
+    padding: 10px 12px;
+  }
+
+  .link-card-title {
+    font-size: 13px;
+  }
+
+  .link-card-excerpt {
+    font-size: 11px;
+  }
+}

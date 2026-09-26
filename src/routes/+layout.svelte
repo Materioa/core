@@ -1,0 +1,241 @@
+<script>
+  import '../app.css';
+  import { page } from '$app/stores';
+  import { pushState, replaceState } from '$app/navigation';
+  import Header from '$lib/components/Header.svelte';
+  import PdfReaderModal from '$lib/components/PdfReaderModal.svelte';
+  import AiChatModal from '$lib/components/AiChatModal.svelte';
+  import DynamicFormsModal from '$lib/components/DynamicFormsModal.svelte';
+  import AutoShowPopups from '$lib/components/AutoShowPopups.svelte';
+  import NotebookEditor from '$lib/components/NotebookEditor.svelte';
+  import AdvancedSettingsDrawer from '$lib/components/AdvancedSettingsDrawer.svelte';
+  import NotificationsDrawer from '$lib/components/NotificationsDrawer.svelte';
+  import KeyboardShortcuts from '$lib/components/KeyboardShortcuts.svelte';
+  import PromoBanner from '$lib/components/PromoBanner.svelte';
+  import ExamModal from '$lib/components/ExamModal.svelte';
+  import ThemeManager from '$lib/components/ThemeManager.svelte';
+  import DownloadsManager from '$lib/components/DownloadsManager.svelte';
+  import WallpaperEngine from '$lib/components/WallpaperEngine.svelte';
+  import MaterioModal from '$lib/components/MaterioModal.svelte';
+  import SearchResultsModal from '$lib/components/SearchResultsModal.svelte';
+  import InterviewerModal from '$lib/components/InterviewerModal.svelte';
+  import AppUpdateModal from '$lib/components/AppUpdateModal.svelte';
+  
+import { activeModalStore, pdfModalStore } from '$lib/stores.js';
+  import { get } from 'svelte/store';
+  import { onMount } from 'svelte';
+  import { browser } from '$app/environment';
+
+  let headerVersion = 0;
+  function shouldHideHeader(pathname, _ver) {
+    if (!browser) return false;
+    if (pathname === '/home') return false;
+    // Standalone landing-style pages (no app chrome, cream landing theme).
+    if (pathname === '/pricing' || pathname.startsWith('/pricing/')) return true;
+    if (pathname === '/interviewer' || pathname.startsWith('/interviewer')) return true;
+    if (pathname === '/downloads' || pathname.startsWith('/downloads')) return true;
+    if (pathname === '/') {
+      // In-memory "Go to App" click (app-start preference is 'root'):
+      // render the full app chrome instead of the landing shell.
+      try {
+        if (typeof window !== 'undefined' && (window.__materioForceApp || window.__landingForceApp)) return false;
+      } catch {}
+      try {
+        const m = document.cookie.match(new RegExp('(^| )materio_skip_landing=([^;]+)'));
+        let skip = null;
+        if (m) skip = decodeURIComponent(m[2]);
+        else try { skip = localStorage.getItem('materio_skip_landing'); } catch {}
+        return !(skip === 'true' || skip === '1');
+      } catch { return false; }
+    }
+    return false;
+  }
+  $: hideGlobalHeader = shouldHideHeader($page.url.pathname, headerVersion);
+  $: if (browser) document.body.classList.toggle('landing-page-active', hideGlobalHeader);
+  // Reading pages (blog posts, docs, legal) render without app chrome,
+  // like the parent layouts — but keep the base stylesheets.
+  $: bareContent = $page.data?.layout === 'bare'
+    || ['/privacy', '/cookies', '/terms', '/changelog'].includes($page.url.pathname)
+    || $page.url.pathname === '/docs'
+    || $page.url.pathname.startsWith('/docs/');
+
+  const modalToHash = {
+    'notebook': '#notebook',
+    'shortcuts': '#shortcuts',
+    'examModal': '#exam',
+    'feedback': '#feedback',
+    'contribute': '#contribute',
+    'bug-report': '#bug-report',
+    'ai-chat': '#ai-chat',
+    'mcp': '#mcp',
+    'interview': '#interview'
+  };
+
+  const hashToModal = {
+    '#notebook': 'notebook',
+    '#shortcuts': 'shortcuts',
+    '#exam': 'examModal',
+    '#exam-modal': 'examModal',
+    '#feedback': 'feedback',
+    '#contribute': 'contribute',
+    '#bug-report': 'bug-report',
+    '#ai-chat': 'ai-chat',
+    '#mcp': 'mcp',
+    '#interview': 'interview',
+    '#viva': 'interview',
+    '#viva-box': 'interview',
+    '#viva-question-bank': 'interview'
+  };
+
+  onMount(() => {
+    let prevModal = null;
+    let updatingFromHash = false;
+
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const initModal = hashToModal[window.location.hash];
+      if (initModal) {
+        updatingFromHash = true;
+        activeModalStore.set(initModal);
+        updatingFromHash = false;
+      }
+    }
+
+    const unsubActive = activeModalStore.subscribe(val => {
+      // Never throw out of a store subscriber: Svelte aborts the whole
+      // notify queue on throw, which used to wedge tab navigation.
+      try {
+        if (val) {
+        document.body.classList.add('modal-open');
+        const targetHash = modalToHash[val];
+        if (targetHash && typeof window !== 'undefined' && window.location.hash !== targetHash && !updatingFromHash) {
+          try {
+            pushState(window.location.pathname + window.location.search + targetHash, { modal: val });
+          } catch (e) {
+            window.history.pushState({ modal: val }, '', window.location.pathname + window.location.search + targetHash);
+          }
+        }
+      } else {
+        if (!get(pdfModalStore).isOpen) document.body.classList.remove('modal-open');
+        if (typeof window !== 'undefined' && !updatingFromHash) {
+          if (prevModal && modalToHash[prevModal] && window.location.hash === modalToHash[prevModal]) {
+            try {
+              replaceState(window.location.pathname + window.location.search, {});
+            } catch (e) {
+              window.history.replaceState(null, '', window.location.pathname + window.location.search);
+            }
+          } else if (hashToModal[window.location.hash]) {
+            try {
+              replaceState(window.location.pathname + window.location.search, {});
+            } catch (e) {
+              window.history.replaceState(null, '', window.location.pathname + window.location.search);
+            }
+          }
+        }
+      }
+      prevModal = val;
+      } catch (err) {
+        console.error('Modal sync failed:', err);
+      }
+    });
+
+    const unsubPdf = pdfModalStore.subscribe(val => {
+      try {
+        if (val.isOpen) document.body.classList.add('modal-open');
+        else if (!get(activeModalStore)) document.body.classList.remove('modal-open');
+      } catch (err) {
+        console.error('PDF modal sync failed:', err);
+      }
+    });
+
+    const handleHashSync = () => {
+      try {
+        if (typeof window === 'undefined') return;
+        const curHash = window.location.hash;
+        const matchingModal = hashToModal[curHash];
+        updatingFromHash = true;
+        if (matchingModal) {
+          if (get(activeModalStore) !== matchingModal) {
+            activeModalStore.set(matchingModal);
+          }
+        } else {
+          if (get(activeModalStore) && modalToHash[get(activeModalStore)]) {
+            activeModalStore.set(null);
+          }
+        }
+        updatingFromHash = false;
+      } catch (err) {
+        console.error('Hash sync failed:', err);
+        updatingFromHash = false;
+      }
+    };
+
+    window.addEventListener('popstate', handleHashSync);
+    window.addEventListener('hashchange', handleHashSync);
+
+    const prefHandler = () => { headerVersion += 1; };
+    window.addEventListener('landingPrefsChanged', prefHandler);
+    window.addEventListener('materioForceAppChanged', prefHandler);
+    window.addEventListener('storage', prefHandler);
+
+    return () => {
+      unsubActive();
+      unsubPdf();
+      window.removeEventListener('popstate', handleHashSync);
+      window.removeEventListener('hashchange', handleHashSync);
+      window.removeEventListener('landingPrefsChanged', prefHandler);
+      window.removeEventListener('materioForceAppChanged', prefHandler);
+      window.removeEventListener('storage', prefHandler);
+    };
+  });
+</script>
+
+<svelte:head>
+  {#if !hideGlobalHeader || bareContent}
+    <link id="app-icons-css" rel="stylesheet" href="/assets/style/icons.css" />
+    <link id="app-icon-fallback-css" rel="stylesheet" href="/assets/style/icon-fallback.css" />
+    <link id="app-main-css" rel="stylesheet" href="/assets/style/main.css?v=20260926" />
+    <link id="app-gestures-css" rel="stylesheet" href="/assets/style/gestures.css" />
+  {:else}
+    <link id="landing-css" rel="stylesheet" href="/assets/style/landing.css" />
+    <link id="pricing-css" rel="stylesheet" href="/assets/style/pricing.css" />
+  {/if}
+</svelte:head>
+{#if !hideGlobalHeader}
+<ThemeManager />
+<Header />
+<main>
+  <slot />
+</main>
+{:else if bareContent}
+<div class="bare-content">
+  <slot />
+</div>
+{:else}
+<div class="landing-shell">
+  <slot />
+</div>
+{/if}
+<!-- Global modals/drawers stay mounted on every route (landing, pricing,
+  interviewer included) so hash deep-links and modal triggers always work —
+  previously a landing-shell render left these unmounted and every modal
+  button silently did nothing until refresh. -->
+<PdfReaderModal />
+<AiChatModal />
+<DynamicFormsModal />
+{#if !hideGlobalHeader}
+<AutoShowPopups />
+{/if}
+<NotebookEditor />
+<AdvancedSettingsDrawer />
+<NotificationsDrawer />
+<KeyboardShortcuts />
+{#if !hideGlobalHeader}
+<PromoBanner />
+{/if}
+<ExamModal />
+<DownloadsManager />
+<MaterioModal />
+<SearchResultsModal />
+<WallpaperEngine />
+<InterviewerModal />
+<AppUpdateModal />

@@ -1,0 +1,67 @@
+/* Newer brand fonts for reading pages (self-hosted, no external requests).
+   OpenRunde carries UI and body text; QuadrantNotepad carries display headings.
+   PP Mori is aliased to OpenRunde so older stylesheets automatically pick up
+   the new files instead of falling back to system fonts. */
+
+@font-face {
+    font-family: 'OpenRunde';
+    src: url('/assets/fonts/OpenRunde-Regular.woff2') format('woff2'),
+         url('/assets/fonts/OpenRunde-Regular.woff') format('woff');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'OpenRunde';
+    src: url('/assets/fonts/OpenRunde-Medium.woff2') format('woff2'),
+         url('/assets/fonts/OpenRunde-Medium.woff') format('woff');
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'OpenRunde';
+    src: url('/assets/fonts/OpenRunde-Semibold.woff2') format('woff2'),
+         url('/assets/fonts/OpenRunde-Semibold.woff') format('woff');
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'OpenRunde';
+    src: url('/assets/fonts/OpenRunde-Bold.woff2') format('woff2'),
+         url('/assets/fonts/OpenRunde-Bold.woff') format('woff');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'QuadrantNotepad';
+    src: url('/assets/fonts/QuadrantNotepad-Regular-BZHKwHCP.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+/* Legacy alias: anything still asking for PP Mori gets OpenRunde. */
+@font-face {
+    font-family: 'PP Mori';
+    src: url('/assets/fonts/OpenRunde-Regular.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'PP Mori';
+    src: url('/assets/fonts/OpenRunde-Semibold.woff2') format('woff2');
+    font-weight: 600;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'PP Mori';
+    src: url('/assets/fonts/OpenRunde-Bold.woff2') format('woff2');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}

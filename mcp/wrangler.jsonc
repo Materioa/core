@@ -1,0 +1,18 @@
+{
+  "name": "materio-mcp",
+  "workers_dev": true,
+  "compatibility_date": "2026-09-16",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "main": "src/worker.ts",
+  "routes": [
+    {
+      "pattern": "mcp.getmaterio.app",
+      "custom_domain": true
+    }
+  ]
+}

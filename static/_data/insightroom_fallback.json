@@ -1,0 +1,37 @@
+[
+  {
+    "title": " Unit 5 - Data Storage Techniques",
+    "excerpt": "A complete coverage of Data Storage Techniques in Android - Shared Preferences, Files and Directories, SQLite Database, and Content Providers.",
+    "date": "23-04-2026",
+    "url": "https://room.getmaterio.app/chapter/unit-5-data-storage-techniques",
+    "image": ""
+  },
+  {
+    "title": "Unit 6 - Deployment and Best Practices",
+    "excerpt": "A complete coverage of all topics from CodeTantra notes of Unit 6 - Deployment and Best practices.",
+    "date": "20-04-2026",
+    "url": "https://room.getmaterio.app/chapter/mean-unit6",
+    "image": ""
+  },
+  {
+    "title": "Unit 5 - Integration",
+    "excerpt": "A complete coverage of all topics from CodeTantra notes of Unit 5 - Integration.",
+    "date": "20-04-2026",
+    "url": "https://room.getmaterio.app/chapter/mean-unit5",
+    "image": ""
+  },
+  {
+    "title": "Git and Github",
+    "excerpt": "This resource provides comprehensive knowledge about basics of Git and GitHub as a beginer or Just a quick knowledge refresh.",
+    "date": "22-01-2026",
+    "url": "https://room.getmaterio.app/originals/git",
+    "image": "https://room.getmaterio.app/assets/img/covers/aec4c2cc-25c1-48eb-961e-2048503608fd.webp"
+  },
+  {
+    "title": "Introduction to MEAN Stack",
+    "excerpt": "This resource provides overview about",
+    "date": "17-01-2026",
+    "url": "https://room.getmaterio.app/originals/introduction-to-mean-stack",
+    "image": "https://room.getmaterio.app/assets/img/covers/d146a58e-d51d-46d1-9ccb-e3c9a0a977ed.webp"
+  }
+]

@@ -1,0 +1,170 @@
+name: Build & Release Apps
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Build Windows App (Tauri)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate App Icons
+        run: npm run icons:generate
+
+      - name: Build SvelteKit Frontend
+        run: npm run build:static
+
+      - name: Build Tauri Desktop App
+        run: npx tauri build
+
+      - name: Prepare Windows Release Artifacts
+        shell: bash
+        run: |
+          mkdir -p release-windows
+          find src-tauri/target/release/bundle/ -type f \( -name "*.msi" -o -name "*.exe" \) -exec cp {} release-windows/ \;
+          ls -la release-windows/
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-binaries
+          path: release-windows/*
+          if-no-files-found: error
+
+  build-android:
+    name: Build Android App (Capacitor)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate App Icons
+        run: npm run icons:generate
+
+      - name: Build SvelteKit Web App
+        run: npm run build:static
+
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+
+      - name: Build Android APK
+        working-directory: android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug || ./gradlew assembleRelease
+
+      - name: Prepare Android Release Artifacts
+        shell: bash
+        run: |
+          mkdir -p release-android
+          # Grab either release or debug APK
+          find android/app/build/outputs/apk/ -type f -name "*.apk" -exec cp {} release-android/Materio-Android.apk \;
+          ls -la release-android/
+
+      - name: Upload Android Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-binaries
+          path: release-android/*
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish to GitHub Releases
+    needs: [build-windows, build-android]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Windows Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-binaries
+          path: release-assets
+
+      - name: Download Android Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: android-binaries
+          path: release-assets
+
+      - name: Determine Release Tag
+        id: vars
+        shell: bash
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+            echo "PRERELEASE=false" >> $GITHUB_OUTPUT
+          else
+            echo "TAG=latest" >> $GITHUB_OUTPUT
+            echo "PRERELEASE=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish Release to GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.TAG }}
+          name: Materio Apps ${{ steps.vars.outputs.TAG }}
+          body: |
+            ## Materio Official Builds
+            
+            ### Downloads
+            - **Windows Desktop:** Native 64-bit installer with offline reading, system tray, and bundled local MCP server (`localhost:3000/mcp`).
+            - **Android APK:** Fast, mobile-optimized companion with background in-app updates.
+            
+            *Automated build from commit `${{ github.sha }}`.*
+          draft: false
+          prerelease: ${{ steps.vars.outputs.PRERELEASE == 'true' }}
+          files: |
+            release-assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

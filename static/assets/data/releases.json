@@ -1,0 +1,374 @@
+[
+    {
+        "branch": "stable",
+        "version": "5.0",
+        "build": "01/06/2026",
+        "logs": [
+            "Materio MCP Connector expanded to Perplexity",
+            "New and Improved search",
+            "Thinklet - AI Chat",
+            "Ask AI in PDF viewer powered by Thinklet.",
+            "Other bug fixes and improvements"
+        ]
+    },
+    {
+        "branch": "stable",
+        "version": "4.8.1.0",
+        "build": "26/03/2026",
+        "logs": [
+            "Introducing MCP Conneectors in ChatGPT and Claude",
+            "Addressing critical CDN issue where 1-4 semester resources were falsely flagged as not found",
+            "Topic selector select first value by default (User request)",
+            "Bug fixes and performance improvements."
+        ]
+    },
+    {
+        "branch": "stable",
+        "version": "4.8.0.0",
+        "build": "08/02/2026",
+        "logs": [
+            "Upto 45% faster loading times.",
+            "New bug reporting system.",
+            "Forms wizard",
+            "Notebooks with cloud sync.",
+            "Exam timeline",
+            "Bug fixes and performance improvements."
+        ]
+    },
+    {
+        "branch": "stable",
+        "version": "4.7.0.0",
+        "build": "01/12/2025",
+        "logs": [
+            "A New Home - Migrated to Vercel.",
+            "Introducing Materio Originals.",
+            "Added Table of Contents sidebar in the insightroom.",
+            "New Reading Mode - Inversion.",
+            "Option to clear all Data.",
+            "Bug Fix - Shake-scroll in insightroom.",
+            "Bug Fix - Search not working."
+        ]
+    },
+    {
+        "branch": "beta",
+        "version": "4.7.0.0",
+        "build": "01/12/2025",
+        "logs": [
+            "A New Home - Migrated to Vercel.",
+            "Introducing Materio Originals.",
+            "Added Table of Contents sidebar in the insightroom.",
+            "New Reading Mode - Inversion.",
+            "Option to clear all Data.",
+            "Bug Fix - Shake-scroll in insightroom.",
+            "Bug Fix - Search not working."
+        ]
+    },
+    {
+        "branch": "stable",
+        "version": "4.6.1.1",
+        "build": "14/11/2025",
+        "logs": [
+            "AI Search was optimised so you can now ask something like `what to read?`, `resources with basics of turing machines` etc. and get suggestions based on it.",
+            "Improved user experience by revamping the items in reading card.",
+            "Little improvements to PDF loading logic to reduce lag."
+        ]
+    },
+    {
+        "branch": "stable",
+        "version": "4.6.1.0",
+        "build": "01/11/2025",
+        "logs": [
+            "SQUIRCLES!!!! - Feel the Smooth Consistent UI",
+            "Adressed known bugs",
+            "Local Resources - Load files locally on-device (Available to Super tier)",
+            "Service Worker updated - Made offline experience better"
+        ]
+    },
+    {
+        "branch": "beta",
+        "version": "4.6.0.2",
+        "build": "1/11/2025",
+        "logs": [
+            "Little changes to UI",
+            "Experimental migration to Hugeicons",
+            "Local Resources - Load files locally on-device (Available to Super tier)",
+            "Service Worker updated - Made offline experience better"
+        ]
+    },
+    {
+        "branch": "stable",
+        "version": "4.6.0.0",
+        "build": "27/09/2025",
+        "logs": [
+            "Introducing Materio Plus!",
+            "Get Exclusive perks as a plus user that normal user's won't get.",
+            "Materio will now show ads, Plus user's can get ad-free experience.",
+            "You can now choose to disable homepage insightroom feed from settings.",
+            "Introducing four all new background wallpaper options - Dynamic (changes scenes depending on the time of the day.), Zen, Blissful night and Dusk.",
+            "Improvements made in the Insightroom UI and printable's template.",
+            "Additions fixes here and there."
+        ]
+    },
+    {
+        "branch": "stable",
+        "version": "4.5.7.0 Patch-2",
+        "build": "29/07/2025",
+        "logs": [
+            "Perfomance optimisations made in oread.",
+            "UX improvements",
+            "Upgraded icons to FontAwesome 7.0 Pro",
+            "The Insightroom is now publicly available."
+        ]
+    },
+    {
+        "branch": "stable",
+        "version": "4.5.7.0",
+        "build": "15/07/2025",
+        "logs": [
+            "Security Patch - 1 to for CVE-2025-6442 and other vulnerabilities.",
+            "The InsightRoom Overhaul and Moved to Public via sharable links.",
+            "The InsightRoom posts can be shared or downloaded to printable ebook."
+        ]
+    },
+    {
+        "branch": "stable",
+        "version": "4.5.6.2",
+        "build": "09/07/2025",
+        "logs": [
+            "Bug Fixes to Admin CMS - uploading binary files like pdf were overwritten or getting corrupted.",
+            "UX - navigation to profile and settings can be done from any page now",
+            "Other minor improvements"
+        ]
+    },
+    {
+        "branch": "stable",
+        "version": "4.5.6.1",
+        "build": "04/07/2025",
+        "logs": [
+            "Changed Default set Semester",
+            "Maintainance check updates",
+            "Deprecation of AI Chat from open beta due to rate limit issues and unsatisfatory outputs."
+        ]
+    },
+    {
+        "branch": "stable",
+        "version": "4.5.6.0",
+        "build": "23/06/2025",
+        "logs": [
+            "Improved Performance and UX interactions.",
+            "Promotional modals can now be dismissed by clicking on remind me later or don't show again.",
+            "InsightRoom rolling out for invited users with public posts generally available via link, however InsightRoom is still in beta and may contain bugs."
+        ]
+    },
+    {
+        "branch": "stable",
+        "version": "4.5.5.3",
+        "build": "10/06/2025",
+        "logs": [
+            "Fixed aggressive PWA caching issue completely.",
+            "Improved update detection and notification system.",
+            "Performance and Stability Improvements."
+        ]
+    },
+    {
+        "branch": "stable",
+        "version": "4.5.5.2",
+        "build": "10/06/2025",
+        "logs": [
+            "Performance and Stability Improvements.",
+            "UX Enhancements.",
+            "Materio Account - Get access to latest feature's first (Limited invite based signup's for now).",
+            "Texture's and Overlays.",
+            "3 New Reading Modes.",
+            " - 1. Paper Mode - paper-like texture overlay with option to adjust grain size.",
+            " - 2. Night Mode - reduces eye stress with option to control warmth, and auto schedule.",
+            " - 3. E-ink Mode - grayscale filter to relax eyes for kindle like experience (best when combined with paper mode).",
+            "Contribute Materials.",
+            "New ui in settings for easy navigation.",
+            "Swipe - a new way to navigate through pages on mobile with haptic feedback.",
+            "Re-introduced blogs",
+            "Updated terms in license.",
+            "Bug Fix - text color and remove blue highlight on tap.",
+            "Introduced - Materio Webapp (PWA)."
+        ]
+    },
+    {
+        "branch": "stable",
+        "version": "4.5.0.1",
+        "build": "27/05/2025",
+        "logs": [
+            "Serverless Functions Integrations",
+            "Materio REST APIs introduced for Auth",
+            "Introduced Blogs - The InsightRoom",
+            "Overall Restructuring and Enhancements to codebase",
+            "Performance Improvements"
+        ]
+    },
+    {
+        "branch": "stable",
+        "version": "4.0.2.0",
+        "build": "30/03/2025",
+        "logs": [
+            "Visual Refresh 2.0 - enhanced UI with Glassmorphism style.",
+            "New wordmark - <i>stylized as:</i> <b>materio.</b>",
+            "Ghibli Aesthetic - Studio Ghibli inspired art.",
+            "Notification Badge - every notification counts.",
+            "Addition to Settings",
+            " - option to disable background images.",
+            " - option to opt out of optional cookies.",
+            "Bug Fix - when submit was clicked without selecting options alert for selecting options were given twice.",
+            "Bug Fix - Background image wasn't adapting to viewport automatically needing to refresh."
+        ]
+    },
+    {
+        "branch": "channels",
+        "version": "4.0.2_Daily | Beta",
+        "build": "29/03/2025",
+        "logs": [
+            "Visual Refresh 2.0 - enhanced UI with Glassmorphism style.",
+            "New wordmark - <i>stylized as:</i> <b>materio.</b>",
+            "Ghibli Aesthetic - Studio Ghibli inspired art.",
+            "Notification Badge - every notification counts.",
+            "Addition to Settings",
+            " - option to disable background images.",
+            " - option to opt out of optional cookies.",
+            "Bug Fix - when submit was clicked without selecting options alert for selecting options were given twice.",
+            "Bug Fix - Background image wasn't adapting to viewport automatically needing to refresh."
+        ]
+    },
+    {
+        "branch": "stable",
+        "version": "4.0.1.0",
+        "build": "28/03/2025",
+        "logs": [
+            "Visual Refresh - Materio now has a new look.",
+            "Faster - loading new pages takes less time now with tabs.",
+            "Introduction of Categories menu - for easy selection and organization of material type.",
+            "New PDF viewer and style for better view size with an option of Fullscreen mode.",
+            "Navigation to tabs has been made easier.",
+            "Notification Badges - You can see badge with counts whenever theres a new notification.",
+            "Dark mode - toggle on/off in settings."
+        ]
+    },
+    {
+        "branch": "channels",
+        "version": "4.0.1_Daily | Beta",
+        "build": "28/03/2025",
+        "logs": [
+            "Visual Refresh - Materio now has a new look.",
+            "Faster - loading new pages takes less time now with tabs.",
+            "Introduction of Categories menu - for easy selection and organization of material type.",
+            "New PDF viewer and style for better view size with an option of Fullscreen mode.",
+            "Navigation to tabs has been made easier.",
+            "Notification Badges - You can see badge with counts whenever theres a new notification.",
+            "Dark mode - toggle on/off in settings."
+        ]
+    },
+    {
+        "branch": "channels",
+        "version": "4.0_pre | Beta",
+        "build": "26/03/2025",
+        "logs": [
+            "Materio v4",
+            "Visual overhaul"
+        ]
+    },
+    {
+        "branch": "stable",
+        "build": "12.12.24",
+        "version": "3.0",
+        "logs": [
+            "Introduced Jekyll templating",
+            "Font Awesome V6 Icons in the Navbar instead of text enhancing visual appearance",
+            "Introduced Blogs with Markdown formatting (Limited Access only for now)",
+            "Consistent UI across all Materio Pages",
+            "Bug Fixes and optimisations",
+            "Secure: The passwords are hashed before storing.",
+            "*Consistent UI includes only Home, Chat and Changelog sections of the site.",
+            "*Blogs uses Customised flavor of Minima V3 Jekyll template.",
+            "*Blogs access is currently limited to only authorised credentials, if you want access you can signup for the waitlist by sending mail to support.",
+            "Support : materio.operable341@silomails.com"
+        ]
+    },
+    {
+        "branch": "stable",
+        "build": "25.11.24",
+        "version": "2.5",
+        "logs": [
+            "Fixed Bugs",
+            "Fixed Padding and Improved CSS",
+            "Mobile Responsive UI",
+            "Added Notification Center"
+        ]
+    },
+    {
+        "branch": "stable",
+        "build": "03.11.24",
+        "version": "2.2",
+        "logs": [
+            "Added New Materials",
+            "Removed Editor",
+            "Fixed 404 page",
+            "Fixed Changelog and About Pages"
+        ]
+    },
+    {
+        "branch": "stable",
+        "build": "18.05.24",
+        "version": "2.0_C67 | Alpha",
+        "logs": [
+            "Added support for Themes",
+            "Added toggle for Settings",
+            "Legacy Mode (Pages)",
+            "Fixed Fonts",
+            "Fixed Bugs"
+        ]
+    },
+    {
+        "branch": "stable",
+        "build": "17.05.24",
+        "version": "1.1 | Weekly",
+        "logs": [
+            "Uploaded all Materials",
+            "Added Question Banks and Important Questions"
+        ]
+    },
+    {
+        "branch": "stable",
+        "build": "29.04.24",
+        "version": "1.0.1 | Weekly",
+        "logs": [
+            "Added Materials"
+        ]
+    },
+    {
+        "branch": "stable",
+        "build": "29.03.24",
+        "version": "1.0.1 | Weekly",
+        "logs": [
+            "Added new Resources",
+            "Fixed some bugs"
+        ]
+    },
+    {
+        "branch": "stable",
+        "build": "16.03.24",
+        "version": "1.0 | Weekly",
+        "logs": [
+            "Introduced New UI",
+            "Adobe PDF Viewer API",
+            "Shifted from Github Pages to Netlify"
+        ]
+    },
+    {
+        "branch": "stable",
+        "build": "08.03.24",
+        "version": "0.1 | Dev",
+        "logs": [
+            "Initial Launch of Materio",
+            "Resources and Chat features",
+            "Chat based on Giscus API",
+            "Chrome PDF viewer"
+        ]
+    }
+]

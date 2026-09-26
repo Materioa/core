@@ -1,0 +1,250 @@
+/**
+ * OTA Update Styles
+ * For Hugeicons Migration Update
+ */
+
+/* Hugeicons base styles */
+.hgi-stroke,
+.hgi-solid,
+.hgi-bulk,
+.hgi-duotone,
+.hgi-twotone {
+    font-family: 'Hugeicons' !important;
+    font-style: normal;
+    font-variant: normal;
+    font-weight: normal;
+    text-rendering: auto;
+    line-height: 1;
+    display: inline-block;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ensure icons maintain proper size */
+i[class*="hgi-"] {
+    display: inline-block;
+    font-style: normal;
+    font-variant: normal;
+    text-rendering: auto;
+    line-height: 1;
+}
+
+/* OTA Update Button */
+#otaUpdateButton {
+    display: none; /* Hidden by default, shown only for Plus/Super users */
+    width: 100%;
+    padding: 16px 20px;
+    background: #ff8400;
+    border: none;
+    border-radius: 12px;
+    color: white;
+    font-family: 'Manrope', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: var(--f-cursor-pointer);
+    transition: all 0.3s ease;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: 20px 0;
+}
+
+#otaUpdateButton:hover:not(:disabled) {
+    transform: translateY(-2px);
+}
+
+#otaUpdateButton:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+#otaUpdateButton:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+#otaUpdateButton i {
+    font-size: 18px;
+}
+
+/* Progress Modal */
+.ota-progress-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    backdrop-filter: blur(4px);
+}
+
+.ota-progress-card {
+    background: white;
+    border-radius: 16px;
+    padding: 30px;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.ota-progress-card h3 {
+    margin: 0 0 20px 0;
+    font-family: 'Manrope', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: #333;
+    text-align: center;
+}
+
+.ota-progress-bar {
+    width: 100%;
+    height: 8px;
+    background: rgba(255, 130, 0, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 15px;
+}
+
+.ota-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ff8200 0%, #ff9d3d 100%);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+    width: 0%;
+}
+
+.ota-progress-text {
+    margin: 0;
+    font-family: 'Manrope', sans-serif;
+    font-size: 14px;
+    color: #666;
+    text-align: center;
+}
+
+/* Notifications */
+.ota-notification {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: white;
+    border-radius: 12px;
+    padding: 16px 20px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: 400px;
+    z-index: 10001;
+    transform: translateX(450px);
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.ota-notification.show {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.ota-notification i {
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+.ota-notification.ota-success i {
+    color: #4caf50;
+}
+
+.ota-notification.ota-error i {
+    color: #f44336;
+}
+
+.ota-notification strong {
+    display: block;
+    font-family: 'Manrope', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.ota-notification p {
+    margin: 0;
+    font-family: 'Manrope', sans-serif;
+    font-size: 13px;
+    color: #666;
+    line-height: 1.4;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .ota-progress-card {
+        background: #1e1e1e;
+        color: #e0e0e0;
+    }
+    
+    .ota-progress-card h3 {
+        color: #e0e0e0;
+    }
+    
+    .ota-progress-text {
+        color: #b0b0b0;
+    }
+    
+    .ota-notification {
+        background: #2d2d2d;
+    }
+    
+    .ota-notification strong {
+        color: #e0e0e0;
+    }
+    
+    .ota-notification p {
+        color: #b0b0b0;
+    }
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    .ota-notification {
+        right: 10px;
+        left: 10px;
+        bottom: 10px;
+        max-width: none;
+    }
+    
+    .ota-progress-card {
+        padding: 20px;
+    }
+}
+
+/* Loading animation for installing state */
+@keyframes ota-spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+#otaUpdateButton i.hgi-loading,
+#otaUpdateButton i[class*="loading"] {
+    animation: ota-spin 1s linear infinite;
+}
+
+/* Premium badge for button */
+.ota-premium-badge {
+    display: inline-block;
+    background: rgba(255, 215, 0, 0.2);
+    color: #ffd700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    margin-left: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}

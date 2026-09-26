@@ -1,0 +1,244 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@200..800&display=swap');
+
+/* ==================================================================
+   FONTS: Quadrant (Headings), OpenRunde (Body), Melange (Secondary)
+   ================================================================== */
+@font-face {
+  font-family: 'Quadrant';
+  src: local('Quadrant'), local('Quadrant Notepad'), local('Quadrant-Regular'),
+       url('/fonts/QuadrantNotepad-Regular-BZHKwHCP.woff2') format('woff2'),
+       url('/assets/fonts/QuadrantNotepad-Regular-BZHKwHCP.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Quadrant Notepad';
+  src: local('Quadrant Notepad'), local('Quadrant'), local('Quadrant-Regular'),
+       url('/fonts/QuadrantNotepad-Regular-BZHKwHCP.woff2') format('woff2'),
+       url('/assets/fonts/QuadrantNotepad-Regular-BZHKwHCP.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'OpenRunde';
+  src: local('OpenRunde'), local('Open Runde'), local('OpenRunde-Regular'),
+       url('/fonts/OpenRunde-Regular.woff2') format('woff2'),
+       url('/assets/fonts/OpenRunde-Regular.woff2') format('woff2'),
+       url('/fonts/OpenRunde-Regular.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Open Runde';
+  src: local('OpenRunde'), local('Open Runde'), local('OpenRunde-Regular'),
+       url('/fonts/OpenRunde-Regular.woff2') format('woff2'),
+       url('/assets/fonts/OpenRunde-Regular.woff2') format('woff2'),
+       url('/fonts/OpenRunde-Regular.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'OpenRunde';
+  src: local('OpenRunde Medium'), local('Open Runde Medium'), local('OpenRunde-Medium'),
+       url('/fonts/OpenRunde-Medium.woff2') format('woff2'),
+       url('/assets/fonts/OpenRunde-Medium.woff2') format('woff2'),
+       url('/fonts/OpenRunde-Medium.woff') format('woff');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Open Runde';
+  src: local('OpenRunde Medium'), local('Open Runde Medium'), local('OpenRunde-Medium'),
+       url('/fonts/OpenRunde-Medium.woff2') format('woff2'),
+       url('/assets/fonts/OpenRunde-Medium.woff2') format('woff2'),
+       url('/fonts/OpenRunde-Medium.woff') format('woff');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'OpenRunde';
+  src: local('OpenRunde Semibold'), local('Open Runde Semibold'), local('OpenRunde-Semibold'),
+       url('/fonts/OpenRunde-Semibold.woff2') format('woff2'),
+       url('/assets/fonts/OpenRunde-Semibold.woff2') format('woff2'),
+       url('/fonts/OpenRunde-Semibold.woff') format('woff');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Open Runde';
+  src: local('OpenRunde Semibold'), local('Open Runde Semibold'), local('OpenRunde-Semibold'),
+       url('/fonts/OpenRunde-Semibold.woff2') format('woff2'),
+       url('/assets/fonts/OpenRunde-Semibold.woff2') format('woff2'),
+       url('/fonts/OpenRunde-Semibold.woff') format('woff');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'OpenRunde';
+  src: local('OpenRunde Bold'), local('Open Runde Bold'), local('OpenRunde-Bold'),
+       url('/fonts/OpenRunde-Bold.woff2') format('woff2'),
+       url('/assets/fonts/OpenRunde-Bold.woff2') format('woff2'),
+       url('/fonts/OpenRunde-Bold.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Open Runde';
+  src: local('OpenRunde Bold'), local('Open Runde Bold'), local('OpenRunde-Bold'),
+       url('/fonts/OpenRunde-Bold.woff2') format('woff2'),
+       url('/assets/fonts/OpenRunde-Bold.woff2') format('woff2'),
+       url('/fonts/OpenRunde-Bold.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Melange';
+  src: local('Melange'), local('Melange-Regular'), local('KMR Melange Grotesk'), local('KMRMelangeGrotesk-Regular'),
+       url('/fonts/kmrmelangegrotesk-regular-BQ0DoJin.woff2') format('woff2'),
+       url('/assets/fonts/kmrmelangegrotesk-regular-BQ0DoJin.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'KMR Melange Grotesk';
+  src: local('Melange'), local('Melange-Regular'), local('KMR Melange Grotesk'), local('KMRMelangeGrotesk-Regular'),
+       url('/fonts/kmrmelangegrotesk-regular-BQ0DoJin.woff2') format('woff2'),
+       url('/assets/fonts/kmrmelangegrotesk-regular-BQ0DoJin.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Melange';
+  src: local('Melange Book'), local('KMR Melange Grotesk Book'), local('KMRMelangeGrotesk-Book'),
+       url('/fonts/kmrmelangegrotesk-book-BWM7GPGX.woff2') format('woff2'),
+       url('/assets/fonts/kmrmelangegrotesk-book-BWM7GPGX.woff2') format('woff2');
+  font-weight: 450;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Melange';
+  src: local('Melange Light'), local('KMR Melange Grotesk Light'), local('KMRMelangeGrotesk-Light'),
+       url('/fonts/kmrmelangegrotesk-light-CYToDGwI.woff2') format('woff2'),
+       url('/assets/fonts/kmrmelangegrotesk-light-CYToDGwI.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Melange';
+  src: local('Melange Medium'), local('KMR Melange Grotesk Medium'), local('KMRMelangeGrotesk-Medium'),
+       url('/fonts/kmrmelangegrotesk-medium-C1-hbCBJ.woff2') format('woff2'),
+       url('/assets/fonts/kmrmelangegrotesk-medium-C1-hbCBJ.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Melange';
+  src: local('Melange Semibold'), local('KMR Melange Grotesk Semibold'), local('KMRMelangeGrotesk-Semibold'),
+       url('/fonts/kmrmelangegrotesk-semibold-BLXxgi3V.woff2') format('woff2'),
+       url('/assets/fonts/kmrmelangegrotesk-semibold-BLXxgi3V.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Melange';
+  src: local('Melange Italic'), local('KMR Melange Grotesk Italic'), local('KMRMelangeGrotesk-Italic'),
+       url('/fonts/kmrmelangegrotesk-italic-BF6bTSX5.woff2') format('woff2'),
+       url('/assets/fonts/kmrmelangegrotesk-italic-BF6bTSX5.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+:root {
+  --bg: #faf9f5;
+  --text: #000000;
+  --link: #007aff;
+  --card-bg: #f9f9f9;
+  --border: #ddd;
+  --foot: #e4e0da;
+  --color-bg-body: var(--bg);
+  --color-bg-overlay: rgba(232, 230, 220, 0.55);
+  --materio-orange: #ff5400;
+  --color-primary: #ff8400;
+  --color-primary-hover: #e67300;
+  --color-primary-light: rgba(255, 130, 0, 0.1);
+  --font-heading: 'Quadrant', 'Quadrant Notepad', 'Playfair Display', Georgia, serif;
+  --font-quadrant: 'Quadrant', 'Quadrant Notepad', 'Playfair Display', Georgia, serif;
+  --font-serif: 'Quadrant', 'Quadrant Notepad', Georgia, serif;
+  --font-primary: 'OpenRunde', 'Open Runde', 'Melange', 'KMR Melange Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-sans: 'OpenRunde', 'Open Runde', 'Melange', 'KMR Melange Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-body: 'OpenRunde', 'Open Runde', 'Melange', 'KMR Melange Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-melange: 'Melange', 'KMR Melange Grotesk', 'OpenRunde', 'Open Runde', sans-serif;
+  --font-openrunde: 'OpenRunde', 'Open Runde', 'Melange', 'KMR Melange Grotesk', sans-serif;
+  --font-mono: 'Consolas', 'Monaco', 'Courier New', monospace;
+  --font-code: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+}
+
+body.dark-mode,
+html.dark-mode body {
+  --bg: #121212;
+  --text: #eeeeee;
+  --link: #3ea6ff;
+  --card-bg: #1e1e1e;
+  --border: #333;
+  --foot: #121212;
+  background: #121212;
+  color: #eeeeee;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-primary);
+  background: var(--color-bg-body);
+  color: var(--text);
+  transition: background 0.3s, color 0.3s;
+}
+
+h1, h2, h3, h4, h5, h6,
+.font-heading,
+.font-quadrant {
+  font-family: var(--font-heading);
+}
+
+a {
+  color: var(--link);
+  text-decoration: none;
+}
+
+::selection {
+  background: #ff895075;
+  color: inherit;
+}

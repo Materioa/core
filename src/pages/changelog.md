@@ -1,0 +1,4 @@
+---
+layout: changelogs
+permalink: /changelog
+---

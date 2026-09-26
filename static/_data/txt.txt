@@ -1,0 +1,33 @@
+map Semester 9999 as "Vault"
+and inside it the subject name
+instead of option.textContent = 'Vault';  
+read authors.yml and see 
+
+b5840184-eb56-422a-b6ec-a5985da3d877:
+  name: "Jinansh's Personal"
+  image: "/assets/img/default-avatar.svg"
+  bio: "Creator @materio"
+
+  use its name field to name the subject
+
+
+  ---
+  as you can see how
+resource.lib.json looks like 
+can you build a search api that also leverages chat.js api to strongly predict the subject based on it related keywords or guess based on topic keywords
+
+and make the 4 selection feilds in the readingSelectionForm ?
+and add a searchbar between the "submitButton" and "icon-buttons"  that impliments the api?
+
+
+can you modify the home tab structure (only) of main.html to look like this  ?
+the design features all the content inside a rounded card looking professional with no sharp curves at header, navbar joint point 
+let me describe the structure layers
+1. bottom layer is the background images 
+2. Blur frame houses header and navbar content  with rounded rectangle cutout as seen in the image.
+3. window is a cutout in the blur frame which doesn't have blur and the bottom layer bg image is seen clearly without any blur 
+this layer is also the final layer and contains all the page content / main content inside the window.
+the insightroom card is redesigned with horizontal sliding 
+the images, title and excerpt come from blog's md frontmatter's metadata
+
+keep the icongraphy same as is tho
