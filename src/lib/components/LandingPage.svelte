@@ -3035,7 +3035,7 @@
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
 		transition:fade={{ duration: 250 }}
-		class="fixed inset-0 z-[100] bg-cream-50/98 backdrop-blur-xl overflow-y-auto overscroll-contain flex flex-col justify-between"
+		class="landing-mobile-menu fixed inset-0 z-[100] bg-cream-50/98 backdrop-blur-xl overflow-y-auto overscroll-contain flex flex-col justify-between"
 	>
 		<div>
 			<!-- Header -->
@@ -3148,7 +3148,7 @@
 					use:smoothCorners={{
 						corners: { radius: 18, smoothing: 0.8 },
 					}}
-					class="w-full py-4 text-center text-[17px] font-semibold tracking-wide text-white transition-all active:scale-[0.98] focus:outline-none bg-gradient-to-t from-[#161616] via-[#242424] to-[#363636] border border-white/25 shadow-lg"
+					class="btn-dark-mobile-cta w-full py-4 text-center text-[17px] font-semibold tracking-wide text-white transition-all active:scale-[0.98] focus:outline-none bg-gradient-to-t from-[#161616] via-[#242424] to-[#363636] border border-white/25 shadow-lg"
 				>
 					Go to App
 				</button>
@@ -3181,7 +3181,7 @@
 					use:smoothCorners={{
 						corners: { radius: 18, smoothing: 0.8 },
 					}}
-					class="w-full py-4 text-center text-[17px] font-semibold tracking-wide text-white transition-all active:scale-[0.98] focus:outline-none bg-gradient-to-t from-[#161616] via-[#242424] to-[#363636] border border-white/25 shadow-lg"
+					class="btn-dark-mobile-cta w-full py-4 text-center text-[17px] font-semibold tracking-wide text-white transition-all active:scale-[0.98] focus:outline-none bg-gradient-to-t from-[#161616] via-[#242424] to-[#363636] border border-white/25 shadow-lg"
 				>
 					Get Started
 				</button>
@@ -3191,6 +3191,32 @@
 {/if}
 
 <style>
+	/* Mobile Menu Styling - ensure links and text are never white on light cream drawer */
+	:global(.landing-mobile-menu a),
+	:global(body.dark-mode .landing-mobile-menu a) {
+		color: #171717 !important;
+	}
+	:global(.landing-mobile-menu a:hover),
+	:global(body.dark-mode .landing-mobile-menu a:hover) {
+		color: #ff5400 !important;
+	}
+	:global(.landing-mobile-menu button:not(.btn-dark-mobile-cta)),
+	:global(body.dark-mode .landing-mobile-menu button:not(.btn-dark-mobile-cta)) {
+		color: #171717 !important;
+	}
+	:global(.landing-mobile-menu button:not(.btn-dark-mobile-cta):hover),
+	:global(body.dark-mode .landing-mobile-menu button:not(.btn-dark-mobile-cta):hover) {
+		color: #ff5400 !important;
+	}
+	:global(.landing-mobile-menu .skip-tip-go),
+	:global(body.dark-mode .landing-mobile-menu .skip-tip-go) {
+		color: #ff5400 !important;
+	}
+	:global(.landing-mobile-menu p),
+	:global(body.dark-mode .landing-mobile-menu p) {
+		color: #525252 !important;
+	}
+
 	/* Subtle transition styles */
 	:global(html:has(.landing-page)) {
 		scroll-behavior: smooth;

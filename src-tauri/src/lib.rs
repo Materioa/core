@@ -189,14 +189,8 @@ pub fn run() {
                 )?;
             }
 
-            // Automatically launch local MCP server in background on app startup
-            let app_handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                if let Some(state) = app_handle.try_state::<McpServerState>() {
-                    let _ = start_mcp_server(app_handle.clone(), state);
-                }
-            });
-
+            // MCP server starts OFF by default. It will only be launched
+            // when explicitly triggered by the user via start_mcp_server command.
             Ok(())
         })
         .on_window_event(|window, event| {

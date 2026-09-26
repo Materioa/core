@@ -8,6 +8,7 @@
     let formData = {};
     let fileList = [];
     let ratingValues = {};
+    let hoveredRating = {};
     let confirmationValues = {};
     let isSubmitting = false;
     let submitStatus = null; // null | 'success' | 'error'
@@ -494,9 +495,19 @@
                                             {/if}
 
                                         {:else if field.type === 'rating'}
-                                            <div class="dynamic-form-rating">
+                                            <div class="dynamic-form-rating" role="radiogroup" aria-label={field.label || 'Rating'}>
                                                 {#each Array(field.max || 5) as _, i}
-                                                    <span class="star" class:active={(ratingValues[field.name]||0) > i} on:click={()=>setRating(field.name, i+1)} on:keydown={(e)=> e.key==='Enter' && setRating(field.name,i+1)} role="button" tabindex="0">★</span>
+                                                    <button
+                                                        type="button"
+                                                        class="star"
+                                                        class:active={(hoveredRating[field.name] || ratingValues[field.name] || 0) > i}
+                                                        on:click|preventDefault={() => setRating(field.name, i + 1)}
+                                                        on:pointerdown={() => setRating(field.name, i + 1)}
+                                                        on:mouseenter={() => { hoveredRating = { ...hoveredRating, [field.name]: i + 1 }; }}
+                                                        on:mouseleave={() => { hoveredRating = { ...hoveredRating, [field.name]: 0 }; }}
+                                                        on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setRating(field.name, i + 1); } }}
+                                                        aria-label={`${i + 1} star${i > 0 ? 's' : ''}`}
+                                                    >★</button>
                                                 {/each}
                                             </div>
                                         {/if}

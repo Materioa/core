@@ -647,8 +647,24 @@
         return;
       }
 
-      const allowedOrigins = new Set([window.location.origin, 'http://localhost:5173', 'http://127.0.0.1:5173', 'https://getmaterio.app', 'https://www.getmaterio.app', 'https://beta.getmaterio.app', 'https://materio.jinansh.workers.dev']);
-      if (!allowedOrigins.has(event.origin)) {
+      const allowedOrigins = new Set([
+        window.location.origin,
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://localhost:3000',
+        'https://getmaterio.app',
+        'https://www.getmaterio.app',
+        'https://beta.getmaterio.app',
+        'https://materio.jinansh.workers.dev',
+        'https://tauri.localhost',
+        'http://tauri.localhost',
+        'tauri://localhost',
+        'https://localhost',
+        'http://localhost',
+        'capacitor://localhost',
+        'https://capacitor.localhost'
+      ]);
+      if (event.origin !== 'null' && !allowedOrigins.has(event.origin) && !event.origin.startsWith('http://localhost') && !event.origin.startsWith('https://localhost')) {
         return;
       }
 

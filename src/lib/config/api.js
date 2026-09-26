@@ -5,12 +5,18 @@
 export const isTauri = typeof window !== 'undefined' && Boolean(
   window.__TAURI_INTERNALS__ || 
   window.__TAURI__ || 
-  window.__TAURI_METADATA__
+  window.__TAURI_METADATA__ ||
+  window.location?.hostname === 'tauri.localhost' ||
+  window.location?.protocol === 'tauri:'
 );
 
 export const isCapacitor = typeof window !== 'undefined' && Boolean(
   window.Capacitor?.isNativePlatform?.() || 
-  window.Capacitor
+  window.Capacitor ||
+  window.location?.protocol === 'capacitor:' ||
+  window.location?.hostname === 'capacitor.localhost' ||
+  (window.location?.hostname === 'localhost' && window.location?.protocol === 'https:') ||
+  (window.location?.hostname === 'localhost' && !window.location?.port)
 );
 
 export const isNative = isTauri || isCapacitor;
@@ -22,7 +28,15 @@ const DEFAULT_REMOTE_API = 'https://beta.getmaterio.app';
 export const API_BASE_URL = (() => {
   if (typeof window === 'undefined') return DEFAULT_REMOTE_API;
   
-  if (isNative || window.location?.protocol === 'tauri:' || window.location?.protocol === 'capacitor:' || window.location?.hostname === 'tauri.localhost') {
+  if (
+    isNative || 
+    window.location?.protocol === 'tauri:' || 
+    window.location?.protocol === 'capacitor:' || 
+    window.location?.hostname === 'tauri.localhost' ||
+    window.location?.hostname === 'capacitor.localhost' ||
+    (window.location?.hostname === 'localhost' && window.location?.protocol === 'https:') ||
+    (window.location?.hostname === 'localhost' && !window.location?.port)
+  ) {
     return import.meta.env?.VITE_MATERIO_API_URL || DEFAULT_REMOTE_API;
   }
   
@@ -71,6 +85,9 @@ export function installApiInterceptor() {
       window.location?.protocol === 'tauri:' ||
       window.location?.protocol === 'capacitor:' ||
       window.location?.hostname === 'tauri.localhost' ||
+      window.location?.hostname === 'capacitor.localhost' ||
+      (window.location?.hostname === 'localhost' && window.location?.protocol === 'https:') ||
+      (window.location?.hostname === 'localhost' && !window.location?.port) ||
       window.Capacitor
     );
 
@@ -84,7 +101,10 @@ export function installApiInterceptor() {
         rawUrl = input.url || '';
       }
 
-      const isRelativeInternalEndpoint = 
+      let isTargetEndpoint = false;
+      let pathnameAndSearch = '';
+
+      if (
         rawUrl.startsWith('/api/') || 
         rawUrl.startsWith('api/') ||
         rawUrl.startsWith('/llm') || 
@@ -92,17 +112,34 @@ export function installApiInterceptor() {
         rawUrl.startsWith('/room') || 
         rawUrl.startsWith('room') ||
         rawUrl.startsWith('/share/llm') ||
-        rawUrl.startsWith('share/llm');
+        rawUrl.startsWith('share/llm')
+      ) {
+        isTargetEndpoint = true;
+        pathnameAndSearch = rawUrl.startsWith('/') ? rawUrl : `/${rawUrl}`;
+      } else if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://') || rawUrl.startsWith('tauri:') || rawUrl.startsWith('capacitor:')) {
+        try {
+          const parsed = new URL(rawUrl, window.location.href);
+          const host = parsed.hostname;
+          if (host === 'localhost' || host === 'tauri.localhost' || host === 'capacitor.localhost' || host === '127.0.0.1') {
+            const p = parsed.pathname;
+            if (
+              p.startsWith('/api/') ||
+              p.startsWith('/llm') ||
+              p.startsWith('/room') ||
+              p.startsWith('/share/llm')
+            ) {
+              isTargetEndpoint = true;
+              pathnameAndSearch = p + parsed.search;
+            }
+          }
+        } catch {}
+      }
 
-      if (isRelativeInternalEndpoint) {
-        const cleanPath = rawUrl.startsWith('/') ? rawUrl : `/${rawUrl}`;
+      if (isTargetEndpoint) {
         const targetBase = API_BASE_URL || DEFAULT_REMOTE_API;
-        const targetUrl = `${targetBase}${cleanPath}`;
+        const targetUrl = `${targetBase}${pathnameAndSearch}`;
 
         const newInit = { ...init };
-        if (!newInit.credentials) {
-          newInit.credentials = 'include';
-        }
 
         try {
           const token = localStorage.getItem('token') || localStorage.getItem('materio_auth_token');
@@ -124,6 +161,11 @@ export function installApiInterceptor() {
 
     return originalFetch(input, init);
   };
+}
+
+// Auto-install interceptor immediately in browser context
+if (typeof window !== 'undefined') {
+  installApiInterceptor();
 }
 
 export default {

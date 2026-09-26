@@ -100,18 +100,21 @@ export async function handle({ event, resolve }) {
 		let corsOrigin = '*';
 		try {
 			const { isAllowedOrigin } = await import('$lib/server/cors-origins.js');
-			if (origin && isAllowedOrigin(origin)) corsOrigin = origin;
+			if (origin && isAllowedOrigin(origin) && origin !== 'null') corsOrigin = origin;
 		} catch {}
+		const preflightHeaders = {
+			'Access-Control-Allow-Origin': corsOrigin,
+			'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+			'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept, Authorization',
+			'Access-Control-Max-Age': '86400',
+			'Vary': 'Origin'
+		};
+		if (corsOrigin !== '*') {
+			preflightHeaders['Access-Control-Allow-Credentials'] = 'true';
+		}
 		return new Response(null, {
 			status: 204,
-			headers: {
-				'Access-Control-Allow-Origin': corsOrigin,
-				'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-				'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept, Authorization',
-				'Access-Control-Allow-Credentials': 'true',
-				'Access-Control-Max-Age': '86400',
-				'Vary': 'Origin'
-			}
+			headers: preflightHeaders
 		});
 	}
 
@@ -125,11 +128,13 @@ export async function handle({ event, resolve }) {
 		try {
 			const { isAllowedOrigin } = await import('$lib/server/cors-origins.js').catch(() => ({ isAllowedOrigin: () => false }));
 			let corsOrigin = '*';
-			if (origin && isAllowedOrigin(origin)) corsOrigin = origin;
+			if (origin && isAllowedOrigin(origin) && origin !== 'null') corsOrigin = origin;
 			response.headers.set('Access-Control-Allow-Origin', corsOrigin);
 			response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
 			response.headers.set('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-			response.headers.set('Access-Control-Allow-Credentials', 'true');
+			if (corsOrigin !== '*') {
+				response.headers.set('Access-Control-Allow-Credentials', 'true');
+			}
 			response.headers.set('Vary', 'Origin');
 		} catch {}
 		if (pathname.startsWith('/api/')) {

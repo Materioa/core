@@ -20,7 +20,8 @@
 	}
 
 	async function checkForUpdates() {
-		if (!browser) return;
+		// Only show desktop app update nudges; never show restart/update nudge on the website
+		if (!browser || !isTauri) return;
 		try {
 			// In Tauri v2, if @tauri-apps/plugin-updater is configured:
 			if (isTauri && (window as any).__TAURI__?.updater) {

@@ -5,6 +5,7 @@
 export const STATIC_ALLOWED_ORIGINS = [
   'https://getmaterio.app',
   'https://www.getmaterio.app',
+  'https://beta.getmaterio.app',
   'https://materioa.netlify.app',
   'https://materioa.vercel.app',
   'https://materioapp.in',
@@ -20,15 +21,21 @@ export const STATIC_ALLOWED_ORIGINS = [
   'http://127.0.0.1:3000',
   'https://tauri.localhost',
   'http://tauri.localhost',
-  'tauri://localhost'
+  'tauri://localhost',
+  'https://localhost',
+  'http://localhost',
+  'capacitor://localhost',
+  'https://capacitor.localhost'
 ];
 
 export function isAllowedOrigin(origin) {
-  if (!origin) return false;
+  if (!origin) return true;
+  if (origin === 'null') return true;
   if (STATIC_ALLOWED_ORIGINS.includes(origin)) return true;
   if (origin === 'https://getmaterio.app' || origin.endsWith('.getmaterio.app')) return true;
-  if (origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')) return true;
-  if (origin.startsWith('tauri://')) return true;
+  if (origin.startsWith('http://localhost') || origin.startsWith('https://localhost')) return true;
+  if (origin.startsWith('http://127.0.0.1') || origin.startsWith('https://127.0.0.1')) return true;
+  if (origin.startsWith('tauri://') || origin.startsWith('capacitor://')) return true;
   // Allow devtunnels
   if (origin.includes('.devtunnels.ms')) return true;
   return false;
@@ -36,13 +43,19 @@ export function isAllowedOrigin(origin) {
 
 export function corsHeaders(origin) {
   let corsOrigin = '*';
-  if (origin && isAllowedOrigin(origin)) corsOrigin = origin;
-  return {
+  const allowed = isAllowedOrigin(origin);
+  if (origin && allowed && origin !== 'null') {
+    corsOrigin = origin;
+  }
+  const headers = {
     'Access-Control-Allow-Origin': corsOrigin,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept, Authorization',
-    'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Max-Age': '86400',
     'Vary': 'Origin'
   };
+  if (corsOrigin !== '*') {
+    headers['Access-Control-Allow-Credentials'] = 'true';
+  }
+  return headers;
 }
