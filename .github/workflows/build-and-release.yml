@@ -92,6 +92,15 @@ jobs:
         env:
           APP_VERSION: ${{ needs.resolve-version.outputs.version }}
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Build MCP Server Executable
+        working-directory: mcp
+        run: |
+          bun install
+          bun build --compile --target=bun-windows-x64 src/index.ts --outfile materio-mcp.exe
+
       - name: Build Tauri Desktop App
         run: npx tauri build
 
@@ -259,20 +268,23 @@ jobs:
           REPO="${{ github.repository }}"
           NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-          # Find the NSIS setup exe for the download URL
-          SETUP_FILE=$(ls release-assets/*-setup.exe 2>/dev/null | head -1 | xargs basename 2>/dev/null || echo "")
-          MSI_FILE=$(ls release-assets/*.msi 2>/dev/null | head -1 | xargs basename 2>/dev/null || echo "")
+          # Find the NSIS setup exe or msi for the download URL
+          SETUP_FILE=$(find release-assets/ -type f -name "*-setup.exe" 2>/dev/null | head -1 | xargs -r basename 2>/dev/null || echo "")
+          MSI_FILE=$(find release-assets/ -type f -name "*.msi" 2>/dev/null | head -1 | xargs -r basename 2>/dev/null || echo "")
 
           # Read signature if available
           SIG=""
-          SIG_FILE=$(ls release-assets/*.sig 2>/dev/null | head -1)
+          SIG_FILE=$(find release-assets/ -type f -name "*.sig" 2>/dev/null | head -1 || echo "")
           if [ -n "$SIG_FILE" ] && [ -f "$SIG_FILE" ]; then
             SIG=$(cat "$SIG_FILE")
           fi
 
           # Prefer NSIS setup for the updater URL
           WIN_ASSET="${SETUP_FILE:-$MSI_FILE}"
-          WIN_URL="https://github.com/${REPO}/releases/download/${TAG}/${WIN_ASSET}"
+          WIN_URL=""
+          if [ -n "$WIN_ASSET" ]; then
+            WIN_URL="https://github.com/${REPO}/releases/download/${TAG}/${WIN_ASSET}"
+          fi
 
           cat > release-assets/latest.json << ENDJSON
           {
