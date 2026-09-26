@@ -1,4 +1,4 @@
-﻿    function setWallpaperAsBackground(wallpaperType) {
+    function setWallpaperAsBackground(wallpaperType) {
         const selectedCard = document.querySelector(`[data-wallpaper="${wallpaperType}"]`);
         updateSereineWatermarkVisibility();
 

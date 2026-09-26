@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 
 const FALLBACK_VERSION = 'v2.0.4';
-const DEFAULT_REPO = 'Materioa/web-frontend';
+const DEFAULT_REPO = 'Materioa/core';
 
 function formatBytes(bytes) {
 	if (!bytes || bytes <= 0) return null;

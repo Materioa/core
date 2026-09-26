@@ -1,13 +1,13 @@
 import { redirect } from '@sveltejs/kit';
-import fs from 'node:fs';
-import path from 'node:path';
+
+const FALLBACK_URL = 'https://github.com/Materioa/core/releases/download/v2.0.4/Materio-Android.apk';
 
 export async function GET({ fetch, platform }) {
 	const env = platform?.env || process?.env || {};
-	const GITHUB_REPO = env.GITHUB_REPOSITORY;
+	const GITHUB_REPO = env.GITHUB_REPOSITORY || 'Materioa/core';
 	let targetUrl = env.DOWNLOAD_ANDROID_URL || null;
 
-	if (!targetUrl && GITHUB_REPO) {
+	if (!targetUrl) {
 		try {
 			const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
 				headers: {
@@ -18,9 +18,10 @@ export async function GET({ fetch, platform }) {
 
 			if (res.ok) {
 				const data = await res.json();
-				const apkAsset = data.assets?.find(a => a.name.endsWith('.apk'));
-				if (apkAsset?.browser_download_url) {
-					targetUrl = apkAsset.browser_download_url;
+				const apk = data.assets?.find(a => a.name === 'Materio-Android.apk')
+					|| data.assets?.find(a => a.name.endsWith('.apk'));
+				if (apk?.browser_download_url) {
+					targetUrl = apk.browser_download_url;
 				}
 			}
 		} catch (err) {
@@ -28,23 +29,9 @@ export async function GET({ fetch, platform }) {
 		}
 	}
 
-	if (targetUrl) {
-		throw redirect(302, targetUrl);
+	if (!targetUrl) {
+		targetUrl = FALLBACK_URL;
 	}
 
-	try {
-		const filePath = path.resolve('static/downloads/Materio-Android.apk');
-		if (fs.existsSync(filePath)) {
-			const fileBuffer = fs.readFileSync(filePath);
-			return new Response(fileBuffer, {
-				headers: {
-					'Content-Type': 'application/vnd.android.package-archive',
-					'Content-Disposition': 'attachment; filename="Materio-Android.apk"',
-					'Content-Length': fileBuffer.length.toString()
-				}
-			});
-		}
-	} catch {}
-
-	throw redirect(302, '/downloads/Materio-Android.apk');
+	throw redirect(302, targetUrl);
 }

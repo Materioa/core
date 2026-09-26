@@ -1,10 +1,10 @@
 import { redirect } from '@sveltejs/kit';
 
-const FALLBACK_URL = 'https://github.com/Materioa/web-frontend/releases/download/v2.0.4/Materio_2.0.4_x64-setup.exe';
+const FALLBACK_URL = 'https://github.com/Materioa/core/releases/download/v2.0.4/Materio_2.0.4_x64-setup.exe';
 
 export async function GET({ fetch, platform, url }) {
 	const env = platform?.env || process?.env || {};
-	const GITHUB_REPO = env.GITHUB_REPOSITORY || 'Materioa/web-frontend';
+	const GITHUB_REPO = env.GITHUB_REPOSITORY || 'Materioa/core';
 	const format = url.searchParams.get('format') || '';
 	let targetUrl = env.DOWNLOAD_WINDOWS_URL || null;
 
@@ -39,7 +39,7 @@ export async function GET({ fetch, platform, url }) {
 
 	if (!targetUrl) {
 		targetUrl = format === 'msi'
-			? 'https://github.com/Materioa/web-frontend/releases/download/v2.0.4/Materio_2.0.4_x64_en-US.msi'
+			? 'https://github.com/Materioa/core/releases/download/v2.0.4/Materio_2.0.4_x64_en-US.msi'
 			: FALLBACK_URL;
 	}
 
