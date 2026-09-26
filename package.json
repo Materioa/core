@@ -33,6 +33,7 @@
     "mdsvex": "^0.12.7",
     "svelte": "^5.55.9",
     "tailwindcss": "^4.3.0",
+    "typescript": "^5.8.2",
     "vite": "^8.0.14",
     "wrangler": "^4.132.0"
   },
