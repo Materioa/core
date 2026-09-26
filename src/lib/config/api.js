@@ -141,6 +141,12 @@ export function installApiInterceptor() {
 
         const newInit = { ...init };
 
+        // In native apps, don't force 'include' credentials on cross-origin remote backend
+        // to prevent CORS credential restrictions. Bearer token in header handles auth.
+        if (newInit.credentials === 'include') {
+          newInit.credentials = 'same-origin';
+        }
+
         try {
           const token = localStorage.getItem('token') || localStorage.getItem('materio_auth_token');
           if (token) {

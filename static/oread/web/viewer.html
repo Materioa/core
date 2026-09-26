@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <!--
 Copyright 2012 Mozilla Foundation
 
@@ -28,6 +28,17 @@ See https://github.com/adobe-type-tools/cmap-resources
   <meta name="google" content="notranslate">
   <title>PDF.js viewer</title>
 
+  <script>
+    if (typeof URL.parse !== 'function') {
+      URL.parse = function(url, base) {
+        try {
+          return base ? new URL(url, base) : new URL(url);
+        } catch {
+          return null;
+        }
+      };
+    }
+  </script>
   <!-- This snippet is used in production (included from viewer.html) -->
   <link rel="resource" type="application/l10n" href="locale/locale.json">
   <script src="../build/pdf.mjs" type="module"></script>

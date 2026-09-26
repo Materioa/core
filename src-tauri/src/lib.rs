@@ -169,6 +169,81 @@ fn get_mcp_status(state: State<'_, McpServerState>) -> Result<bool, String> {
     Ok(false)
 }
 
+#[tauri::command]
+async fn install_update_and_restart(app: AppHandle, download_url: Option<String>) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+        use std::os::windows::process::CommandExt;
+
+        let url = download_url.unwrap_or_else(|| {
+            "https://github.com/Materioa/core/releases/latest/download/Materio-Windows-Setup.exe".to_string()
+        });
+
+        let temp_dir = std::env::temp_dir();
+        let target_installer = temp_dir.join("Materio-Update-Setup.exe");
+        let target_installer_str = target_installer.to_string_lossy().to_string();
+
+        log::info!("Downloading update from: {} to: {}", url, target_installer_str);
+
+        // Try downloading via curl.exe (built-in on Windows 10/11)
+        let mut download_ok = false;
+        let curl_res = Command::new("curl.exe")
+            .creation_flags(CREATE_NO_WINDOW)
+            .args(&["-fSL", "--retry", "3", &url, "-o", &target_installer_str])
+            .status();
+
+        if let Ok(status) = curl_res {
+            if status.success() && target_installer.exists() {
+                download_ok = true;
+            }
+        }
+
+        // Fallback to powershell if curl failed
+        if !download_ok {
+            let ps_script = format!(
+                "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; $wc = New-Object System.Net.WebClient; $wc.DownloadFile('{}', '{}')",
+                url.replace('\'', "''"), target_installer_str.replace('\'', "''")
+            );
+            let ps_res = Command::new("powershell")
+                .creation_flags(CREATE_NO_WINDOW)
+                .args(&["-NoProfile", "-NonInteractive", "-Command", &ps_script])
+                .status();
+            if let Ok(status) = ps_res {
+                if status.success() && target_installer.exists() {
+                    download_ok = true;
+                }
+            }
+        }
+
+        if !download_ok {
+            return Err("Failed to download update installer".to_string());
+        }
+
+        log::info!("Update downloaded. Launching installer and restarting app...");
+
+        // Launch installer and exit current app
+        let cmd_script = format!(
+            "timeout /t 1 /nobreak >nul & start \"\" \"{}\" & exit",
+            target_installer_str
+        );
+        let _ = Command::new("cmd.exe")
+            .creation_flags(CREATE_NO_WINDOW)
+            .args(&["/C", &cmd_script])
+            .spawn();
+
+        // Exit this process so the installer can update the files
+        app.exit(0);
+        Ok(())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = app;
+        let _ = download_url;
+        Err("In-app restart is currently supported on Windows".to_string())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -178,7 +253,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             start_mcp_server,
             stop_mcp_server,
-            get_mcp_status
+            get_mcp_status,
+            install_update_and_restart
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

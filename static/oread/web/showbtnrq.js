@@ -59,9 +59,15 @@
         return false;
       }
 
-      const response = await fetch('/api/v2/profile', {
+      const isNative = window.location.hostname === 'tauri.localhost' ||
+        window.location.protocol === 'tauri:' ||
+        window.location.protocol === 'capacitor:' ||
+        window.location.hostname === 'capacitor.localhost' ||
+        (window.location.hostname === 'localhost' && window.location.port !== '5173');
+      const profileUrl = isNative ? 'https://beta.getmaterio.app/api/v2/profile' : '/api/v2/profile';
+
+      const response = await fetch(profileUrl, {
         method: 'GET',
-        credentials: 'include', // Send cookies for authentication
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${authToken}`

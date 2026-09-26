@@ -75,6 +75,30 @@
     let hasOfflineData = false;
     let lastHandledPdfUrl = '';
 
+    function sendBufferToIframe(url, buffer) {
+        if (!buffer || !url) return;
+        const iframe = document.getElementById("pdf-iframe");
+        if (iframe?.contentWindow) {
+            try {
+                iframe.contentWindow.postMessage({
+                    type: 'blobDataResponse',
+                    originalUrl: url,
+                    arrayBuffer: buffer,
+                    size: buffer.byteLength,
+                    fromDownload: true
+                }, '*');
+                setTimeout(() => {
+                    iframe.contentWindow?.postMessage({
+                        type: 'loadFile',
+                        url: url
+                    }, '*');
+                }, 50);
+            } catch (err) {
+                console.warn('[PdfReader] Failed to post buffer to iframe:', err);
+            }
+        }
+    }
+
     async function setupPdfSource(url) {
         lastHandledPdfUrl = url;
         currentOfflineRecord = null;
@@ -105,13 +129,11 @@
                 } else if (offlineRecord.data) {
                     offlineArrayBuffer = offlineRecord.data.buffer || offlineRecord.data;
                 }
-                // Mark as offline — viewer will load WITHOUT ?file= param
-                // so PDF.js does NOT auto-fetch from CDN.
-                // We inject data via postMessage then trigger loadFile.
                 hasOfflineData = true;
                 activeViewerUrl = url;
                 isDownloaded = true;
                 pdfModalStore.update(s => ({ ...s, isBookmarked: true }));
+                sendBufferToIframe(url, offlineArrayBuffer);
                 return;
             }
         } catch (e) {
@@ -120,6 +142,20 @@
 
         activeViewerUrl = url;
         isDownloaded = false;
+
+        // In native apps and web, pre-fetch the array buffer and stream into iframe cache
+        // This guarantees zero cross-origin/range-origin failures in WebViews!
+        try {
+            const resp = await fetch(url);
+            if (resp.ok) {
+                const buffer = await resp.arrayBuffer();
+                offlineArrayBuffer = buffer;
+                hasOfflineData = true;
+                sendBufferToIframe(url, buffer);
+            }
+        } catch (fetchErr) {
+            console.warn('[PdfReader] Main fetch failed, viewer will try direct fetch:', fetchErr);
+        }
     }
 
     $: if ($pdfModalStore.isOpen && $pdfModalStore.pdfUrl) {
@@ -138,36 +174,8 @@
         setTimeout(syncThemeToIframe, 150);
         setTimeout(syncThemeToIframe, 500);
 
-        // For offline PDFs: inject blob data FIRST, then tell viewer to open.
-        // Since viewer loaded without ?file=, PDF.js hasn't fetched anything yet.
-        // After blobDataResponse lands in intelligence.js's blobCache,
-        // the loadFile message triggers PDF.js fetch which intelligence.js intercepts.
-        // Result: ZERO network requests to CDN.
-        if (hasOfflineData && offlineArrayBuffer) {
-            try {
-                const iframe = document.getElementById("pdf-iframe");
-                if (iframe?.contentWindow) {
-                    const pdfUrl = $pdfModalStore.pdfUrl;
-                    // Step 1: Inject blob data into intelligence.js blobCache
-                    iframe.contentWindow.postMessage({
-                        type: 'blobDataResponse',
-                        originalUrl: pdfUrl,
-                        arrayBuffer: offlineArrayBuffer,
-                        size: offlineArrayBuffer.byteLength,
-                        fromDownload: true
-                    }, '*');
-                    // Step 2: Tell viewer to open the PDF (after a tick so blobCache is populated)
-                    setTimeout(() => {
-                        iframe.contentWindow.postMessage({
-                            type: 'loadFile',
-                            url: pdfUrl
-                        }, '*');
-                    }, 50);
-                    console.log('[PdfReader] Offline PDF: injected', offlineArrayBuffer.byteLength, 'bytes, zero CDN requests');
-                }
-            } catch (postErr) {
-                console.warn('Could not post blob data to iframe:', postErr);
-            }
+        if (offlineArrayBuffer) {
+            sendBufferToIframe($pdfModalStore.pdfUrl, offlineArrayBuffer);
         }
     }
 
@@ -501,11 +509,11 @@
     // `static/oread` copy on every host (dev, workers.dev, beta) — never
     // point it at the parent Jekyll site's oread path.
     function viewerUrl(pdfUrl, skipFile = false) {
+        const base = `/oread/web/viewer.html?disableStream=true&disableRange=true`;
         if (skipFile) {
-            // Load viewer without ?file= so PDF.js doesn't auto-fetch from CDN
-            return `/oread/web/viewer.html?disableStream=false&disableRange=false&rangeChunkSize=1048576`;
+            return base;
         }
-        return `/oread/web/viewer.html?disableStream=false&disableRange=false&rangeChunkSize=1048576&file=${encodeURIComponent(pdfUrl)}`;
+        return `${base}&file=${encodeURIComponent(pdfUrl)}`;
     }
 </script>
 

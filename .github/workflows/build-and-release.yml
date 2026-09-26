@@ -111,6 +111,10 @@ jobs:
           mkdir -p release-windows
           if [ -d "src-tauri/target/release/bundle" ]; then
             find src-tauri/target/release/bundle/ -type f \( -name "*.msi" -o -name "*-setup.exe" -o -name "*.nsis.zip" \) -exec cp {} release-windows/ \;
+          SETUP_EXE=$(find src-tauri/target/release/bundle/ -type f -name "*-setup.exe" | head -n 1)
+          if [ -n "$SETUP_EXE" ]; then
+            cp "$SETUP_EXE" release-windows/Materio-Windows-Setup.exe || true
+          fi
           fi
           if [ -f src-tauri/target/release/app.exe ]; then
             cp src-tauri/target/release/app.exe release-windows/Materio-Windows-Standalone.exe || true
@@ -190,6 +194,13 @@ jobs:
             sed -i "s/versionCode [0-9]*/versionCode ${VCODE}/" "$GRADLE"
             sed -i "s/versionName \".*\"/versionName \"${VNAME}\"/" "$GRADLE"
             echo "✅ Android versionCode=${VCODE} versionName=${VNAME}"
+          VARS="android/variables.gradle"
+          if [ -f "$VARS" ]; then
+            sed -i "s/compileSdkVersion = [0-9]*/compileSdkVersion = 34/" "$VARS"
+            sed -i "s/minSdkVersion = [0-9]*/minSdkVersion = 22/" "$VARS"
+            sed -i "s/targetSdkVersion = [0-9]*/targetSdkVersion = 34/" "$VARS"
+            echo "✅ Enforced compileSdkVersion=34 targetSdkVersion=34 minSdkVersion=22"
+          fi
           fi
 
       - name: Ensure Android Release Keystore

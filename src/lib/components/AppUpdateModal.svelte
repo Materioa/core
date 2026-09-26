@@ -58,23 +58,26 @@
 	async function handleInstallAndRestart() {
 		isInstalling = true;
 		try {
-			// Tauri v2 native updater
-			if (isTauri && (window as any).__TAURI__?.updater) {
-				const { check } = (window as any).__TAURI__.updater;
-				const update = await check();
-				if (update?.available) {
-					// Download and install
-					await update.downloadAndInstall();
-					// Relaunch the application
-					if ((window as any).__TAURI__?.process?.relaunch) {
-						await (window as any).__TAURI__.process.relaunch();
-						return;
-					}
+			// Tauri desktop app native updater & restarter
+			if (isTauri) {
+				const invoke = (window as any).__TAURI__?.core?.invoke || (window as any).__TAURI__?.invoke;
+				if (typeof invoke === 'function') {
+					let downloadUrl = null;
+					try {
+						const res = await fetch('/api/releases/latest');
+						if (res.ok) {
+							const data = await res.json();
+							downloadUrl = data.windows?.downloadUrl || null;
+						}
+					} catch {}
+
+					await invoke('install_update_and_restart', { downloadUrl });
+					return;
 				}
 			}
 
-			// Fallback: navigate to downloads or reload
-			window.location.href = '/api/download/windows';
+			// Fallback: navigate to downloads
+			window.location.href = '/downloads';
 		} catch (err) {
 			console.error('Failed to install update:', err);
 			window.location.href = '/downloads';
