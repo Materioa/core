@@ -11,9 +11,9 @@
   } = $props();
 </script>
 
-<div class="splash-lineart fixed inset-0 pointer-events-none overflow-hidden z-0 select-none {className}" aria-hidden="true">
+<div class="splash-lineart {className}" aria-hidden="true">
   <svg
-    class="w-full h-full transition-colors duration-500"
+    class="splash-lineart-svg"
     viewBox="0 0 1600 1000"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
@@ -97,7 +97,24 @@
 
 <style>
   .splash-lineart {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 0;
+    user-select: none;
     --line-color: rgba(14, 15, 12, 0.9);
+  }
+  .splash-lineart-svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    transition: color 0.5s ease;
   }
   /* Standalone use with no theme signal: follow the OS / Android system. */
   @media (prefers-color-scheme: dark) {

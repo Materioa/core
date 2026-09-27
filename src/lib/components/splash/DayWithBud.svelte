@@ -855,17 +855,16 @@
   });
 </script>
 
-<div class="flex flex-col items-center gap-3 {className}">
+<div class="day-with-bud-root {className}" style="display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
   <!-- One continuous stage: fixed footprint, single Bud, morphing props -->
-  <div class="relative w-full max-w-[340px] min-h-[300px] flex items-center justify-center overflow-visible">
+  <div style="position: relative; width: 100%; max-width: 340px; min-height: 300px; display: flex; align-items: center; justify-content: center; overflow: visible;">
     <svg
       bind:this={svg}
-      class="w-64 h-64 text-white select-none overflow-visible"
+      style="width: 16rem; height: 16rem; color: currentColor; user-select: none; overflow: visible;"
       viewBox="-30 -16 335 320"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       overflow="visible"
-      style="overflow: visible;"
       role="img"
       aria-label="A day in the life of Bud: waking, coffee, work, reading, nap"
     >

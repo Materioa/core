@@ -289,6 +289,32 @@ async fn install_update_and_restart(app: AppHandle, download_url: Option<String>
     }
 }
 
+#[tauri::command]
+fn app_window_minimize(window: tauri::Window) {
+    let _ = window.minimize();
+}
+
+#[tauri::command]
+fn app_window_toggle_maximize(window: tauri::Window) {
+    if let Ok(is_max) = window.is_maximized() {
+        if is_max {
+            let _ = window.unmaximize();
+        } else {
+            let _ = window.maximize();
+        }
+    }
+}
+
+#[tauri::command]
+fn app_window_close(window: tauri::Window) {
+    let _ = window.close();
+}
+
+#[tauri::command]
+fn app_window_is_maximized(window: tauri::Window) -> bool {
+    window.is_maximized().unwrap_or(false)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -299,7 +325,11 @@ pub fn run() {
             start_mcp_server,
             stop_mcp_server,
             get_mcp_status,
-            install_update_and_restart
+            install_update_and_restart,
+            app_window_minimize,
+            app_window_toggle_maximize,
+            app_window_close,
+            app_window_is_maximized
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

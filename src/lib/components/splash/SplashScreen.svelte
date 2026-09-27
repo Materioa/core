@@ -110,13 +110,14 @@
     }
 
     if (autoplay) {
-      // Phase 1: Bud shuffles fast. Phase 2: handoff to the sticker.
+      // Phase 1: Bud animates for `shuffleMs`. Phase 2: handoff to the sticker.
       timers.push(setTimeout(() => (showSticker = true), Math.max(400, shuffleMs)));
+      // Phase 3: after sticker has displayed, fire ondone to exit.
       timers.push(
         setTimeout(() => {
           settled = true;
           ondone?.();
-        }, Math.max(400, shuffleMs) + 750),
+        }, Math.max(400, shuffleMs) + 1200),
       );
     }
 
@@ -137,7 +138,7 @@
 
 <div
   data-theme={isDark ? "dark" : "light"}
-  class="splash-root relative flex w-full flex-col items-center justify-center overflow-hidden transition-colors duration-500 {className}"
+  class="splash-root {className}"
   role="status"
   aria-label="Loading Materio"
 >
@@ -145,17 +146,17 @@
 
   <!-- Center stage: Bud and sticker share one slot so the handoff reads
        as a single element morphing in place. -->
-  <div class="splash-center relative z-10 flex w-full items-center justify-center px-8">
-    <div class="splash-stage relative flex w-full items-center justify-center">
+  <div class="splash-center">
+    <div class="splash-stage">
       <!-- Bud: fast shuffle, then fade + slide DOWN out -->
       <div
-        class="splash-bud absolute inset-0 flex items-center justify-center {showSticker ? 'splash-bud-out' : ''}"
+        class="splash-bud {showSticker ? 'splash-bud-out' : ''}"
         aria-hidden={showSticker}
       >
        <div class="splash-bud-scale" style="scale: {budScale}">
         {#if bud === "day"}
           <DayWithBud
-            class="w-full"
+            class="splash-day-bud"
             autoPlay={true}
             phaseDuration={dayPhaseMs}
             speed={budSpeed}
@@ -166,7 +167,7 @@
           />
         {:else}
           <BudDoesThings
-            class="h-64 w-64 text-foreground"
+            class="splash-bud-things"
             activity="auto"
             speed={budSpeed}
             interactive={false}
@@ -179,7 +180,7 @@
 
       <!-- Sticker: slides UP from the same offset Bud sank to -->
       <div
-        class="splash-sticker absolute inset-0 flex items-center justify-center {showSticker ? 'splash-sticker-in' : ''}"
+        class="splash-sticker {showSticker ? 'splash-sticker-in' : ''}"
         aria-hidden={!showSticker}
       >
         <img
@@ -187,7 +188,7 @@
           alt={stickerAlt}
           width={stickerWidth}
           draggable="false"
-          class="splash-sticker-img max-w-full select-none"
+          class="splash-sticker-img"
         />
       </div>
     </div>
@@ -199,19 +200,33 @@
      app's Tailwind only scans its own files, so arbitrary values used
      solely by this component would silently produce no CSS. */
   .splash-root {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
     min-height: 100vh;
     min-height: 100dvh;
+    overflow: hidden;
     background-color: #f7f7f2;
     color: #0e0f0c;
+    transition: background-color 0.5s ease, color 0.5s ease;
   }
   .splash-root[data-theme="dark"] {
     background-color: #121310;
     color: #f4f4ee;
   }
   .splash-center {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 100%;
     max-width: 360px;
-    padding-inline: 2rem;
+    padding-left: 2rem;
+    padding-right: 2rem;
   }
   /* Bud ink follows the surface theme even without Tailwind tokens.
      DayWithBud hardcodes text-white on its inner svg, which lives in the
@@ -226,6 +241,10 @@
   }
 
   .splash-stage {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 100%;
     height: 280px;
     perspective: 600px;
@@ -242,6 +261,14 @@
 
   /* Bud rests centered, then sinks down + fades. */
   .splash-bud {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     opacity: 1;
     transform: translateY(0) scale(1);
     transition:
@@ -257,6 +284,14 @@
 
   /* Sticker waits below at the exact offset Bud sinks to, then rises in. */
   .splash-sticker {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     opacity: 0;
     transform: translateY(56px) scale(0.94);
     transition:
@@ -274,6 +309,7 @@
   .splash-sticker-img {
     max-width: 100%;
     height: auto;
+    user-select: none;
     filter: drop-shadow(0 18px 40px rgba(0, 0, 0, 0.22));
   }
   .splash-root[data-theme="dark"] .splash-sticker-img {
