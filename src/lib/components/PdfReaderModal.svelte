@@ -4,6 +4,7 @@
     import { pdfModalStore, bookmarksStore, actualThemeStore } from "$lib/stores.js";
     import { activeModalStore } from '$lib/stores.js';
     import { savePdfOffline, isPdfOffline, getOfflinePdf } from '$lib/utils/offlineDb.js';
+    import { toApiUrl } from '$lib/config/api.js';
     import HugeIcon from "./HugeIcon.svelte";
     import { HugeiconsIcon } from "@hugeicons/svelte";
     import { LoaderIcon } from "@hugeicons/core-free-icons";
@@ -479,7 +480,7 @@
         copyText = 'Copy';
         // Fetch masked URL
         try {
-            const res = await fetch('/api/v2/features?action=pdf-share&subAction=create', {
+            const res = await fetch(toApiUrl('/api/v2/features?action=pdf-share&subAction=create'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ actualUrl })
@@ -487,14 +488,16 @@
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
             if (data.maskId) {
-                const origin = window.location.origin;
-                shareUrl = `${origin}/?share=${data.maskId}`;
+                const publicOrigin = (typeof window !== 'undefined' && window.location.hostname && !window.location.hostname.includes('localhost') && !window.location.protocol.includes('tauri') && !window.location.protocol.includes('capacitor'))
+                    ? window.location.origin
+                    : 'https://getmaterio.app';
+                shareUrl = `${publicOrigin}/?share=${data.maskId}`;
             } else {
-                shareUrl = actualUrl;
+                shareUrl = actualUrl.startsWith('http') && !actualUrl.includes('localhost') ? actualUrl : `https://getmaterio.app`;
             }
         } catch (e) {
             console.error('Share error', e);
-            shareUrl = actualUrl;
+            shareUrl = actualUrl.startsWith('http') && !actualUrl.includes('localhost') ? actualUrl : `https://getmaterio.app`;
         } finally {
             shareLoading = false;
         }

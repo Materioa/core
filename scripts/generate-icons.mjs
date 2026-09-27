@@ -5,10 +5,15 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
+const APP_PNG = path.join(ROOT, 'static/assets/img/app.png');
 const SVG_PATH = path.join(ROOT, 'static/assets/img/favicon.svg');
 const FALLBACK_PNG = path.join(ROOT, 'static/assets/img/favicon.png');
 
 async function getSourceBuffer() {
+	if (fs.existsSync(APP_PNG)) {
+		console.log('Using static/assets/img/app.png as source icon');
+		return fs.readFileSync(APP_PNG);
+	}
 	if (fs.existsSync(SVG_PATH)) {
 		return fs.readFileSync(SVG_PATH);
 	}

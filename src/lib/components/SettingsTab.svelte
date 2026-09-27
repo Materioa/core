@@ -2,7 +2,7 @@
     import { onMount } from 'svelte';
     import { themeStore } from '$lib/stores.js';
     import { browser } from '$app/environment';
-    import { isTauri, isCapacitor } from '$lib/config/api.js';
+    import { isTauri, isCapacitor, toApiUrl } from '$lib/config/api.js';
 
     let selectedTheme = 'system';
     let themeDropdownOpen = false;
@@ -214,7 +214,7 @@
         androidUpdateMsg = '';
         androidUpdateFound = false;
         try {
-            const res = await fetch('/api/releases/latest');
+            const res = await fetch(toApiUrl('/api/releases/latest'));
             if (res.ok) {
                 const data = await res.json();
                 const currentVer = (releaseVersion || '2.0.4').replace(/^v/, '');
@@ -1345,7 +1345,7 @@
                     <div class="paper-mode-info">
                         <div class="paper-mode-title" style="display: flex; align-items: center; gap: 6px;">
                             <HugeIcon name="smartphone" style="font-size: 16px; color: var(--color-primary, #ff6600);" />
-                            <span>In-App Updater</span>
+                            <span>Android In-App Updater</span>
                         </div>
                         <div class="paper-mode-description">
                             Check for latest Android APK builds and updates
@@ -1376,6 +1376,33 @@
                         {/if}
                     </div>
                 {/if}
+            </div>
+        </div>
+    {/if}
+
+    {#if isTauri}
+        <!-- Desktop: In-App Updater Card -->
+        <p style="margin-left: 5px;"><b>App Updates</b></p>
+        <div class="card-layout" id="desktopUpdaterCard">
+            <div class="toggle-container" style="flex-direction: column; align-items: stretch; gap: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <div class="paper-mode-info">
+                        <div class="paper-mode-title" style="display: flex; align-items: center; gap: 6px;">
+                            <HugeIcon name="laptop-programming" style="font-size: 16px; color: var(--color-primary, #ff6600);" />
+                            <span>Desktop In-App Updater</span>
+                        </div>
+                        <div class="paper-mode-description">
+                            Check for latest releases, auto-install, and restart
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        class="updater-check-btn"
+                        on:click={() => { if (typeof window !== 'undefined' && window.__materioCheckUpdateModal) window.__materioCheckUpdateModal(); }}
+                    >
+                        Check for Updates
+                    </button>
+                </div>
             </div>
         </div>
     {/if}
@@ -1447,50 +1474,89 @@
     }
 
     /* MCP Status Pill & Action */
+    #localMcpServerCard, #androidUpdaterCard, #desktopUpdaterCard {
+        border-radius: 18px;
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
     .mcp-status-pill {
         display: inline-flex;
         align-items: center;
-        gap: 5px;
+        gap: 6px;
         font-size: 11px;
-        font-weight: 600;
-        padding: 2px 8px;
+        font-weight: 700;
+        padding: 3px 10px;
         border-radius: 999px;
         background: rgba(0, 0, 0, 0.06);
         color: #777;
+        letter-spacing: 0.02em;
+    }
+    :global(body.dark-mode) .mcp-status-pill {
+        background: rgba(255, 255, 255, 0.08);
+        color: #aaa;
     }
     .mcp-status-pill.running {
-        background: rgba(16, 185, 129, 0.12);
-        color: #10b981;
+        background: rgba(16, 185, 129, 0.14) !important;
+        color: #10b981 !important;
     }
     .mcp-status-dot {
-        width: 6px;
-        height: 6px;
+        width: 7px;
+        height: 7px;
         border-radius: 999px;
         background: #999;
+        display: inline-block;
     }
     .mcp-status-pill.running .mcp-status-dot {
         background: #10b981;
-        box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+        box-shadow: 0 0 8px rgba(16, 185, 129, 0.8);
+        animation: pulseDot 2s infinite ease-in-out;
+    }
+    @keyframes pulseDot {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.25); opacity: 0.7; }
     }
     .mcp-action-btn, .updater-check-btn {
-        padding: 6px 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 7px 16px;
         border-radius: 12px;
-        font-size: 12px;
+        font-size: 12.5px;
         font-weight: 600;
         font-family: 'Manrope', sans-serif;
-        border: 1px solid rgba(0, 0, 0, 0.12);
-        background: var(--color-surface, #fff);
-        color: var(--color-text-primary, #333);
+        border: 1px solid rgba(0, 0, 0, 0.14);
+        background: #ffffff;
+        color: #222222;
         cursor: pointer;
-        transition: all 0.2s ease;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
-    .mcp-action-btn:hover, .updater-check-btn:hover {
-        background: var(--color-surface-hover, #f5f4ef);
+    :global(body.dark-mode) .mcp-action-btn,
+    :global(body.dark-mode) .updater-check-btn {
+        background: rgba(255, 255, 255, 0.09) !important;
+        border-color: rgba(255, 255, 255, 0.16) !important;
+        color: #ffffff !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+    }
+    .mcp-action-btn:hover:not(:disabled), .updater-check-btn:hover:not(:disabled) {
+        transform: translateY(-1px);
+        background: #f7f7f7;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+    }
+    :global(body.dark-mode) .mcp-action-btn:hover:not(:disabled),
+    :global(body.dark-mode) .updater-check-btn:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.16) !important;
+        border-color: rgba(255, 255, 255, 0.28) !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
     }
     .mcp-action-btn.running {
-        border-color: rgba(220, 53, 69, 0.3);
-        color: #dc3545;
-        background: rgba(220, 53, 69, 0.05);
+        border-color: rgba(239, 68, 68, 0.4) !important;
+        color: #ef4444 !important;
+        background: rgba(239, 68, 68, 0.08) !important;
+    }
+    :global(body.dark-mode) .mcp-action-btn.running {
+        border-color: rgba(239, 68, 68, 0.5) !important;
+        color: #f87171 !important;
+        background: rgba(239, 68, 68, 0.16) !important;
     }
     .mcp-url-container {
         display: flex;
@@ -1498,47 +1564,63 @@
         justify-content: space-between;
         background: rgba(0, 0, 0, 0.03);
         border: 1px solid rgba(0, 0, 0, 0.08);
-        border-radius: 10px;
-        padding: 6px 10px;
+        border-radius: 12px;
+        padding: 8px 12px;
         font-family: 'JetBrains Mono', monospace;
         font-size: 12px;
         color: var(--color-text-secondary, #666);
     }
+    :global(body.dark-mode) .mcp-url-container {
+        background: rgba(0, 0, 0, 0.4);
+        border-color: rgba(255, 255, 255, 0.08);
+        color: #ffaa55;
+    }
     .mcp-copy-button {
-        background: none;
-        border: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: rgba(255, 130, 0, 0.1);
+        border: 1px solid rgba(255, 130, 0, 0.2);
+        border-radius: 8px;
         font-size: 11px;
-        font-weight: 600;
-        color: var(--color-primary, #ff6600);
+        font-weight: 700;
+        color: var(--color-primary, #ff8200);
         cursor: pointer;
-        padding: 2px 6px;
+        padding: 4px 10px;
+        transition: all 0.18s ease;
     }
     .mcp-copy-button:hover {
-        text-decoration: underline;
+        background: rgba(255, 130, 0, 0.2);
+        transform: translateY(-1px);
     }
     .mcp-error-text {
         font-size: 12px;
         color: #dc3545;
+        font-weight: 500;
     }
     .updater-status-banner {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 8px 12px;
-        border-radius: 10px;
+        padding: 10px 14px;
+        border-radius: 12px;
         background: rgba(0, 0, 0, 0.04);
-        font-size: 12px;
+        font-size: 12.5px;
         color: var(--color-text-secondary, #666);
     }
+    :global(body.dark-mode) .updater-status-banner {
+        background: rgba(255, 255, 255, 0.05);
+        color: #ccc;
+    }
     .updater-status-banner.has-update {
-        background: rgba(255, 102, 0, 0.08);
-        border: 1px solid rgba(255, 102, 0, 0.2);
-        color: var(--color-primary, #ff6600);
+        background: rgba(255, 130, 0, 0.1) !important;
+        border: 1px solid rgba(255, 130, 0, 0.25) !important;
+        color: var(--color-primary, #ff8200) !important;
         font-weight: 600;
     }
     .updater-download-link {
         font-weight: 700;
-        color: var(--color-primary, #ff6600);
+        color: var(--color-primary, #ff8200);
         text-decoration: underline;
     }
 </style>

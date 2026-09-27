@@ -119,59 +119,127 @@
 		<!-- Side-by-side Cards Grid -->
 		<div class="download-cards-grid">
 			<!-- CARD 1: WINDOWS -->
-			<div
-				class="flex flex-col justify-between bg-cream-50 border border-cream-300 rounded-3xl p-7 md:p-8 shadow-[0_8px_30px_rgba(0,0,0,0.015)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.05)] transition-shadow"
-			>
-				<div>
-					<svg class="w-8 h-8 text-cream-dark mb-5" viewBox="0 0 24 24" fill="currentColor">
-						<path d="M3 5.478L10.286 4.5v6.522H3V5.478zm0 7.422h7.286v6.6L3 18.522v-5.622zm8.286-8.522L21 3v8.022h-9.714V4.378zm0 7.622H21V20.5l-9.714-1.378V12z"/>
-					</svg>
-					<h2 class="font-heading text-2xl sm:text-3xl font-semibold tracking-tight text-cream-dark">
-						Windows
-					</h2>
-					<p class="font-sans text-[15px] leading-relaxed text-neutral-500 mt-2 mb-8">
-						Offline notes vault, instant search, and local MCP server for AI tools.
-					</p>
+			<div class="app-download-card">
+				<div class="app-card-header">
+					<div class="app-card-icon-wrap">
+						<img src="/assets/img/app.png" alt="Materio App Icon" class="app-emblem" />
+						<div class="platform-badge-pill">
+							<svg class="w-3.5 h-3.5 text-sky-600" viewBox="0 0 24 24" fill="currentColor">
+								<path d="M3 5.478L10.286 4.5v6.522H3V5.478zm0 7.422h7.286v6.6L3 18.522v-5.622zm8.286-8.522L21 3v8.022h-9.714V4.378zm0 7.622H21V20.5l-9.714-1.378V12z"/>
+							</svg>
+							<span>Windows</span>
+						</div>
+					</div>
+
+					<div class="mt-4">
+						<div class="flex items-baseline justify-between gap-2">
+							<h2 class="font-heading text-2xl sm:text-3xl font-semibold tracking-tight text-cream-dark">
+								Materio for Windows
+							</h2>
+							<span class="version-badge">{releaseData.version}</span>
+						</div>
+						<p class="font-sans text-[14.5px] leading-relaxed text-neutral-500 mt-2">
+							Native desktop app with offline study vault, instant search, and integrated local MCP server for AI assistants.
+						</p>
+					</div>
+
+					<!-- Feature bullets -->
+					<ul class="app-feature-list">
+						<li>
+							<svg class="check-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+							<span>Full offline PDF reader with dark, coffee & paper modes</span>
+						</li>
+						<li>
+							<svg class="check-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+							<span>Local MCP server (port 3000) for Claude, Cursor & ChatGPT</span>
+						</li>
+						<li>
+							<svg class="check-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+							<span>Silent background updates with automated restart</span>
+						</li>
+					</ul>
 				</div>
 
-				<a
-					href={releaseData.windows.downloadUrl}
-					data-sveltekit-reload
-					rel="external"
-					download="Materio-Windows-Setup.msi"
-					class="btn-dark-hero w-full py-3.5 text-center text-[15px] font-semibold tracking-wide text-white rounded-2xl transition-all active:scale-[0.98] focus:outline-none flex items-center justify-center gap-2"
-				>
-					<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-					<span>Download for Windows</span>
-				</a>
+				<div class="app-card-footer">
+					<a
+						href={releaseData.windows.downloadUrl}
+						data-sveltekit-reload
+						rel="external"
+						class="btn-primary-download"
+					>
+						<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+						<span>Download Setup (.exe)</span>
+						<span class="size-pill">{releaseData.windows.size || '78.5 MB'}</span>
+					</a>
+					<div class="secondary-download-options">
+						<span>Windows 10, 11 (64-bit)</span>
+						{#if releaseData.windows.msiUrl}
+							<span class="dot-separator">•</span>
+							<a href={releaseData.windows.msiUrl} class="sub-link" rel="external" download>or .MSI package</a>
+						{/if}
+					</div>
+				</div>
 			</div>
 
 			<!-- CARD 2: ANDROID -->
-			<div
-				class="flex flex-col justify-between bg-cream-50 border border-cream-300 rounded-3xl p-7 md:p-8 shadow-[0_8px_30px_rgba(0,0,0,0.015)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.05)] transition-shadow"
-			>
-				<div>
-					<svg class="w-8 h-8 text-cream-dark mb-5" viewBox="0 0 24 24" fill="currentColor">
-						<path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9993.4482.9993.9993.0001.5511-.4482.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 8.4116 13.8533 8.084 12 8.084c-1.8533 0-3.5902.3276-5.1368.8657L4.8409 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"/>
-					</svg>
-					<h2 class="font-heading text-2xl sm:text-3xl font-semibold tracking-tight text-cream-dark">
-						Android
-					</h2>
-					<p class="font-sans text-[15px] leading-relaxed text-neutral-500 mt-2 mb-8">
-						Course downloads, comfortable reading modes, and offline notebook.
-					</p>
+			<div class="app-download-card">
+				<div class="app-card-header">
+					<div class="app-card-icon-wrap">
+						<img src="/assets/img/app.png" alt="Materio App Icon" class="app-emblem" />
+						<div class="platform-badge-pill">
+							<svg class="w-3.5 h-3.5 text-emerald-600" viewBox="0 0 24 24" fill="currentColor">
+								<path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9993.4482.9993.9993.0001.5511-.4482.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 8.4116 13.8533 8.084 12 8.084c-1.8533 0-3.5902.3276-5.1368.8657L4.8409 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"/>
+							</svg>
+							<span>Android</span>
+						</div>
+					</div>
+
+					<div class="mt-4">
+						<div class="flex items-baseline justify-between gap-2">
+							<h2 class="font-heading text-2xl sm:text-3xl font-semibold tracking-tight text-cream-dark">
+								Materio for Android
+							</h2>
+							<span class="version-badge">{releaseData.version}</span>
+						</div>
+						<p class="font-sans text-[14.5px] leading-relaxed text-neutral-500 mt-2">
+							Fast, pocket-sized study companion with full offline caching, gestures, and dark mode reading.
+						</p>
+					</div>
+
+					<!-- Feature bullets -->
+					<ul class="app-feature-list">
+						<li>
+							<svg class="check-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+							<span>Instant offline access to all syllabus notes, papers, and books</span>
+						</li>
+						<li>
+							<svg class="check-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+							<span>Comfortable touch reader with bookmarking & offline notebook</span>
+						</li>
+						<li>
+							<svg class="check-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+							<span>Universal APK compatible with all Android 5.0+ devices</span>
+						</li>
+					</ul>
 				</div>
 
-				<a
-					href={releaseData.android.downloadUrl}
-					data-sveltekit-reload
-					rel="external"
-					download="Materio-Android.apk"
-					class="btn-dark-hero w-full py-3.5 text-center text-[15px] font-semibold tracking-wide text-white rounded-2xl transition-all active:scale-[0.98] focus:outline-none flex items-center justify-center gap-2"
-				>
-					<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-					<span>Download APK</span>
-				</a>
+				<div class="app-card-footer">
+					<a
+						href={releaseData.android.downloadUrl}
+						data-sveltekit-reload
+						rel="external"
+						class="btn-primary-download"
+					>
+						<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+						<span>Download APK</span>
+						<span class="size-pill">{releaseData.android.size || '53.9 MB'}</span>
+					</a>
+					<div class="secondary-download-options">
+						<span>Android 5.0+ (ARM64, x86)</span>
+						<span class="dot-separator">•</span>
+						<span class="sub-link">Direct APK Install</span>
+					</div>
+				</div>
 			</div>
 		</div>
 
@@ -367,16 +435,184 @@
 	.download-cards-grid {
 		display: grid;
 		grid-template-columns: 1fr;
-		gap: 1.5rem;
+		gap: 1.75rem;
 		width: 100%;
-		margin-top: 2rem;
+		max-width: 960px;
+		margin-top: 2.5rem;
 		text-align: left;
 	}
 
-	@media (min-width: 640px) {
+	@media (min-width: 768px) {
 		.download-cards-grid {
 			grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
 		}
+	}
+
+	.app-download-card {
+		position: relative;
+		background: #ffffff;
+		border: 1px solid rgba(229, 226, 218, 0.85);
+		border-radius: 24px;
+		padding: 2.25rem 2rem 2rem;
+		display: flex;
+		flex-direction: column;
+		justify-content: space-between;
+		box-shadow: 0 4px 20px -2px rgba(28, 25, 23, 0.05), 0 2px 6px -1px rgba(28, 25, 23, 0.03);
+		transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+	}
+
+	.app-download-card:hover {
+		transform: translateY(-4px);
+		box-shadow: 0 18px 36px -4px rgba(28, 25, 23, 0.09), 0 6px 14px -2px rgba(28, 25, 23, 0.04);
+		border-color: rgba(235, 94, 40, 0.35);
+	}
+
+	.app-card-header {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.app-card-icon-wrap {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		width: 100%;
+	}
+
+	.app-emblem {
+		width: 62px;
+		height: 62px;
+		border-radius: 16px;
+		object-fit: cover;
+		box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+		border: 1px solid rgba(0, 0, 0, 0.08);
+	}
+
+	.platform-badge-pill {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		padding: 5px 12px;
+		border-radius: 9999px;
+		background: #f7f6f2;
+		border: 1px solid rgba(229, 226, 218, 0.9);
+		font-size: 12.5px;
+		font-weight: 600;
+		color: #403d39;
+	}
+
+	.version-badge {
+		font-size: 12px;
+		font-weight: 700;
+		padding: 3px 8px;
+		border-radius: 6px;
+		background: rgba(235, 94, 40, 0.1);
+		color: #EB5E28;
+		letter-spacing: 0.02em;
+	}
+
+	.app-feature-list {
+		list-style: none;
+		padding: 0;
+		margin: 1.5rem 0 2rem 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+
+	.app-feature-list li {
+		display: flex;
+		align-items: flex-start;
+		gap: 10px;
+		font-size: 14px;
+		line-height: 1.45;
+		color: #57534e;
+	}
+
+	.check-icon {
+		width: 18px;
+		height: 18px;
+		min-width: 18px;
+		color: #10b981;
+		margin-top: 1px;
+	}
+
+	.app-card-footer {
+		margin-top: auto;
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+
+	.btn-primary-download {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 10px;
+		width: 100%;
+		padding: 0.875rem 1.25rem;
+		background: linear-gradient(180deg, #2b2b2b 0%, #1c1c1c 100%);
+		color: #ffffff !important;
+		border: 1px solid #141414;
+		border-radius: 16px;
+		font-size: 14.5px;
+		font-weight: 600;
+		text-decoration: none;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+		transition: all 0.2s ease;
+		cursor: pointer;
+	}
+
+	.btn-primary-download:hover {
+		background: linear-gradient(180deg, #EB5E28 0%, #d85220 100%);
+		border-color: #c9491a;
+		box-shadow: 0 6px 18px rgba(235, 94, 40, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+		color: #ffffff !important;
+		transform: translateY(-1px);
+	}
+
+	.btn-primary-download:active {
+		transform: scale(0.98);
+	}
+
+	.size-pill {
+		margin-left: auto;
+		font-size: 11.5px;
+		font-weight: 600;
+		padding: 2px 7px;
+		border-radius: 9999px;
+		background: rgba(255, 255, 255, 0.15);
+		color: #e5e5e5;
+	}
+
+	.btn-primary-download:hover .size-pill {
+		background: rgba(0, 0, 0, 0.2);
+		color: #ffffff;
+	}
+
+	.secondary-download-options {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		font-size: 12.5px;
+		color: #78716c;
+	}
+
+	.dot-separator {
+		opacity: 0.4;
+	}
+
+	.sub-link {
+		color: #EB5E28;
+		font-weight: 500;
+		text-decoration: underline;
+		text-underline-offset: 3px;
+		transition: color 0.15s ease;
+	}
+
+	.sub-link:hover {
+		color: #c9491a;
 	}
 
 	.btn-dark-hero {

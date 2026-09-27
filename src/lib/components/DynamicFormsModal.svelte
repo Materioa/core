@@ -497,17 +497,23 @@
                                         {:else if field.type === 'rating'}
                                             <div class="dynamic-form-rating" role="radiogroup" aria-label={field.label || 'Rating'}>
                                                 {#each Array(field.max || 5) as _, i}
+                                                    {@const starIndex = i + 1}
+                                                    {@const isFilled = (hoveredRating[field.name] || ratingValues[field.name] || 0) >= starIndex}
                                                     <button
                                                         type="button"
-                                                        class="star"
-                                                        class:active={(hoveredRating[field.name] || ratingValues[field.name] || 0) > i}
-                                                        on:click|preventDefault={() => setRating(field.name, i + 1)}
-                                                        on:pointerdown={() => setRating(field.name, i + 1)}
-                                                        on:mouseenter={() => { hoveredRating = { ...hoveredRating, [field.name]: i + 1 }; }}
+                                                        class="star-btn"
+                                                        class:active={isFilled}
+                                                        on:click|preventDefault={() => setRating(field.name, starIndex)}
+                                                        on:pointerdown={() => setRating(field.name, starIndex)}
+                                                        on:mouseenter={() => { hoveredRating = { ...hoveredRating, [field.name]: starIndex }; }}
                                                         on:mouseleave={() => { hoveredRating = { ...hoveredRating, [field.name]: 0 }; }}
-                                                        on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setRating(field.name, i + 1); } }}
-                                                        aria-label={`${i + 1} star${i > 0 ? 's' : ''}`}
-                                                    >★</button>
+                                                        on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setRating(field.name, starIndex); } }}
+                                                        aria-label={`${starIndex} star${starIndex > 1 ? 's' : ''}`}
+                                                    >
+                                                        <svg class="star-svg" viewBox="0 0 24 24" fill={isFilled ? "#ff8200" : "none"} stroke={isFilled ? "#ff8200" : "currentColor"} stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                                                        </svg>
+                                                    </button>
                                                 {/each}
                                             </div>
                                         {/if}
@@ -562,5 +568,56 @@
     }
     .dynamic-form-overlay .dynamic-form-result p {
         max-width: 44ch;
+    }
+
+    /* Reset and style the star rating completely within the component */
+    .dynamic-form-rating {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 0;
+    }
+    .dynamic-form-rating .star-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 48px;
+        height: 48px;
+        padding: 0 !important;
+        margin: 0 !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 14px !important;
+        background: rgba(255, 255, 255, 0.05) !important;
+        color: rgba(255, 255, 255, 0.4) !important;
+        cursor: pointer !important;
+        outline: none !important;
+        box-shadow: none !important;
+        transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }
+    :global(body:not(.dark-mode)) .dynamic-form-rating .star-btn {
+        border-color: rgba(0, 0, 0, 0.1) !important;
+        background: rgba(0, 0, 0, 0.03) !important;
+        color: rgba(0, 0, 0, 0.35) !important;
+    }
+    .dynamic-form-rating .star-btn:hover {
+        transform: translateY(-2px) scale(1.08);
+        border-color: rgba(255, 130, 0, 0.45) !important;
+        background: rgba(255, 130, 0, 0.1) !important;
+        color: #ff8200 !important;
+    }
+    .dynamic-form-rating .star-btn.active {
+        border-color: rgba(255, 130, 0, 0.6) !important;
+        background: rgba(255, 130, 0, 0.14) !important;
+        color: #ff8200 !important;
+        box-shadow: 0 4px 14px rgba(255, 130, 0, 0.25) !important;
+    }
+    .dynamic-form-rating .star-svg {
+        width: 26px;
+        height: 26px;
+        pointer-events: none;
+        transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .dynamic-form-rating .star-btn:hover .star-svg {
+        transform: scale(1.12);
     }
 </style>
