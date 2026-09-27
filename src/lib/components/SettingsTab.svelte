@@ -1236,56 +1236,58 @@
         </div>
     </div>
 
-    <!-- Redirects Section Header -->
-    <div class="settings-group-header"
-        style="display: flex; align-items: center; gap: 8px; margin: 24px 0 12px 4px; font-size: 15px; font-weight: 600; color: var(--color-text-primary); opacity: 0.9;">
-        <span>Redirects</span>
-    </div>
+    {#if !isTauri && !isCapacitor}
+        <!-- Redirects Section Header -->
+        <div class="settings-group-header"
+            style="display: flex; align-items: center; gap: 8px; margin: 24px 0 12px 4px; font-size: 15px; font-weight: 600; color: var(--color-text-primary); opacity: 0.9;">
+            <span>Redirects</span>
+        </div>
 
-    <!-- Redirects (single merged card) -->
-    <div class="card-layout" id="redirectsCard" style="overflow: visible;">
-        <div class="toggle-container"
-            style="position: relative; flex-direction: column; align-items: stretch; gap: 8px; overflow: visible;">
-            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; position: relative;">
-                <div class="paper-mode-info">
-                    <div class="paper-mode-title">Skip Landing Page</div>
-                    <div class="paper-mode-description">Always open app directly, skip landing</div>
-                </div>
-                <label class="switch" style="flex-shrink: 0;">
-                    <input type="checkbox" id="skipLandingToggle" aria-label="Skip Landing Page" bind:checked={redirectSkip} on:change={toggleRedirectSkip}>
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; position: relative; border-top: 1px solid var(--color-border-light); padding-top: 8px; margin-top: 4px;">
-                <div class="paper-mode-info">
-                    <div class="paper-mode-title">App Start Location</div>
-                    <div class="paper-mode-description">Where the app opens when skipping landing</div>
-                </div>
-
-                <div class="accent-color-selector" id="redirectStartSelector" style="flex-shrink: 0;"
-                    on:click={() => { redirectDropdownOpen = !redirectDropdownOpen; }}>
-                    <span id="currentRedirectText" style="font-size: 13px; font-weight: 500; margin-left: 4px;">{redirectStart === 'home' ? 'Home (/home)' : 'Root (/) '}</span>
-                    <HugeIcon name="arrow-down-01"  style="font-size: 11px; margin-left: 4px; color: #666;" />
-                </div>
-
-                <!-- Redirect Dropdown Menu -->
-                <div id="redirectStartDropdown" class="accent-dropdown" class:show={redirectDropdownOpen}>
-                    <div class="accent-dropdown-item" class:active={redirectStart === 'root'} data-value="root" on:click={() => setRedirectStart('root')}>
-                        <div class="accent-dropdown-item-left">
-                            <span>Root (/)</span>
-                        </div>
-                        <HugeIcon name="tick-01"  class="accent-check" />
+        <!-- Redirects (single merged card) -->
+        <div class="card-layout" id="redirectsCard" style="overflow: visible;">
+            <div class="toggle-container"
+                style="position: relative; flex-direction: column; align-items: stretch; gap: 8px; overflow: visible;">
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; position: relative;">
+                    <div class="paper-mode-info">
+                        <div class="paper-mode-title">Skip Landing Page</div>
+                        <div class="paper-mode-description">Always open app directly, skip landing</div>
                     </div>
-                    <div class="accent-dropdown-item" class:active={redirectStart === 'home'} data-value="home" on:click={() => setRedirectStart('home')}>
-                        <div class="accent-dropdown-item-left">
-                            <span>Home (/home)</span>
+                    <label class="switch" style="flex-shrink: 0;">
+                        <input type="checkbox" id="skipLandingToggle" aria-label="Skip Landing Page" bind:checked={redirectSkip} on:change={toggleRedirectSkip}>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; position: relative; border-top: 1px solid var(--color-border-light); padding-top: 8px; margin-top: 4px;">
+                    <div class="paper-mode-info">
+                        <div class="paper-mode-title">App Start Location</div>
+                        <div class="paper-mode-description">Where the app opens when skipping landing</div>
+                    </div>
+
+                    <div class="accent-color-selector" id="redirectStartSelector" style="flex-shrink: 0;"
+                        on:click={() => { redirectDropdownOpen = !redirectDropdownOpen; }}>
+                        <span id="currentRedirectText" style="font-size: 13px; font-weight: 500; margin-left: 4px;">{redirectStart === 'home' ? 'Home (/home)' : 'Root (/) '}</span>
+                        <HugeIcon name="arrow-down-01"  style="font-size: 11px; margin-left: 4px; color: #666;" />
+                    </div>
+
+                    <!-- Redirect Dropdown Menu -->
+                    <div id="redirectStartDropdown" class="accent-dropdown" class:show={redirectDropdownOpen}>
+                        <div class="accent-dropdown-item" class:active={redirectStart === 'root'} data-value="root" on:click={() => setRedirectStart('root')}>
+                            <div class="accent-dropdown-item-left">
+                                <span>Root (/)</span>
+                            </div>
+                            <HugeIcon name="tick-01"  class="accent-check" />
                         </div>
-                        <HugeIcon name="tick-01"  class="accent-check" />
+                        <div class="accent-dropdown-item" class:active={redirectStart === 'home'} data-value="home" on:click={() => setRedirectStart('home')}>
+                            <div class="accent-dropdown-item-left">
+                                <span>Home (/home)</span>
+                            </div>
+                            <HugeIcon name="tick-01"  class="accent-check" />
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
+    {/if}
 
     {#if isTauri}
         <!-- Desktop: MCP Server Section -->
@@ -1337,14 +1339,16 @@
         id="checkUpdatesCard"
         role="button"
         tabindex="0"
-        style="cursor: var(--f-cursor-pointer);"
+        style="cursor: var(--f-cursor-pointer); display: flex; align-items: center; min-height: 52px; padding: 0 var(--spacing-xl);"
         on:click={() => checkAppUpdate(true)}
         on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); checkAppUpdate(true); } }}
     >
-        <div class="toggle-container" style="justify-content: space-between; align-items: center; width: 100%;">
-            <div class="card-title-row">
-                <HugeiconsIcon icon={UploadCircle01Icon} size={18} style="color: var(--color-primary, #ff8200); flex-shrink: 0;" />
-                <div class="paper-mode-title" style="margin: 0;">Check for Updates</div>
+        <div class="toggle-container" style="justify-content: space-between; align-items: center; width: 100%; margin: 0;">
+            <div class="card-title-row" style="display: flex; align-items: center; gap: 10px;">
+                <div style="display: flex; align-items: center; justify-content: center; height: 18px; width: 18px; flex-shrink: 0;">
+                    <HugeiconsIcon icon={UploadCircle01Icon} size={18} style="color: var(--color-primary, #ff8200); display: block;" />
+                </div>
+                <div class="paper-mode-title" style="margin: 0; line-height: 1; display: flex; align-items: center;">Check for Updates</div>
             </div>
             {#if checkingAppUpdate}
                 <span style="font-size: 12.5px; color: var(--color-primary, #ff8200); font-weight: 600; font-family: 'Manrope', sans-serif;">Checking…</span>
@@ -1453,8 +1457,15 @@
         {/if}
     </div>
 </details>
-
 <style>
+    #checkUpdatesCard {
+        display: flex !important;
+        align-items: center !important;
+        min-height: 52px !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        box-sizing: border-box !important;
+    }
     .card-title-row {
         display: flex !important;
         flex-direction: row !important;

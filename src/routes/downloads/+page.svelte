@@ -63,7 +63,7 @@
 	<link rel="stylesheet" href="/assets/style/pricing.css" />
 </svelte:head>
 
-<div class="w-full min-h-screen bg-cream-50 flex flex-col items-center">
+<div class="w-full min-h-screen bg-cream-50 flex flex-col items-center overflow-x-hidden">
 	<!-- Simple header (exact landing design language from pricing) -->
 	<header
 		class="w-full bg-cream-50/80 backdrop-blur-md border-b border-cream-200/40"
@@ -101,7 +101,7 @@
 	</header>
 
 	<!-- Main Downloads Section — matching PricingSection editorial language -->
-	<main class="w-full max-w-5xl px-5 sm:px-6 md:px-0 mb-32 flex flex-col items-center text-center space-y-4 pt-12 md:pt-16">
+	<main class="w-full max-w-5xl px-4 sm:px-6 md:px-8 mb-32 flex flex-col items-center text-center space-y-4 pt-12 md:pt-16 box-border">
 		<!-- Heading -->
 		<div class="flex flex-col items-center space-y-3 max-w-2xl">
 			<h1
@@ -394,17 +394,19 @@
 
 	.download-cards-grid {
 		display: grid;
-		grid-template-columns: 1fr;
-		gap: 1.75rem;
+		grid-template-columns: minmax(0, 1fr);
+		gap: 1.5rem;
 		width: 100%;
 		max-width: 960px;
-		margin-top: 2.5rem;
+		margin: 2.5rem auto 0;
 		text-align: left;
+		box-sizing: border-box;
 	}
 
 	@media (min-width: 768px) {
 		.download-cards-grid {
 			grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+			gap: 1.75rem;
 		}
 	}
 
@@ -421,6 +423,18 @@
 		box-shadow: 0 4px 20px -2px rgba(28, 25, 23, 0.05), 0 2px 6px -1px rgba(28, 25, 23, 0.03);
 		transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 		min-height: 280px;
+		width: 100%;
+		max-width: 100%;
+		min-width: 0;
+		box-sizing: border-box;
+	}
+
+	@media (max-width: 640px) {
+		.app-download-card {
+			padding: 1.75rem 1.25rem 1.5rem;
+			gap: 1.75rem;
+			border-radius: 20px;
+		}
 	}
 
 	.app-download-card:hover {
@@ -487,10 +501,13 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		gap: 7px;
+		flex-wrap: wrap;
+		row-gap: 4px;
+		column-gap: 6px;
 		font-size: 12.5px;
 		color: #78716c;
-		white-space: nowrap;
+		text-align: center;
+		line-height: 1.4;
 	}
 
 	.dot-separator {
