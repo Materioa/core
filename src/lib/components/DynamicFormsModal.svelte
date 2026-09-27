@@ -570,54 +570,53 @@
         max-width: 44ch;
     }
 
-    /* Reset and style the star rating completely within the component */
+    /* Clean star rating: no box wrappers, no glowing background */
     .dynamic-form-rating {
         display: flex;
         align-items: center;
-        gap: 10px;
-        padding: 8px 0;
+        gap: 8px;
+        padding: 6px 0;
     }
     .dynamic-form-rating .star-btn {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 48px;
-        height: 48px;
-        padding: 0 !important;
+        padding: 4px !important;
         margin: 0 !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        border-radius: 14px !important;
-        background: rgba(255, 255, 255, 0.05) !important;
-        color: rgba(255, 255, 255, 0.4) !important;
+        border: none !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: rgba(140, 140, 140, 0.45) !important;
         cursor: pointer !important;
         outline: none !important;
         box-shadow: none !important;
-        transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
     }
     :global(body:not(.dark-mode)) .dynamic-form-rating .star-btn {
-        border-color: rgba(0, 0, 0, 0.1) !important;
-        background: rgba(0, 0, 0, 0.03) !important;
-        color: rgba(0, 0, 0, 0.35) !important;
+        border: none !important;
+        background: transparent !important;
+        color: rgba(0, 0, 0, 0.28) !important;
     }
     .dynamic-form-rating .star-btn:hover {
-        transform: translateY(-2px) scale(1.08);
-        border-color: rgba(255, 130, 0, 0.45) !important;
-        background: rgba(255, 130, 0, 0.1) !important;
+        transform: scale(1.18);
+        border: none !important;
+        background: transparent !important;
         color: #ff8200 !important;
+        box-shadow: none !important;
     }
     .dynamic-form-rating .star-btn.active {
-        border-color: rgba(255, 130, 0, 0.6) !important;
-        background: rgba(255, 130, 0, 0.14) !important;
+        border: none !important;
+        background: transparent !important;
         color: #ff8200 !important;
-        box-shadow: 0 4px 14px rgba(255, 130, 0, 0.25) !important;
+        box-shadow: none !important;
     }
     .dynamic-form-rating .star-svg {
-        width: 26px;
-        height: 26px;
+        width: 30px;
+        height: 30px;
         pointer-events: none;
-        transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), fill 0.15s ease, stroke 0.15s ease;
     }
     .dynamic-form-rating .star-btn:hover .star-svg {
-        transform: scale(1.12);
+        transform: scale(1.1);
     }
 </style>

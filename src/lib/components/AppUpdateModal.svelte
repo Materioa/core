@@ -217,13 +217,20 @@
 		align-items: center;
 		padding: 12px 14px;
 		border-radius: 18px;
-		border: 1px solid rgba(0, 0, 0, 0.12);
-		background: #fdfcf9;
+		border: 1px solid var(--color-border-light, rgba(0, 0, 0, 0.12));
+		background: var(--color-bg-card, #fdfcf9);
 		box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.04);
 		backdrop-filter: blur(12px);
 		-webkit-backdrop-filter: blur(12px);
 		font-family: 'OpenRunde', 'Open Runde', -apple-system, BlinkMacSystemFont, sans-serif !important;
 		animation: nudgeSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+		transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+	}
+
+	:global(body.coffee-mode) .leaderboard-nudge-card {
+		background: #f7f1e7;
+		border-color: rgba(111, 78, 55, 0.18);
+		box-shadow: 0 8px 24px -4px rgba(78, 52, 46, 0.15);
 	}
 
 	:global(body.dark-mode) .leaderboard-nudge-card,
@@ -233,11 +240,31 @@
 		box-shadow: 0 8px 28px -4px rgba(0, 0, 0, 0.45);
 	}
 
+	:global(body.coffee-dark-mode) .leaderboard-nudge-card {
+		background: #241914 !important;
+		border-color: rgba(255, 255, 255, 0.14) !important;
+		box-shadow: 0 8px 28px -4px rgba(0, 0, 0, 0.55) !important;
+	}
+
+	:global(body.amoled-mode) .leaderboard-nudge-card {
+		background: #000000 !important;
+		border-color: rgba(255, 255, 255, 0.16) !important;
+	}
+
 	.leaderboard-nudge-image {
 		width: 52px;
 		height: 52px;
 		object-fit: contain;
 		justify-self: center;
+		transition: filter 0.25s ease;
+	}
+
+	/* Invert greet icon in dark, espresso coffee-dark, and amoled themes so it becomes white */
+	:global(body.dark-mode) .leaderboard-nudge-image,
+	:global(body.coffee-dark-mode) .leaderboard-nudge-image,
+	:global(body.amoled-mode) .leaderboard-nudge-image,
+	:global(html.dark) .leaderboard-nudge-image {
+		filter: invert(1);
 	}
 
 	.leaderboard-nudge-content {
@@ -251,18 +278,19 @@
 		font-size: 15px;
 		font-weight: 600;
 		line-height: 1.25;
-		color: #1a1a1a;
+		color: var(--color-text-primary, #1a1a1a);
 		letter-spacing: -0.01em;
 	}
 
 	:global(body.dark-mode) .leaderboard-nudge-title,
+	:global(body.coffee-dark-mode) .leaderboard-nudge-title,
 	:global(html.dark) .leaderboard-nudge-title {
 		color: #f5f5f5;
 	}
 
 	.leaderboard-nudge-text {
 		margin: 0;
-		color: #555555;
+		color: var(--color-text-secondary, #555555);
 		font-family: 'OpenRunde', 'Open Runde', -apple-system, BlinkMacSystemFont, sans-serif !important;
 		font-size: 13px;
 		line-height: 1.35;
@@ -270,6 +298,7 @@
 	}
 
 	:global(body.dark-mode) .leaderboard-nudge-text,
+	:global(body.coffee-dark-mode) .leaderboard-nudge-text,
 	:global(html.dark) .leaderboard-nudge-text {
 		color: #b0b0b0;
 	}
@@ -283,9 +312,9 @@
 	}
 
 	.leaderboard-nudge-btn {
-		border: 1px solid rgba(0, 0, 0, 0.2);
+		border: 1px solid var(--color-border-light, rgba(0, 0, 0, 0.2));
 		background: transparent;
-		color: #333;
+		color: var(--color-text-primary, #333);
 		border-radius: 10px;
 		padding: 5px 12px;
 		font-family: 'OpenRunde', 'Open Runde', -apple-system, BlinkMacSystemFont, sans-serif !important;
@@ -296,6 +325,7 @@
 	}
 
 	:global(body.dark-mode) .leaderboard-nudge-btn,
+	:global(body.coffee-dark-mode) .leaderboard-nudge-btn,
 	:global(html.dark) .leaderboard-nudge-btn {
 		border-color: rgba(255, 255, 255, 0.22);
 		color: #eee;
@@ -305,7 +335,8 @@
 		background: rgba(0, 0, 0, 0.05);
 	}
 
-	:global(body.dark-mode) .leaderboard-nudge-btn:hover {
+	:global(body.dark-mode) .leaderboard-nudge-btn:hover,
+	:global(body.coffee-dark-mode) .leaderboard-nudge-btn:hover {
 		background: rgba(255, 255, 255, 0.08);
 	}
 
@@ -330,7 +361,7 @@
 		margin: 3px 0 0;
 		font-family: 'OpenRunde', 'Open Runde', -apple-system, BlinkMacSystemFont, sans-serif !important;
 		font-size: 11px;
-		color: #777777;
+		color: var(--color-text-muted, #777777);
 		display: flex;
 		align-items: flex-start;
 		gap: 4px;
@@ -338,6 +369,7 @@
 	}
 
 	:global(body.dark-mode) .nudge-hint,
+	:global(body.coffee-dark-mode) .nudge-hint,
 	:global(html.dark) .nudge-hint {
 		color: #999999;
 	}

@@ -11,12 +11,11 @@ export const isTauri = typeof window !== 'undefined' && Boolean(
 );
 
 export const isCapacitor = typeof window !== 'undefined' && Boolean(
-  window.Capacitor?.isNativePlatform?.() || 
-  window.Capacitor ||
+  (window.Capacitor?.isNativePlatform && window.Capacitor.isNativePlatform()) ||
+  (window.Capacitor?.getPlatform && window.Capacitor.getPlatform() !== 'web') ||
+  window.AndroidBridge ||
   window.location?.protocol === 'capacitor:' ||
-  window.location?.hostname === 'capacitor.localhost' ||
-  (window.location?.hostname === 'localhost' && window.location?.protocol === 'https:') ||
-  (window.location?.hostname === 'localhost' && !window.location?.port)
+  window.location?.hostname === 'capacitor.localhost'
 );
 
 export const isNative = isTauri || isCapacitor;

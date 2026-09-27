@@ -82,6 +82,7 @@
     let releaseBuild = '';
     let releaseLogs = [];
     let loadingReleases = false;
+    let liveBuildId = typeof __MATERIO_BUILD_ID__ !== 'undefined' ? __MATERIO_BUILD_ID__ : 'b4e216ad-fa9d-40c8-ac8c-f835f93cffd0';
 
     function getCurrentBranch() {
         if (!browser) return 'stable';
@@ -94,7 +95,11 @@
     async function loadReleases() {
         loadingReleases = true;
         try {
-            let res = await fetch('/api/v2/releases');
+            // First fetch releases directly from the MongoDB releases collection API
+            let res = await fetch(toApiUrl('/api/v2/releases'));
+            if (!res.ok) {
+                res = await fetch(toApiUrl('/api/v2/features?action=releases'));
+            }
             if (!res.ok) {
                 res = await fetch('/assets/data/releases.json');
             }
@@ -114,6 +119,20 @@
             console.warn('Error loading releases:', err);
         } finally {
             loadingReleases = false;
+        }
+
+        // Live build ID and health info from health API like parent Materio
+        try {
+            const hRes = await fetch(toApiUrl('/api/v2/health?t=' + Date.now()));
+            if (hRes.ok) {
+                const hData = await hRes.json();
+                const id = hData.build?.buildId || hData.buildId;
+                if (id && id !== 'unknown' && id !== 'dev-local') {
+                    liveBuildId = id;
+                }
+            }
+        } catch (err) {
+            console.warn('Health check fetch failed:', err);
         }
     }
 
@@ -1128,22 +1147,6 @@
         </div>
     </div>
 
-    <!-- Haptic Feedback -->
-    <div class="card-layout" id="hapticToggleCard">
-        <div class="toggle-container">
-            <div class="paper-mode-info">
-                <div class="paper-mode-title">Haptic Feedback</div>
-                <div class="paper-mode-description">Vibration on touch interactions</div>
-            </div>
-            <label class="switch">
-                <input type="checkbox" id="hapticToggle" aria-label="Haptic Feedback" bind:checked={hapticEnabled} on:change={applyReadingToggles}>
-                <span class="slider"></span>
-            </label>
-        </div>
-        <div class="haptic-intensity-options" id="hapticIntensityOptions" style="display:{hapticEnabled ? 'block' : 'none'};margin-top:15px;padding-top:15px;border-top:1px solid rgba(0,0,0,0.08);">
-            <div class="haptic-intensity-control"><div class="haptic-intensity-header"><span class="haptic-intensity-label">Intensity</span><span class="haptic-intensity-value" id="hapticIntensityValue">Medium</span></div><input type="range" id="hapticIntensitySlider" min="0" max="2" value="1" step="1" class="haptic-intensity-slider" on:input={(e)=>{ const vals=['Minimal','Medium','Strong']; const v=document.getElementById('hapticIntensityValue'); if(v) v.textContent=vals[e.target.value]||'Medium'; }}><div class="haptic-intensity-labels"><span>Minimal</span><span>Medium</span><span>Strong</span></div></div>
-        </div>
-    </div>
 
     <!-- Show Insightroom Feed -->
     <div class="card-layout" id="getinsights">
@@ -1288,8 +1291,8 @@
         <!-- Desktop: MCP Server Section -->
         <div class="card-layout" id="localMcpServerCard">
             <div class="toggle-container" style="justify-content: space-between; align-items: center; width: 100%;">
-                <div class="paper-mode-info" style="display: flex; align-items: center; gap: 8px;">
-                    <HugeiconsIcon icon={McpServerIcon} size={18} style="color: var(--color-primary, #ff8200);" />
+                <div class="card-title-row">
+                    <HugeiconsIcon icon={McpServerIcon} size={18} style="color: var(--color-primary, #ff8200); flex-shrink: 0;" />
                     <div class="paper-mode-title" style="display: flex; align-items: center; gap: 8px; margin: 0;">
                         <span>MCP Server</span>
                         <span class="mcp-status-pill" class:running={mcpRunning}>
@@ -1329,20 +1332,23 @@
     {/if}
 
     <!-- Check for Updates Card (Card is a button) -->
-    <div class="card-layout" id="checkUpdatesCard">
-        <div class="toggle-container" style="cursor: var(--f-cursor-pointer); justify-content: space-between; align-items: center;" on:click={() => checkAppUpdate(true)}>
-            <div class="paper-mode-info" style="display: flex; align-items: center; gap: 10px;">
-                <HugeiconsIcon icon={UploadCircle01Icon} size={18} style="color: var(--color-primary, #ff8200);" />
+    <div
+        class="card-layout"
+        id="checkUpdatesCard"
+        role="button"
+        tabindex="0"
+        style="cursor: var(--f-cursor-pointer);"
+        on:click={() => checkAppUpdate(true)}
+        on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); checkAppUpdate(true); } }}
+    >
+        <div class="toggle-container" style="justify-content: space-between; align-items: center; width: 100%;">
+            <div class="card-title-row">
+                <HugeiconsIcon icon={UploadCircle01Icon} size={18} style="color: var(--color-primary, #ff8200); flex-shrink: 0;" />
                 <div class="paper-mode-title" style="margin: 0;">Check for Updates</div>
             </div>
-            <button
-                type="button"
-                class="mcp-action-btn"
-                disabled={checkingAppUpdate}
-                style="pointer-events: none;"
-            >
-                {checkingAppUpdate ? 'Checking…' : 'Check'}
-            </button>
+            {#if checkingAppUpdate}
+                <span style="font-size: 12.5px; color: var(--color-primary, #ff8200); font-weight: 600; font-family: 'Manrope', sans-serif;">Checking…</span>
+            {/if}
         </div>
     </div>
 
@@ -1437,7 +1443,7 @@
         Misc
     </summary>
     <div style="display: flex; flex-direction: column; gap: 4px; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 12px; margin-top: 6px; align-items: center;">
-        <span>Materio ID: <span id="buildId">dev-local</span></span>
+        <span>Materio ID: <span id="buildId">{liveBuildId}</span></span>
         {#if isTauri}
             <span>App Version: Windows v{currentAppVersion}</span>
         {:else if isCapacitor}
@@ -1449,6 +1455,12 @@
 </details>
 
 <style>
+    .card-title-row {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        gap: 10px !important;
+    }
     .mcp-copy-icon-btn {
         display: inline-flex;
         align-items: center;
