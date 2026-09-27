@@ -312,6 +312,22 @@ pub fn run() {
 
             // MCP server starts OFF by default. It will only be launched
             // when explicitly triggered by the user via start_mcp_server command.
+
+            // Handle launch arguments for associated links (materio:// or web URLs)
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                std::thread::sleep(std::time::Duration::from_millis(600));
+                for arg in std::env::args().skip(1) {
+                    if arg.starts_with("materio://") || arg.starts_with("https://getmaterio.app") || arg.starts_with("http://getmaterio.app") {
+                        if let Some(w) = handle.get_webview_window("main") {
+                            let js = format!("if (typeof window.__materioHandleDeepLink === 'function') {{ window.__materioHandleDeepLink('{}'); }}", arg.replace('\'', "\\'"));
+                            let _ = w.eval(&js);
+                        }
+                        break;
+                    }
+                }
+            });
+
             Ok(())
         })
         .on_window_event(|window, event| {

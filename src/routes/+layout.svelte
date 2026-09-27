@@ -273,6 +273,47 @@
       }
     } catch {}
 
+    // Deep Link & Associated URL Handler (Android Intents + Desktop materio:// protocol)
+    window.__materioHandleDeepLink = (rawUrl) => {
+      try {
+        if (!rawUrl || typeof rawUrl !== 'string') return;
+        let urlObj;
+        if (rawUrl.startsWith('materio://')) {
+          const rest = rawUrl.replace(/^materio:\/\/?/, '');
+          urlObj = new URL(rest.startsWith('?') ? `https://getmaterio.app/${rest}` : `https://getmaterio.app/${rest}`);
+        } else {
+          urlObj = new URL(rawUrl);
+        }
+
+        const shareId = urlObj.searchParams.get('share');
+        if (shareId) {
+          if (typeof window.__materioLoadShareMask === 'function') {
+            window.__materioLoadShareMask(shareId);
+          } else {
+            window.location.search = `?share=${shareId}`;
+          }
+          return;
+        }
+
+        const path = urlObj.pathname;
+        if (path && path !== '/' && path !== '/home') {
+          window.location.href = path + (urlObj.search || '');
+        }
+      } catch (err) {
+        console.warn('Failed to parse deep link URL:', err);
+      }
+    };
+
+    // Check for pending Android deep link on initial launch
+    if (window.AndroidBridge?.getPendingDeepLink) {
+      try {
+        const pending = window.AndroidBridge.getPendingDeepLink();
+        if (pending) {
+          setTimeout(() => window.__materioHandleDeepLink(pending), 400);
+        }
+      } catch {}
+    }
+
     return () => {
       unsubActive();
       unsubPdf();

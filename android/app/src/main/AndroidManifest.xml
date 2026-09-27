@@ -22,6 +22,23 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Deep linking for https://getmaterio.app, https://beta.getmaterio.app -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="getmaterio.app" />
+                <data android:scheme="https" android:host="beta.getmaterio.app" />
+                <data android:scheme="http" android:host="getmaterio.app" />
+            </intent-filter>
+
+            <!-- Custom URL Scheme: materio:// -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="materio" />
+            </intent-filter>
         </activity>
 
         <provider
@@ -38,4 +55,5 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>

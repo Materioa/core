@@ -3,6 +3,8 @@
     import { themeStore } from '$lib/stores.js';
     import { browser } from '$app/environment';
     import { isTauri, isCapacitor, toApiUrl } from '$lib/config/api.js';
+    import { HugeiconsIcon } from '@hugeicons/svelte';
+    import { UploadCircle01Icon, McpServerIcon, Copy01Icon, CheckmarkCircle01Icon } from '@hugeicons/core-free-icons';
 
     let selectedTheme = 'system';
     let themeDropdownOpen = false;
@@ -203,22 +205,46 @@
         setTimeout(() => { copiedMcp = false; }, 2000);
     }
 
-    // ── Android In-App Updater State & Actions (Mobile / Capacitor) ──
-    let checkingAndroidUpdate = false;
-    let androidUpdateMsg = '';
-    let androidUpdateFound = false;
-    let androidApkUrl = '';
+    // ── App Updates & Native Toast Handler (Desktop & Android) ──
+    const currentAppVersion = (typeof __MATERIO_APP_VERSION__ !== 'undefined' ? __MATERIO_APP_VERSION__ : '2.1.14').replace(/^v/, '');
+    let checkingAppUpdate = false;
 
-    async function checkAndroidUpdate() {
-        checkingAndroidUpdate = true;
-        androidUpdateMsg = '';
-        androidUpdateFound = false;
+    function showToastMessage(msg) {
+        if (!browser) return;
+        // 1. Android native bridge toast
+        if (window.AndroidBridge?.showToast) {
+            window.AndroidBridge.showToast(msg);
+            return;
+        }
+        // 2. Capacitor Toast plugin if available
+        if (window.Capacitor?.Plugins?.Toast?.show) {
+            window.Capacitor.Plugins.Toast.show({ text: msg, duration: 'short' });
+            return;
+        }
+        // 3. Fallback transient in-app toast
+        const toast = document.createElement('div');
+        toast.textContent = msg;
+        toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1f1f1f;color:#fff;padding:10px 18px;border-radius:12px;font-size:13px;font-family:sans-serif;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.3);transition:opacity 0.3s;opacity:1;';
+        document.body.appendChild(toast);
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+        }, 2500);
+    }
+
+    async function checkAppUpdate(isManual = true) {
+        if (!browser) return;
+        checkingAppUpdate = true;
+        if (isManual) {
+            showToastMessage('Checking for updates…');
+        }
+
         try {
             const res = await fetch(toApiUrl('/api/releases/latest'));
             if (res.ok) {
                 const data = await res.json();
-                const currentVer = (releaseVersion || '2.0.4').replace(/^v/, '');
                 const remoteVer = (data.version || '').replace(/^v/, '');
+                const localVer = currentAppVersion;
 
                 const isNewer = (r, l) => {
                     const rParts = r.split('.').map(Number);
@@ -230,36 +256,41 @@
                     return false;
                 };
 
-                if (isNewer(remoteVer, currentVer)) {
-                    androidUpdateFound = true;
-                    androidApkUrl = data.android?.downloadUrl || '/api/download/android';
-                    androidUpdateMsg = `New version ${data.version} available!`;
+                if (isNewer(remoteVer, localVer)) {
+                    showToastMessage(`Version ${data.version} is available!`);
 
-                    if ('Notification' in window && Notification.permission === 'granted') {
+                    const apkUrl = data.android?.downloadUrl || 'https://getmaterio.app/api/download/android';
+                    if (window.AndroidBridge?.sendNotification) {
+                        window.AndroidBridge.sendNotification('Materio Update Available', `Version ${data.version} is ready to download.`, apkUrl);
+                    } else if ('Notification' in window && Notification.permission === 'granted') {
                         new Notification('Materio Update Available', {
                             body: `Version ${data.version} is ready to download.`,
-                            icon: '/assets/img/favicon.png'
-                        });
-                    } else if ('Notification' in window && Notification.permission !== 'denied') {
-                        Notification.requestPermission().then(p => {
-                            if (p === 'granted') {
-                                new Notification('Materio Update Available', {
-                                    body: `Version ${data.version} is ready to download.`,
-                                    icon: '/assets/img/favicon.png'
-                                });
-                            }
+                            icon: '/assets/img/app.png'
                         });
                     }
+
+                    if (isManual && isCapacitor) {
+                        window.open(apkUrl, '_system');
+                    } else if (isManual && isTauri && typeof window.__materioCheckUpdateModal === 'function') {
+                        window.__materioCheckUpdateModal();
+                    }
                 } else {
-                    androidUpdateMsg = 'You are on the latest version!';
+                    if (isManual) {
+                        showToastMessage('You are on the latest version!');
+                    }
                 }
             } else {
-                androidUpdateMsg = 'Could not reach update server.';
+                if (isManual) {
+                    showToastMessage('Could not reach update server.');
+                }
             }
         } catch (e) {
-            androidUpdateMsg = 'Failed to check for updates.';
+            console.error('Update check failed:', e);
+            if (isManual) {
+                showToastMessage('Failed to check for updates.');
+            }
         } finally {
-            checkingAndroidUpdate = false;
+            checkingAppUpdate = false;
         }
     }
 
@@ -549,6 +580,13 @@
 
             window.closeSereineWallpaperModal = () => { showSereineModal = false; };
             window.openSereineWallpaperModal = () => { showSereineModal = true; };
+
+            // Auto check for updates on app launch for Android
+            if (isCapacitor) {
+                setTimeout(() => {
+                    checkAppUpdate(false);
+                }, 2500);
+            }
         }
 
         const handleDocClick = (e) => {
@@ -1247,28 +1285,30 @@
     </div>
 
     {#if isTauri}
-        <!-- Desktop: Local MCP Server Section -->
-        <div class="settings-group-header"
-            style="display: flex; align-items: center; gap: 8px; margin: 24px 0 12px 4px; font-size: 15px; font-weight: 600; color: var(--color-text-primary); opacity: 0.9;">
-            <HugeIcon name="cpu" style="color: var(--color-primary, #ff6600);" />
-            <span>Developer & AI Tools</span>
-        </div>
-
+        <!-- Desktop: MCP Server Section -->
         <div class="card-layout" id="localMcpServerCard">
-            <div class="toggle-container" style="flex-direction: column; align-items: stretch; gap: 12px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                    <div class="paper-mode-info">
-                        <div class="paper-mode-title" style="display: flex; align-items: center; gap: 8px;">
-                            <span>Local MCP Server</span>
-                            <span class="mcp-status-pill" class:running={mcpRunning}>
-                                <span class="mcp-status-dot"></span>
-                                {mcpRunning ? 'Running' : 'Stopped'}
-                            </span>
-                        </div>
-                        <div class="paper-mode-description">
-                            Exposes Materio tools for Claude Desktop, Cursor & ChatGPT
-                        </div>
+            <div class="toggle-container" style="justify-content: space-between; align-items: center; width: 100%;">
+                <div class="paper-mode-info" style="display: flex; align-items: center; gap: 8px;">
+                    <HugeiconsIcon icon={McpServerIcon} size={18} style="color: var(--color-primary, #ff8200);" />
+                    <div class="paper-mode-title" style="display: flex; align-items: center; gap: 8px; margin: 0;">
+                        <span>MCP Server</span>
+                        <span class="mcp-status-pill" class:running={mcpRunning}>
+                            <span class="mcp-status-dot"></span>
+                            {mcpRunning ? 'Running' : 'Stopped'}
+                        </span>
                     </div>
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <button
+                        type="button"
+                        class="mcp-copy-icon-btn"
+                        title={copiedMcp ? 'Copied URL!' : 'Copy MCP URL'}
+                        aria-label="Copy MCP URL"
+                        on:click={copyMcpUrl}
+                    >
+                        <HugeiconsIcon icon={copiedMcp ? CheckmarkCircle01Icon : Copy01Icon} size={16} />
+                    </button>
                     <button
                         type="button"
                         class="mcp-action-btn"
@@ -1279,26 +1319,32 @@
                         {mcpLoading ? '…' : (mcpRunning ? 'Stop Server' : 'Start Server')}
                     </button>
                 </div>
-
-                <div class="mcp-url-container">
-                    <span class="mcp-url-text">http://localhost:3000/mcp</span>
-                    <button
-                        type="button"
-                        class="mcp-copy-button"
-                        on:click={copyMcpUrl}
-                    >
-                        {copiedMcp ? 'Copied!' : 'Copy URL'}
-                    </button>
-                </div>
-
-                {#if mcpError}
-                    <div class="mcp-error-text">
-                        {mcpError}
-                    </div>
-                {/if}
             </div>
+            {#if mcpError}
+                <div class="mcp-error-text" style="margin-top: 8px; padding-left: 4px;">
+                    {mcpError}
+                </div>
+            {/if}
         </div>
     {/if}
+
+    <!-- Check for Updates Card (Card is a button) -->
+    <div class="card-layout" id="checkUpdatesCard">
+        <div class="toggle-container" style="cursor: var(--f-cursor-pointer); justify-content: space-between; align-items: center;" on:click={() => checkAppUpdate(true)}>
+            <div class="paper-mode-info" style="display: flex; align-items: center; gap: 10px;">
+                <HugeiconsIcon icon={UploadCircle01Icon} size={18} style="color: var(--color-primary, #ff8200);" />
+                <div class="paper-mode-title" style="margin: 0;">Check for Updates</div>
+            </div>
+            <button
+                type="button"
+                class="mcp-action-btn"
+                disabled={checkingAppUpdate}
+                style="pointer-events: none;"
+            >
+                {checkingAppUpdate ? 'Checking…' : 'Check'}
+            </button>
+        </div>
+    </div>
 
     <!-- Clear Site Data -->
     <div class="card-layout" id="clearSiteDataCard">
@@ -1335,77 +1381,6 @@
         <a href="/changelog"
             style="display: block; margin-top: 10px; font-size: 14px; color: var(--color-primary-dark, #c85000); text-decoration: none;">Show all →</a>
     </div>
-
-    {#if isCapacitor}
-        <!-- Android: In-App Updater Card -->
-        <p style="margin-left: 5px;"><b>App Updates</b></p>
-        <div class="card-layout" id="androidUpdaterCard">
-            <div class="toggle-container" style="flex-direction: column; align-items: stretch; gap: 10px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                    <div class="paper-mode-info">
-                        <div class="paper-mode-title" style="display: flex; align-items: center; gap: 6px;">
-                            <HugeIcon name="smartphone" style="font-size: 16px; color: var(--color-primary, #ff6600);" />
-                            <span>Android In-App Updater</span>
-                        </div>
-                        <div class="paper-mode-description">
-                            Check for latest Android APK builds and updates
-                        </div>
-                    </div>
-                    <button
-                        type="button"
-                        class="updater-check-btn"
-                        disabled={checkingAndroidUpdate}
-                        on:click={checkAndroidUpdate}
-                    >
-                        {checkingAndroidUpdate ? 'Checking…' : 'Check for Updates'}
-                    </button>
-                </div>
-
-                {#if androidUpdateMsg}
-                    <div class="updater-status-banner" class:has-update={androidUpdateFound}>
-                        <span>{androidUpdateMsg}</span>
-                        {#if androidUpdateFound && androidApkUrl}
-                            <a
-                                href={androidApkUrl}
-                                class="updater-download-link"
-                                target="_blank"
-                                rel="noopener"
-                            >
-                                Download APK →
-                            </a>
-                        {/if}
-                    </div>
-                {/if}
-            </div>
-        </div>
-    {/if}
-
-    {#if isTauri}
-        <!-- Desktop: In-App Updater Card -->
-        <p style="margin-left: 5px;"><b>App Updates</b></p>
-        <div class="card-layout" id="desktopUpdaterCard">
-            <div class="toggle-container" style="flex-direction: column; align-items: stretch; gap: 10px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                    <div class="paper-mode-info">
-                        <div class="paper-mode-title" style="display: flex; align-items: center; gap: 6px;">
-                            <HugeIcon name="laptop-programming" style="font-size: 16px; color: var(--color-primary, #ff6600);" />
-                            <span>Desktop In-App Updater</span>
-                        </div>
-                        <div class="paper-mode-description">
-                            Check for latest releases, auto-install, and restart
-                        </div>
-                    </div>
-                    <button
-                        type="button"
-                        class="updater-check-btn"
-                        on:click={() => { if (typeof window !== 'undefined' && window.__materioCheckUpdateModal) window.__materioCheckUpdateModal(); }}
-                    >
-                        Check for Updates
-                    </button>
-                </div>
-            </div>
-        </div>
-    {/if}
 
     <p style="margin-left: 5px;"><b>Legal</b></p>
     <div class="card-layout" id="notices">
@@ -1461,10 +1436,41 @@
         <HugeIcon name="arrow-down-01"  style="margin-left: 8px; transition: transform 0.3s ease; font-size: 12px;" />
         Misc
     </summary>
-    <span style="font-family: 'Consolas', 'Monaco', 'Courier New', monospace;">Materio ID: <span id="buildId">dev-local</span></span>
+    <div style="display: flex; flex-direction: column; gap: 4px; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 12px; margin-top: 6px; align-items: center;">
+        <span>Materio ID: <span id="buildId">dev-local</span></span>
+        {#if isTauri}
+            <span>App Version: Windows v{currentAppVersion}</span>
+        {:else if isCapacitor}
+            <span>App Version: Android v{currentAppVersion}</span>
+        {:else}
+            <span>Web Version: v{currentAppVersion}</span>
+        {/if}
+    </div>
 </details>
 
 <style>
+    .mcp-copy-icon-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        background: #ffffff;
+        color: var(--color-text-primary, #333);
+        cursor: pointer;
+        transition: all 0.18s ease;
+    }
+    :global(body.dark-mode) .mcp-copy-icon-btn {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.16);
+        color: #eee;
+    }
+    .mcp-copy-icon-btn:hover {
+        border-color: var(--color-primary, #ff8200);
+        color: var(--color-primary, #ff8200);
+    }
     .sereine-spin-icon {
         display: inline-flex;
         transition: transform 0.5s ease;
@@ -1597,30 +1603,5 @@
         font-size: 12px;
         color: #dc3545;
         font-weight: 500;
-    }
-    .updater-status-banner {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 10px 14px;
-        border-radius: 12px;
-        background: rgba(0, 0, 0, 0.04);
-        font-size: 12.5px;
-        color: var(--color-text-secondary, #666);
-    }
-    :global(body.dark-mode) .updater-status-banner {
-        background: rgba(255, 255, 255, 0.05);
-        color: #ccc;
-    }
-    .updater-status-banner.has-update {
-        background: rgba(255, 130, 0, 0.1) !important;
-        border: 1px solid rgba(255, 130, 0, 0.25) !important;
-        color: var(--color-primary, #ff8200) !important;
-        font-weight: 600;
-    }
-    .updater-download-link {
-        font-weight: 700;
-        color: var(--color-primary, #ff8200);
-        text-decoration: underline;
     }
 </style>

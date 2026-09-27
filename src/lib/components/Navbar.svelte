@@ -2,6 +2,7 @@
     import { onMount } from 'svelte';
     import { activeTab, activeModalStore } from '$lib/stores.js';
     import HugeIcon from '$lib/components/HugeIcon.svelte';
+    import { isTauri, isCapacitor } from '$lib/config/api.js';
 
     import { pushState } from '$app/navigation';
 
@@ -148,6 +149,12 @@
                 <path d="M12.0001 17H12.009" />
             </svg>
         </a>
+
+        {#if !isTauri && !isCapacitor}
+            <a href="/downloads" class="changelog-btn desktop-only" role="button" aria-label="Downloads" title="Download Desktop & Mobile Apps">
+                <HugeIcon name="download-01" size="24" />
+            </a>
+        {/if}
 
         <div class="profile-icon-container">
             <a href="/settings" class="tab-link profile-icon" class:active={$activeTab === 'notebooks' || $activeTab === 'settings'} data-tab="settings" role="button" aria-label="Profile and Settings" onclick={(e) => setTab("settings", e)}>

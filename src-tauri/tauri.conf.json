@@ -43,7 +43,8 @@
     "windows": {
       "nsis": {
         "installerIcon": "icons/icon.ico",
-        "uninstallerIcon": "icons/icon.ico"
+        "uninstallerIcon": "icons/icon.ico",
+        "installerHooks": "hooks/installer.nsh"
       }
     },
     "android": {
