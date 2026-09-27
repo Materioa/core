@@ -102,9 +102,9 @@
 	}
 
 	onMount(() => {
-		if (!browser) return;
+		if (!browser || !isTauri) return;
 
-		// 1. Offline & Online detection matching parent Materio
+		// 1. Offline & Online detection for desktop app
 		const handleOffline = () => {
 			if (!dismissed) activeNudge = 'offline';
 		};
@@ -119,7 +119,7 @@
 		window.addEventListener('offline', handleOffline);
 		window.addEventListener('online', handleOnline);
 
-		// 2. Check for updates (desktop app check)
+		// 2. Check for updates (desktop app only)
 		checkForUpdates();
 		const interval = setInterval(checkForUpdates, 30 * 60 * 1000); // Check every 30m
 
@@ -134,7 +134,7 @@
 	});
 </script>
 
-{#if activeNudge}
+{#if isTauri && activeNudge}
 	<aside
 		id="appNudgeCard"
 		class="leaderboard-nudge-card"
@@ -144,9 +144,13 @@
 		{#if activeNudge === 'update'}
 			<img src="/assets/img/greet.webp" alt="Update" class="leaderboard-nudge-image" />
 			<div class="leaderboard-nudge-content">
+				<h4 class="leaderboard-nudge-title">Update Available</h4>
 				<p class="leaderboard-nudge-text">
-					New update available {newVersion ? `(${newVersion})` : ''}!<br />
-					Ready to download and install.
+					{#if newVersion}
+						Version {newVersion.replace(/^v/, '')} is ready to install.
+					{:else}
+						A new version is ready to install.
+					{/if}
 				</p>
 				<div class="leaderboard-nudge-actions">
 					<button
@@ -155,7 +159,7 @@
 						disabled={isInstalling}
 						onclick={handleInstallAndRestart}
 					>
-						{isInstalling ? 'Updating & Restarting…' : 'Update & Restart'}
+						{isInstalling ? 'Updating and Restarting' : 'Update and Restart'}
 					</button>
 					<button
 						type="button"
@@ -166,15 +170,15 @@
 					</button>
 				</div>
 				<p class="nudge-hint">
-					<span>⚡ Automatically restarts Materio with latest enhancements</span>
+					<span>Automatically restarts Materio with latest enhancements</span>
 				</p>
 			</div>
 		{:else if activeNudge === 'offline'}
 			<img src="/assets/img/internet.webp" alt="Offline" class="leaderboard-nudge-image" />
 			<div class="leaderboard-nudge-content">
+				<h4 class="leaderboard-nudge-title">Offline Mode</h4>
 				<p class="leaderboard-nudge-text">
-					You seem to be offline.<br />
-					Want to access your downloaded materials?
+					You are currently offline. Access your downloaded materials in the library.
 				</p>
 				<div class="leaderboard-nudge-actions">
 					<button
@@ -193,7 +197,7 @@
 					</button>
 				</div>
 				<p class="nudge-hint">
-					<span>💡 You can save PDFs for offline reading by clicking bookmark in viewer</span>
+					<span>Save PDFs for offline reading by clicking bookmark in viewer</span>
 				</p>
 			</div>
 		{/if}
@@ -201,7 +205,6 @@
 {/if}
 
 <style>
-	/* Ported directly from parent Materio leaderboard.css lines 79-145 */
 	.leaderboard-nudge-card {
 		position: fixed;
 		right: 18px;
@@ -209,24 +212,25 @@
 		z-index: 1200;
 		width: min(360px, calc(100vw - 24px));
 		display: grid;
-		grid-template-columns: 68px 1fr;
-		gap: 10px;
+		grid-template-columns: 60px 1fr;
+		gap: 12px;
 		align-items: center;
-		padding: 10px 12px;
-		border-radius: 16px;
-		border: 1px solid rgba(0, 0, 0, 0.14);
-		background: #f0eee6;
-		box-shadow: 0 4px 14px rgba(0, 0, 0, 0.09);
-		backdrop-filter: blur(8px);
-		-webkit-backdrop-filter: blur(8px);
+		padding: 12px 14px;
+		border-radius: 18px;
+		border: 1px solid rgba(0, 0, 0, 0.12);
+		background: #fdfcf9;
+		box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.04);
+		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
+		font-family: 'OpenRunde', 'Open Runde', -apple-system, BlinkMacSystemFont, sans-serif !important;
 		animation: nudgeSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 	}
 
 	:global(body.dark-mode) .leaderboard-nudge-card,
 	:global(html.dark) .leaderboard-nudge-card {
-		background: #242424;
-		border-color: rgba(255, 255, 255, 0.14);
-		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+		background: #202020;
+		border-color: rgba(255, 255, 255, 0.12);
+		box-shadow: 0 8px 28px -4px rgba(0, 0, 0, 0.45);
 	}
 
 	.leaderboard-nudge-image {
@@ -238,21 +242,36 @@
 
 	.leaderboard-nudge-content {
 		display: grid;
-		gap: 6px;
+		gap: 4px;
+	}
+
+	.leaderboard-nudge-title {
+		margin: 0;
+		font-family: 'Quadrant', 'Quadrant Notepad', Georgia, serif !important;
+		font-size: 15px;
+		font-weight: 600;
+		line-height: 1.25;
+		color: #1a1a1a;
+		letter-spacing: -0.01em;
+	}
+
+	:global(body.dark-mode) .leaderboard-nudge-title,
+	:global(html.dark) .leaderboard-nudge-title {
+		color: #f5f5f5;
 	}
 
 	.leaderboard-nudge-text {
 		margin: 0;
-		color: #333;
-		font-family: 'Manrope', sans-serif;
+		color: #555555;
+		font-family: 'OpenRunde', 'Open Runde', -apple-system, BlinkMacSystemFont, sans-serif !important;
 		font-size: 13px;
-		line-height: 1.25;
-		font-weight: 600;
+		line-height: 1.35;
+		font-weight: 400;
 	}
 
 	:global(body.dark-mode) .leaderboard-nudge-text,
 	:global(html.dark) .leaderboard-nudge-text {
-		color: #eee;
+		color: #b0b0b0;
 	}
 
 	.leaderboard-nudge-actions {
@@ -260,25 +279,34 @@
 		gap: 8px;
 		flex-wrap: wrap;
 		align-items: center;
+		margin-top: 4px;
 	}
 
 	.leaderboard-nudge-btn {
-		border: 1px solid rgba(0, 0, 0, 0.28);
+		border: 1px solid rgba(0, 0, 0, 0.2);
 		background: transparent;
 		color: #333;
 		border-radius: 10px;
-		padding: 4px 10px;
-		font-family: 'Manrope', sans-serif;
+		padding: 5px 12px;
+		font-family: 'OpenRunde', 'Open Runde', -apple-system, BlinkMacSystemFont, sans-serif !important;
 		font-size: 12px;
 		font-weight: 600;
 		cursor: pointer;
-		transition: background 0.15s ease;
+		transition: all 0.18s ease;
 	}
 
 	:global(body.dark-mode) .leaderboard-nudge-btn,
 	:global(html.dark) .leaderboard-nudge-btn {
-		border-color: rgba(255, 255, 255, 0.25);
+		border-color: rgba(255, 255, 255, 0.22);
 		color: #eee;
+	}
+
+	.leaderboard-nudge-btn:hover {
+		background: rgba(0, 0, 0, 0.05);
+	}
+
+	:global(body.dark-mode) .leaderboard-nudge-btn:hover {
+		background: rgba(255, 255, 255, 0.08);
 	}
 
 	.leaderboard-nudge-btn-primary {
@@ -289,6 +317,8 @@
 
 	.leaderboard-nudge-btn-primary:hover {
 		background: #e65c00 !important;
+		border-color: #e65c00 !important;
+		transform: translateY(-1px);
 	}
 
 	.leaderboard-nudge-btn-primary:disabled {
@@ -297,18 +327,19 @@
 	}
 
 	.nudge-hint {
-		margin: 2px 0 0;
-		font-size: 10px;
-		color: #888;
+		margin: 3px 0 0;
+		font-family: 'OpenRunde', 'Open Runde', -apple-system, BlinkMacSystemFont, sans-serif !important;
+		font-size: 11px;
+		color: #777777;
 		display: flex;
 		align-items: flex-start;
 		gap: 4px;
-		line-height: 1.2;
+		line-height: 1.25;
 	}
 
 	:global(body.dark-mode) .nudge-hint,
 	:global(html.dark) .nudge-hint {
-		color: #aaa;
+		color: #999999;
 	}
 
 	@keyframes nudgeSlideIn {

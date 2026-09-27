@@ -20,9 +20,9 @@
   import SearchResultsModal from '$lib/components/SearchResultsModal.svelte';
   import InterviewerModal from '$lib/components/InterviewerModal.svelte';
   import AppUpdateModal from '$lib/components/AppUpdateModal.svelte';
-  import { installApiInterceptor } from '$lib/config/api.js';
+  import { installApiInterceptor, isTauri } from '$lib/config/api.js';
   
-  import { activeModalStore, pdfModalStore } from '$lib/stores.js';
+  import { activeModalStore, pdfModalStore, searchModalStore, activeTab } from '$lib/stores.js';
   import { get } from 'svelte/store';
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
@@ -195,6 +195,84 @@
     window.addEventListener('materioForceAppChanged', prefHandler);
     window.addEventListener('storage', prefHandler);
 
+    // Android gesture / hardware back handler
+    window.__materioHandleAndroidBack = () => {
+      try {
+        // 1. If PDF Reader modal is open, close it
+        const currentPdf = get(pdfModalStore);
+        if (currentPdf && currentPdf.isOpen) {
+          pdfModalStore.set({
+            isOpen: false,
+            pdfUrl: '',
+            title: '',
+            semester: '',
+            subject: '',
+            category: '',
+            topic: '',
+            readingMode: 'default',
+            isBookmarked: false
+          });
+          return true;
+        }
+
+        // 2. If any modal is active in activeModalStore, close it
+        const currentModal = get(activeModalStore);
+        if (currentModal) {
+          activeModalStore.set(null);
+          return true;
+        }
+
+        // 3. If search modal is open, close it
+        const currentSearch = get(searchModalStore);
+        if (currentSearch && currentSearch.isOpen) {
+          searchModalStore.update(s => ({ ...s, isOpen: false }));
+          return true;
+        }
+
+        // 4. If any open modal or overlay exists in the DOM, close it
+        const openOverlay = document.querySelector('.materio-modal-overlay.visible, .dynamic-form-overlay, .search-modal.active, .drawer-open, .popup-container.visible');
+        if (openOverlay) {
+          const closeBtn = openOverlay.querySelector('.promo-close-btn, .close-popup, .modal-close, button[aria-label="Close"]');
+          if (closeBtn && typeof closeBtn.click === 'function') {
+            closeBtn.click();
+            return true;
+          }
+        }
+
+        // 5. If user is on a non-home tab (e.g. notifications, settings, notebooks, downloads)
+        const currentTab = get(activeTab);
+        if (currentTab && currentTab !== 'home') {
+          activeTab.set('home');
+          if (typeof window.__materioSetTab === 'function') {
+            window.__materioSetTab('home');
+          }
+          return true;
+        }
+
+        // 6. If user navigated to a subroute (e.g. /downloads, /about, /privacy, etc.)
+        if (window.location.pathname !== '/' && window.location.pathname !== '/home') {
+          if (window.history.length > 1) {
+            window.history.back();
+            return true;
+          }
+        }
+      } catch (e) {
+        console.error('Android back handling failed:', e);
+      }
+      return false;
+    };
+
+    try {
+      if (window.Capacitor?.Plugins?.App?.addListener) {
+        window.Capacitor.Plugins.App.addListener('backButton', ({ canGoBack }) => {
+          const handled = window.__materioHandleAndroidBack ? window.__materioHandleAndroidBack() : false;
+          if (!handled && canGoBack) {
+            window.history.back();
+          }
+        });
+      }
+    } catch {}
+
     return () => {
       unsubActive();
       unsubPdf();
@@ -203,6 +281,7 @@
       window.removeEventListener('landingPrefsChanged', prefHandler);
       window.removeEventListener('materioForceAppChanged', prefHandler);
       window.removeEventListener('storage', prefHandler);
+      delete window.__materioHandleAndroidBack;
     };
   });
 </script>
@@ -256,4 +335,6 @@
 <SearchResultsModal />
 <WallpaperEngine />
 <InterviewerModal />
+{#if isTauri}
 <AppUpdateModal />
+{/if}
