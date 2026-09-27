@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
-	import { isTauri } from '$lib/config/api.js';
+	import { isTauri, toApiUrl } from '$lib/config/api.js';
 
 	// Types of nudges: 'update' | 'offline'
 	let activeNudge = $state<'update' | 'offline' | null>(null);
@@ -42,7 +42,7 @@
 			// @ts-ignore
 			const builtVersion = typeof __MATERIO_APP_VERSION__ !== 'undefined' ? __MATERIO_APP_VERSION__ : null;
 			const currentAppVersion = (window as any).__MATERIO_APP_VERSION__ || builtVersion || '2.1.0';
-			const res = await fetch('/api/releases/latest');
+			const res = await fetch(toApiUrl('/api/releases/latest'));
 			if (res.ok) {
 				const data = await res.json();
 				if (data.version && isNewerVersion(data.version, currentAppVersion)) {
@@ -64,10 +64,10 @@
 				if (typeof invoke === 'function') {
 					let downloadUrl = null;
 					try {
-						const res = await fetch('/api/releases/latest');
+						const res = await fetch(toApiUrl('/api/releases/latest'));
 						if (res.ok) {
 							const data = await res.json();
-							downloadUrl = data.windows?.downloadUrl || null;
+							downloadUrl = data.windows?.standaloneUrl || data.windows?.downloadUrl || null;
 						}
 					} catch {}
 
@@ -155,7 +155,7 @@
 						disabled={isInstalling}
 						onclick={handleInstallAndRestart}
 					>
-						{isInstalling ? 'Installing…' : 'Restart & Install'}
+						{isInstalling ? 'Updating & Restarting…' : 'Update & Restart'}
 					</button>
 					<button
 						type="button"

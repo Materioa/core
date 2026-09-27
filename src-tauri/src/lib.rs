@@ -180,9 +180,15 @@ async fn install_update_and_restart(app: AppHandle, download_url: Option<String>
             "https://github.com/Materioa/core/releases/latest/download/Materio-Windows-Setup.exe".to_string()
         });
 
+        let current_exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        let current_exe_str = current_exe.to_string_lossy().to_string();
+        let current_pid = std::process::id();
+
         let temp_dir = std::env::temp_dir();
         let target_installer = temp_dir.join("Materio-Update-Setup.exe");
         let target_installer_str = target_installer.to_string_lossy().to_string();
+        let updater_bat = temp_dir.join("materio-update-runner.bat");
+        let updater_bat_str = updater_bat.to_string_lossy().to_string();
 
         log::info!("Downloading update from: {} to: {}", url, target_installer_str);
 
@@ -220,19 +226,58 @@ async fn install_update_and_restart(app: AppHandle, download_url: Option<String>
             return Err("Failed to download update installer".to_string());
         }
 
-        log::info!("Update downloaded. Launching installer and restarting app...");
+        log::info!("Update downloaded. Writing updater script and exiting app for update...");
 
-        // Launch installer and exit current app
-        let cmd_script = format!(
-            "timeout /t 1 /nobreak >nul & start \"\" \"{}\" & exit",
-            target_installer_str
+        // Batch script to:
+        // 1. Wait for current Materio process to exit completely
+        // 2. Run the NSIS installer silently (/S) to update files
+        // 3. Restart the newly installed Materio application
+        // 4. Clean up temporary installer
+        let bat_content = format!(
+            "@echo off\r\n\
+            :wait_loop\r\n\
+            tasklist /fi \"PID eq {pid}\" 2>nul | find \"{pid}\" >nul\r\n\
+            if not errorlevel 1 (\r\n\
+                timeout /t 1 /nobreak >nul\r\n\
+                goto wait_loop\r\n\
+            )\r\n\
+            timeout /t 2 /nobreak >nul\r\n\
+            start /wait \"\" \"{installer}\" /S\r\n\
+            timeout /t 2 /nobreak >nul\r\n\
+            if exist \"{exe}\" (\r\n\
+                start \"\" \"{exe}\"\r\n\
+            ) else if exist \"%LOCALAPPDATA%\\Programs\\Materio\\Materio.exe\" (\r\n\
+                start \"\" \"%LOCALAPPDATA%\\Programs\\Materio\\Materio.exe\"\r\n\
+            ) else if exist \"%ProgramFiles%\\Materio\\Materio.exe\" (\r\n\
+                start \"\" \"%ProgramFiles%\\Materio\\Materio.exe\"\r\n\
+            )\r\n\
+            del \"{installer}\" 2>nul\r\n\
+            (goto) 2>nul & del \"%~f0\" 2>nul & exit\r\n",
+            pid = current_pid,
+            installer = target_installer_str,
+            exe = current_exe_str
         );
+
+        if let Err(e) = std::fs::write(&updater_bat, bat_content) {
+            return Err(format!("Failed to write updater script: {}", e));
+        }
+
+        // Launch the detached batch script
         let _ = Command::new("cmd.exe")
             .creation_flags(CREATE_NO_WINDOW)
-            .args(&["/C", &cmd_script])
+            .args(&["/C", "start", "", "/B", &updater_bat_str])
             .spawn();
 
-        // Exit this process so the installer can update the files
+        // Kill MCP child process if running so file locks are cleared
+        if let Some(state) = app.try_state::<McpServerState>() {
+            if let Ok(mut lock) = state.process.lock() {
+                if let Some(mut child) = lock.take() {
+                    let _ = child.kill();
+                }
+            }
+        }
+
+        // Close and exit the app so the installer can overwrite files
         app.exit(0);
         Ok(())
     }

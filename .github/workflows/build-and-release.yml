@@ -187,7 +187,7 @@ jobs:
       - name: Bump Android versionCode
         shell: bash
         run: |
-          VCODE="${{ github.run_number }}"
+          VCODE=$(( 20000 + ${{ github.run_number }} ))
           VNAME="${{ needs.resolve-version.outputs.version }}"
           GRADLE="android/app/build.gradle"
           if [ -f "$GRADLE" ]; then
