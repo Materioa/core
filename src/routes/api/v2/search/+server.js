@@ -26,6 +26,12 @@ function getConfig() {
   const hfLlmUrl = env.HF_LLM_URL || process.env.HF_LLM_URL || '';
   const hfRerankerUrl = env.HF_RERANKER_URL || process.env.HF_RERANKER_URL || '';
 
+  // TypeSafe Jev (System One decision model) — typed relevance judging.
+  const typesafeKey = env.TYPESAFE_API_KEY || process.env.TYPESAFE_API_KEY || '';
+  const jevUrl =
+    env.JEV_URL || process.env.JEV_URL || 'https://api.typesafe.ai/v1/systemone';
+  const jevModel = env.JEV_MODEL || process.env.JEV_MODEL || 'jev-latest';
+
   return {
     API_KEY: apiKey,
     MCP_BASE_URL: mcpBaseUrl,
@@ -35,7 +41,10 @@ function getConfig() {
     MCP_TIMEOUT_MS: mcpTimeoutMs,
     HF_TOKEN: hfToken,
     HF_LLM_URL: hfLlmUrl,
-    HF_RERANKER_URL: hfRerankerUrl
+    HF_RERANKER_URL: hfRerankerUrl,
+    TYPESAFE_API_KEY: typesafeKey,
+    JEV_URL: jevUrl,
+    JEV_MODEL: jevModel
   };
 }
 
@@ -781,6 +790,97 @@ function relevanceFromSimilarity(similarity) {
   return 'low';
 }
 
+// ============= TYPESAFE JEV (SYSTEM ONE) SEMANTIC JUDGE =============
+// Jev returns typed decisions (no text generation): we batch one Score
+// question per candidate in a single evaluate call, then map scores to
+// the same {relevance, explanation} ranking shape the pipeline uses.
+// Anything unexpected (auth/rate-limit/network/shape) throws so callers
+// fall through to MCP/LLM — a down judge must never break search.
+
+function jevRelevance(score) {
+  if (typeof score !== 'number' || Number.isNaN(score)) return null;
+  if (score >= 0.7) return 'high';
+  if (score >= 0.4) return 'medium';
+  return 'low';
+}
+
+async function callJevEvaluate(state, questions, timeoutMs = 10000) {
+  const cfg = getConfig();
+  if (!cfg.TYPESAFE_API_KEY) throw new Error('TYPESAFE_API_KEY not configured');
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(cfg.JEV_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cfg.TYPESAFE_API_KEY}`
+      },
+      body: JSON.stringify({ model: cfg.JEV_MODEL, state, questions }),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('Jev auth failed (check TYPESAFE_API_KEY)');
+    }
+    if (response.status === 429) throw new Error('Jev rate limit');
+    if (!response.ok) throw new Error(`Jev error: ${response.status}`);
+
+    const data = await response.json();
+    if (!data || typeof data.answers !== 'object' || data.answers === null) {
+      throw new Error('Jev returned no answers');
+    }
+    return data;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function jevScoreOf(answer) {
+  if (typeof answer === 'number') return answer;
+  if (answer && typeof answer.score === 'number') return answer.score;
+  if (answer && typeof answer.value === 'number') return answer.value;
+  return NaN;
+}
+
+async function judgeWithJev(query, candidates, limit = 10) {
+  const pool = (Array.isArray(candidates) ? candidates : []).slice(0, limit);
+  if (pool.length === 0) return [];
+
+  const questions = {};
+  pool.forEach((c, i) => {
+    questions[`c${i}`] = {
+      type: 'score',
+      instructions: `How relevant is this library item to the student's query? 1 means exactly what they asked for, 0 means unrelated. Query: "${query}". Item: ${c.subject} > ${c.category} > ${c.topic}.`
+    };
+  });
+
+  const data = await callJevEvaluate({ query }, questions);
+  const answers = data.answers || {};
+
+  const scored = [];
+  pool.forEach((c, i) => {
+    const score = jevScoreOf(answers[`c${i}`]);
+    const relevance = jevRelevance(score);
+    if (!relevance || relevance === 'low') return;
+    scored.push({
+      semester: c.semester,
+      subject: c.subject,
+      category: c.category,
+      topic: c.topic,
+      relevance,
+      explanation: `Jev score: ${(score * 100).toFixed(0)}%`,
+      _jevScore: score
+    });
+  });
+
+  scored.sort((a, b) => b._jevScore - a._jevScore);
+  return scored.map(({ _jevScore, ...rest }) => rest);
+}
+
 function topicScoreFromContent(content, topic) {
   const contentText = normalizeSearchText(content);
   const topicText = normalizeSearchText(topic);
@@ -1264,6 +1364,25 @@ async function aiSearch(query, searchResults, resourceLib) {
     }
   }
 
+  // ---- Jev semantic judge: fast typed scoring of the top algorithmic
+  // candidates in one batched call. Confident rankings short-circuit the
+  // heavier MCP/LLM stages; anything less falls through below.
+  if (cfg.TYPESAFE_API_KEY && searchResults && searchResults.length > 0) {
+    try {
+      const jevRankings = await judgeWithJev(query, searchResults.slice(0, 10));
+      if (jevRankings.length > 0) {
+        return {
+          intent: `Jev semantic match for "${query}"`,
+          rankings: jevRankings,
+          suggestions: [],
+          judge: 'jev'
+        };
+      }
+    } catch (err) {
+      console.warn('Jev judge failed, falling back to MCP/LLM:', err.message);
+    }
+  }
+
   try {
     let snapQuery = cleanQuery || query;
     let snapResults = await queryMcpSnapSearch(snapQuery, undefined, intent.subject || undefined);
@@ -1288,8 +1407,8 @@ async function aiSearch(query, searchResults, resourceLib) {
     console.warn('MCP SnapSearch failed, falling back to LLM:', error.message);
   }
 
-  if (!cfg.API_KEY && !cfg.HF_LLM_URL) {
-    throw new Error('No LLM provider configured (set OPENROUTER_API_KEY or HF_LLM_URL)');
+  if (!cfg.API_KEY && !cfg.HF_LLM_URL && !cfg.TYPESAFE_API_KEY) {
+    throw new Error('No LLM provider configured (set OPENROUTER_API_KEY, HF_LLM_URL or TYPESAFE_API_KEY)');
   }
 
   const allSubjects = Object.values(resourceLib)
@@ -1507,7 +1626,11 @@ export async function GET({ url }) {
 
     const cfg = getConfig();
     const hasAiProvider = Boolean(
-      cfg.API_KEY || cfg.HF_LLM_URL || cfg.HF_RERANKER_URL || cfg.MCP_BASE_URL
+      cfg.API_KEY ||
+        cfg.HF_LLM_URL ||
+        cfg.HF_RERANKER_URL ||
+        cfg.MCP_BASE_URL ||
+        cfg.TYPESAFE_API_KEY
     );
 
     // If AI mode and no results found, try fallback search for vague queries
@@ -1679,7 +1802,11 @@ export async function POST({ request }) {
 
     const cfg = getConfig();
     const hasAiProvider = Boolean(
-      cfg.API_KEY || cfg.HF_LLM_URL || cfg.HF_RERANKER_URL || cfg.MCP_BASE_URL
+      cfg.API_KEY ||
+        cfg.HF_LLM_URL ||
+        cfg.HF_RERANKER_URL ||
+        cfg.MCP_BASE_URL ||
+        cfg.TYPESAFE_API_KEY
     );
 
     // If AI mode and no results found, try fallback search for vague queries
