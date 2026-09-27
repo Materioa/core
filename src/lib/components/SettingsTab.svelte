@@ -1503,8 +1503,7 @@
     }
 
     /* MCP Status Pill & Action */
-    #localMcpServerCard, #androidUpdaterCard, #desktopUpdaterCard {
-        border-radius: 18px;
+    #localMcpServerCard {
         transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .mcp-status-pill {
