@@ -1340,7 +1340,7 @@
         id="checkUpdatesCard"
         role="button"
         tabindex="0"
-        style="cursor: var(--f-cursor-pointer); display: flex; align-items: center; min-height: 52px; padding: 0 var(--spacing-xl);"
+        style="cursor: var(--f-cursor-pointer); display: flex; align-items: center;"
         on:click={() => checkAppUpdate(true)}
         on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); checkAppUpdate(true); } }}
     >
