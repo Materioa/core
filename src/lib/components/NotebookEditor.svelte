@@ -123,6 +123,8 @@
                 get isOpen() { let v; activeModalStore.subscribe(x=>v=x)(); return v==='notebook'; },
                 open: window.openNotebook, close: ()=>activeModalStore.set(null), create: window.createNewNotebook
             };
+            // Canonical implementation other shells delegate to (see MainApp).
+            window.__materioNotebookCreate = window.createNewNotebook;
         }
         activeModalStore.subscribe(val => {
             try {

@@ -432,10 +432,10 @@
   <SplashScreen
     bind:this={splashRef}
     ondone={handleSplashDone}
-    shuffleMs={6000}
-    budSpeed={1.0}
+    shuffleMs={8000}
+    budSpeed={2.4}
     budScale={0.9}
-    dayPhaseMs={3500}
+    dayPhaseMs={1300}
   />
 </div>
 {/if}

@@ -237,7 +237,7 @@
   {#if $page.url.pathname.includes('/post/')}
   <button type="button"
     style="position: absolute; right: {isDesktopApp ? '145px' : '20px'}; top: 50%; transform: translateY(-50%); color: var(--text); background: none; border: none; font-size: 1.2rem; cursor: pointer;"
-    on:click|preventDefault={() => { if (document.referrer) history.back(); else window.location.href='/room'; }}
+    on:click|preventDefault={() => { if (document.referrer) history.back(); else window.location.href='https://room.getmaterio.app'; }}
     on:mousedown={(e) => e.currentTarget.style.color='#ff8200'} 
     on:mouseup={(e) => e.currentTarget.style.color='var(--text)'}
     on:mouseleave={(e) => e.currentTarget.style.color='var(--text)'} aria-label="Back">

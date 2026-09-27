@@ -104,6 +104,14 @@
 
             window.createNewNotebook = (create = true) => {
                 try {
+                    // NotebookEditor owns the real implementation (it resets
+                    // title/content/selection); delegate so "new note" never
+                    // reopens the previously viewed note. Only open directly
+                    // if the editor hasn't mounted yet.
+                    if (typeof window.__materioNotebookCreate === 'function') {
+                        window.__materioNotebookCreate(create);
+                        return;
+                    }
                     activeModalStore.set("notebook");
                 } catch (e) {
                     console.error('Open notebook failed:', e);

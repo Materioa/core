@@ -111,7 +111,7 @@
             </svg>
         </a>
 
-        <a href="/room" target="_blank" aria-label="Insightroom" class="tab-link">
+        <a href="https://room.getmaterio.app" target="_blank" rel="noopener" aria-label="Insightroom" class="tab-link">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" color="currentColor"
                 fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path

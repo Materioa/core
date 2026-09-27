@@ -217,7 +217,7 @@
             {heading}
         </h2>
         <div class="blog-header-right">
-            <a href="https://insightroom.vercel.app" class="view-more-btn" target="_blank" rel="noopener noreferrer" on:click|stopPropagation>
+            <a href="https://room.getmaterio.app" class="view-more-btn" target="_blank" rel="noopener noreferrer" on:click|stopPropagation>
                 View More
                 <i class="fas fa-arrow-up" style="transform: rotate(45deg); font-size: 12px; display: inline-flex;" aria-hidden="true">
                     <HugeIcon name="arrow-up-01" />
