@@ -21,6 +21,7 @@
   import InterviewerModal from '$lib/components/InterviewerModal.svelte';
   import AppUpdateModal from '$lib/components/AppUpdateModal.svelte';
   import SplashScreen from '$lib/components/splash/SplashScreen.svelte';
+  import OpenInAppBanner from '$lib/components/OpenInAppBanner.svelte';
   import { installApiInterceptor, isTauri, isAndroidApp, isCapacitor } from '$lib/config/api.js';
   
   import { activeModalStore, pdfModalStore, searchModalStore, activeTab } from '$lib/stores.js';
@@ -418,6 +419,7 @@
 <SearchResultsModal />
 <WallpaperEngine />
 <InterviewerModal />
+<OpenInAppBanner />
 {#if isTauri}
 <AppUpdateModal />
 {/if}

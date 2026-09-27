@@ -4,7 +4,7 @@
   import { searchTerm, activeModalStore, actualThemeStore } from '$lib/stores.js';
   import HugeIcon from '$lib/components/HugeIcon.svelte';
   
-  import { isTauri as isTauriEnv } from '$lib/config/api.js';
+  import { isTauri as isTauriEnv, isCapacitor } from '$lib/config/api.js';
 
   $: isLightTheme = $actualThemeStore === 'light' || $actualThemeStore === 'coffee';
   let showBugTooltip = true;
@@ -164,6 +164,11 @@
     />
   </a>
   <div class="header-actions" class:desktop-actions={isDesktopApp}>
+      {#if !isDesktopApp && !isCapacitor}
+      <a href="https://github.com/Materioa/core" target="_blank" rel="noopener noreferrer" class="bug-report-btn" id="githubBtn" aria-label="Star Materio on GitHub" title="Star Materio on GitHub">
+          <HugeIcon name="github" />
+      </a>
+      {/if}
       <button class="bug-report-btn" id="bugReportBtn" aria-label="Report a Bug" title="Report a Bug"
           on:click={() => { try { activeModalStore.set('bug-report'); } catch (e) { console.error('Open bug report failed:', e); } }}>
           <HugeIcon name="alert-02" />
