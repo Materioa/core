@@ -372,6 +372,16 @@ body:not(.landing-page-active) #home {
     width: 4px;
 }
 
+/* Every modal button inherits the modal typeface (OpenRunde) instead of
+   the browser default button font. Covers all overlay shells. */
+.promo-modal-overlay button,
+.materio-modal-overlay button,
+.modal-backdrop button,
+.notebook-backdrop button,
+.keyboard-shortcuts-backdrop button {
+    font-family: inherit;
+}
+
 .promo-modal::-webkit-scrollbar-track {
     background: transparent;
     border-radius: 2px;
