@@ -34,7 +34,7 @@
 {#if $activeModalStore === "mcp"}
         <!-- MCP Connectors Modal -->
         <div class="promo-modal-overlay dynamic-form-overlay show" id="mcpConnectorsModal" role="dialog" aria-modal="true" on:click|self={closeMcpModal}>
-            <div class="promo-modal dynamic-form-modal">
+            <div class="promo-modal dynamic-form-modal" style="border-radius: var(--radius-full, 40px) !important; corner-shape: squircle !important; overflow: hidden;">
                 <button type="button" class="promo-close-btn" on:click={closeMcpModal} aria-label="Close">
                     <HugeIcon name="cancel-01" />
                 </button>
@@ -55,7 +55,7 @@
                         <a href="https://chat.getmaterio.app/" target="_blank" class="mcp-connect-card">
                             <div style="display: flex; align-items: center; gap: 12px;">
                                 <img src="https://chat.getmaterio.app/favicon.png" alt="Thinklet"
-                                    style="width: 36px; height: 36px; border-radius: 8px;"
+                                    style="width: 36px; height: 36px; border-radius: 10px; corner-shape: squircle;"
                                     on:error={(e) => { const el = e.currentTarget; if (el.dataset.fb) { el.style.display = 'none'; return; } el.dataset.fb = '1'; el.src = '/assets/img/favicon.png'; }}>
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <span style="font-weight: 600; font-size: 16px;">Thinklet</span>
@@ -71,7 +71,7 @@
                             class="mcp-connect-card">
                             <div style="display: flex; align-items: center; gap: 12px;">
                                 <img src="https://www.google.com/s2/favicons?sz=128&domain=chatgpt.com" alt="ChatGPT"
-                                    style="width: 36px; height: 36px; border-radius: 8px;"
+                                    style="width: 36px; height: 36px; border-radius: 10px; corner-shape: squircle;"
                                     on:error={(e) => { const el = e.currentTarget; if (el.dataset.fb) { el.style.display = 'none'; return; } el.dataset.fb = '1'; el.src = '/assets/img/chatgpt-icon.svg'; }}>
                                 <span style="font-weight: 600; font-size: 16px;">ChatGPT</span>
                             </div>
@@ -79,13 +79,12 @@
                         </a>
 
                         <!-- Claude Container -->
-                        <div class="mcp-connect-card-container"
-                            style="background: rgba(128, 128, 128, 0.05); border-radius: 12px; border: 1px solid rgba(128, 128, 128, 0.1); overflow: hidden;">
+                        <div class="mcp-connect-card-container">
                             <div
                                 style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid rgba(128, 128, 128, 0.1);">
                                 <div style="display: flex; align-items: center; gap: 12px;">
                                     <img src="https://www.google.com/s2/favicons?sz=128&domain=claude.com" alt="Claude"
-                                        style="width: 36px; height: 36px; border-radius: 8px;"
+                                        style="width: 36px; height: 36px; border-radius: 10px; corner-shape: squircle;"
                                         on:error={(e) => { const el = e.currentTarget; if (el.dataset.fb) { el.style.display = 'none'; return; } el.dataset.fb = '1'; el.src = '/assets/img/claude-ai-icon.svg'; }}>
                                     <span style="font-weight: 600; font-size: 16px;">Claude</span>
                                 </div>
@@ -104,13 +103,12 @@
                             </div>
                         </div>
                         <!-- Perplexity Container -->
-                        <div class="mcp-connect-card-container"
-                            style="background: rgba(128, 128, 128, 0.05); border-radius: 12px; border: 1px solid rgba(128, 128, 128, 0.1); overflow: hidden;">
+                        <div class="mcp-connect-card-container">
                             <div
                                 style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid rgba(128, 128, 128, 0.1);">
                                 <div style="display: flex; align-items: center; gap: 12px;">
                                     <img src="https://www.google.com/s2/favicons?sz=128&domain=perplexity.ai"
-                                        alt="Claude" style="width: 36px; height: 36px; border-radius: 8px;"
+                                        alt="Claude" style="width: 36px; height: 36px; border-radius: 10px; corner-shape: squircle;"
                                         on:error={(e) => { const el = e.currentTarget; if (el.dataset.fb) { el.style.display = 'none'; return; } el.dataset.fb = '1'; el.src = '/assets/img/perplexity-ai-icon.svg'; }}>
                                     <span style="font-weight: 600; font-size: 16px;">Perplexity</span>
                                 </div>

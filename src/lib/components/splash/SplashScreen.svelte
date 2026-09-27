@@ -22,7 +22,7 @@
     theme = "system",
     bud = "day",
     shuffleMs = 5000,
-    budSpeed = 2.4,
+    budSpeed = 5.0,
     budScale = 0.8,
     dayPhaseMs = 800,
     stickerSrc = stickerDataUri,
@@ -56,9 +56,11 @@
   function hostIsDark(): boolean {
     if (typeof document === "undefined") return false;
     const root = document.documentElement;
-    if (root.classList.contains("dark") || root.classList.contains("dark-mode")) return true;
+    if (root.classList.contains("dark") || root.classList.contains("dark-mode"))
+      return true;
     try {
-      if (document.body && document.body.classList.contains("dark-mode")) return true;
+      if (document.body && document.body.classList.contains("dark-mode"))
+        return true;
     } catch {}
     return false;
   }
@@ -72,7 +74,10 @@
       if (stored === "light") return false;
     } catch {}
     if (hostIsDark()) return true;
-    if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+    if (
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function"
+    ) {
       return window.matchMedia("(prefers-color-scheme: dark)").matches;
     }
     return false;
@@ -85,7 +90,10 @@
     if (theme === "system") {
       const sync = () => (isDark = resolveDark());
       sync();
-      if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+      if (
+        typeof window !== "undefined" &&
+        typeof window.matchMedia === "function"
+      ) {
         const mq = window.matchMedia("(prefers-color-scheme: dark)");
         const onMq = () => sync();
         mq.addEventListener("change", onMq);
@@ -93,12 +101,18 @@
       }
       // The host theme engine toggles classes on <html> and <body>.
       const obs = new MutationObserver(sync);
-      obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+      obs.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["class"],
+      });
       cleanups.push(() => obs.disconnect());
       try {
         if (document.body) {
           const obsBody = new MutationObserver(sync);
-          obsBody.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+          obsBody.observe(document.body, {
+            attributes: true,
+            attributeFilter: ["class"],
+          });
           cleanups.push(() => obsBody.disconnect());
         }
       } catch {}
@@ -111,13 +125,18 @@
 
     if (autoplay) {
       // Phase 1: Bud animates for `shuffleMs`. Phase 2: handoff to the sticker.
-      timers.push(setTimeout(() => (showSticker = true), Math.max(400, shuffleMs)));
+      timers.push(
+        setTimeout(() => (showSticker = true), Math.max(400, shuffleMs)),
+      );
       // Phase 3: after sticker has displayed, fire ondone to exit.
       timers.push(
-        setTimeout(() => {
-          settled = true;
-          ondone?.();
-        }, Math.max(400, shuffleMs) + 1200),
+        setTimeout(
+          () => {
+            settled = true;
+            ondone?.();
+          },
+          Math.max(400, shuffleMs) + 1200,
+        ),
       );
     }
 
@@ -153,28 +172,28 @@
         class="splash-bud {showSticker ? 'splash-bud-out' : ''}"
         aria-hidden={showSticker}
       >
-       <div class="splash-bud-scale" style="scale: {budScale}">
-        {#if bud === "day"}
-          <DayWithBud
-            class="splash-day-bud"
-            autoPlay={true}
-            phaseDuration={dayPhaseMs}
-            speed={budSpeed}
-            interactive={false}
-            showTimeline={false}
-            showCaption={false}
-            showControls={false}
-          />
-        {:else}
-          <BudDoesThings
-            class="splash-bud-things"
-            activity="auto"
-            speed={budSpeed}
-            interactive={false}
-            autoCycle={true}
-            showDesk={false}
-          />
-        {/if}
+        <div class="splash-bud-scale" style="scale: {budScale}">
+          {#if bud === "day"}
+            <DayWithBud
+              class="splash-day-bud"
+              autoPlay={true}
+              phaseDuration={dayPhaseMs}
+              speed={budSpeed}
+              interactive={false}
+              showTimeline={false}
+              showCaption={false}
+              showControls={false}
+            />
+          {:else}
+            <BudDoesThings
+              class="splash-bud-things"
+              activity="auto"
+              speed={budSpeed}
+              interactive={false}
+              autoCycle={true}
+              showDesk={false}
+            />
+          {/if}
         </div>
       </div>
 
@@ -211,7 +230,9 @@
     overflow: hidden;
     background-color: #f7f7f2;
     color: #0e0f0c;
-    transition: background-color 0.5s ease, color 0.5s ease;
+    transition:
+      background-color 0.5s ease,
+      color 0.5s ease;
   }
   .splash-root[data-theme="dark"] {
     background-color: #121310;

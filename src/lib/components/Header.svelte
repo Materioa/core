@@ -186,24 +186,25 @@
       <div class="desktop-window-divider" aria-hidden="true"></div>
       <div class="desktop-window-controls" aria-label="Window Controls">
           <button type="button" class="window-control-btn btn-min" on:click|stopPropagation={handleMinimize} aria-label="Minimize" title="Minimize">
-              <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg>
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M 0 5.5 H 10" stroke="currentColor" stroke-width="1"/>
+              </svg>
           </button>
           <button type="button" class="window-control-btn btn-max" on:click|stopPropagation={handleToggleMaximize} aria-label={isMaximized ? "Restore" : "Maximize"} title={isMaximized ? "Restore" : "Maximize"}>
               {#if isMaximized}
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1">
-                      <rect x="2.5" y="0.5" width="7" height="7" rx="0.5"/>
-                      <polyline points="0.5,2.5 0.5,9.5 7.5,9.5"/>
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M 2.5 2.5 V 2 C 2.5 1.17 3.17 0.5 4 0.5 H 8 C 8.83 0.5 9.5 1.17 9.5 2 V 6 C 9.5 6.83 8.83 7.5 8 7.5 H 7.5" stroke="currentColor" stroke-width="1"/>
+                      <rect x="0.5" y="2.5" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1"/>
                   </svg>
               {:else}
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1">
-                      <rect x="0.5" y="0.5" width="9" height="9" rx="0.5"/>
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <rect x="0.5" y="0.5" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1"/>
                   </svg>
               {/if}
           </button>
           <button type="button" class="window-control-btn btn-close" on:click|stopPropagation={handleClose} aria-label="Close" title="Close">
-              <svg width="10" height="10" viewBox="0 0 10 10" stroke="currentColor" stroke-width="1.2">
-                  <line x1="1" y1="1" x2="9" y2="9"/>
-                  <line x1="9" y1="1" x2="1" y2="9"/>
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M 1 1 L 9 9 M 9 1 L 1 9" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
               </svg>
           </button>
       </div>
@@ -247,24 +248,25 @@
   {#if isDesktopApp}
   <div class="desktop-window-controls site-header-controls" aria-label="Window Controls">
       <button type="button" class="window-control-btn btn-min" on:click|stopPropagation={handleMinimize} aria-label="Minimize" title="Minimize">
-          <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg>
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M 0 5.5 H 10" stroke="currentColor" stroke-width="1"/>
+          </svg>
       </button>
       <button type="button" class="window-control-btn btn-max" on:click|stopPropagation={handleToggleMaximize} aria-label={isMaximized ? "Restore" : "Maximize"} title={isMaximized ? "Restore" : "Maximize"}>
           {#if isMaximized}
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1">
-                  <rect x="2.5" y="0.5" width="7" height="7" rx="0.5"/>
-                  <polyline points="0.5,2.5 0.5,9.5 7.5,9.5"/>
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M 2.5 2.5 V 2 C 2.5 1.17 3.17 0.5 4 0.5 H 8 C 8.83 0.5 9.5 1.17 9.5 2 V 6 C 9.5 6.83 8.83 7.5 8 7.5 H 7.5" stroke="currentColor" stroke-width="1"/>
+                  <rect x="0.5" y="2.5" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1"/>
               </svg>
           {:else}
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1">
-                  <rect x="0.5" y="0.5" width="9" height="9" rx="0.5"/>
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="0.5" y="0.5" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1"/>
               </svg>
           {/if}
       </button>
       <button type="button" class="window-control-btn btn-close" on:click|stopPropagation={handleClose} aria-label="Close" title="Close">
-          <svg width="10" height="10" viewBox="0 0 10 10" stroke="currentColor" stroke-width="1.2">
-              <line x1="1" y1="1" x2="9" y2="9"/>
-              <line x1="9" y1="1" x2="1" y2="9"/>
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M 1 1 L 9 9 M 9 1 L 1 9" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
           </svg>
       </button>
   </div>
@@ -350,12 +352,12 @@
   }
 
   .window-control-btn.btn-close:hover {
-    background-color: #e81123 !important;
+    background-color: #c42b1c !important;
     color: #ffffff !important;
   }
 
   .window-control-btn.btn-close:active {
-    background-color: #bf0f1d !important;
+    background-color: #b22518 !important;
     color: #ffffff !important;
   }
 </style>

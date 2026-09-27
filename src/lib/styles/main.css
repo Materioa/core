@@ -9758,7 +9758,8 @@ body.dark-mode .ai-connectors-banner {
     justify-content: space-between;
     padding: 12px 16px;
     background: rgba(128, 128, 128, 0.05);
-    border-radius: 12px;
+    border-radius: var(--radius-xl, 20px);
+    corner-shape: squircle;
     text-decoration: none;
     color: inherit;
     transition: background 0.2s ease;
@@ -9767,6 +9768,22 @@ body.dark-mode .ai-connectors-banner {
 
 .mcp-connect-card:hover {
     background: rgba(128, 128, 128, 0.1);
+}
+
+.mcp-connect-card-container {
+    background: rgba(128, 128, 128, 0.05);
+    border-radius: var(--radius-xl, 20px);
+    corner-shape: squircle;
+    border: 1px solid rgba(128, 128, 128, 0.1);
+    overflow: hidden;
+    transition: background 0.2s ease;
+}
+
+#mcpConnectorsModal .promo-modal,
+#mcpConnectorsModal .dynamic-form-modal {
+    border-radius: var(--radius-full, 40px) !important;
+    corner-shape: squircle !important;
+    overflow: hidden !important;
 }
 
 .mcp-sublink {
