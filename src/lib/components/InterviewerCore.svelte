@@ -3,8 +3,52 @@
 	import { page } from '$app/stores';
 	import { actualThemeStore } from '$lib/stores.js';
 	import { getUserData, isUserLoggedIn } from '$lib/utils/profile-image.js';
+	import { trackModalView, trackModalEvent, runMagicJs } from '$lib/utils/promoMagic.js';
 	import Bud from './Bud.svelte';
 	import BudDoesThings from './BudDoesThings.svelte';
+
+	let magicCleanup = null;
+
+	function fireInterviewMagic(stage) {
+		if (!form) return;
+		try {
+			const id = form.id || formId;
+			const title = form.title || formId;
+			const trackingId = form.trackingId || form.gaId || form.gtmId || '';
+			const trackViews = form.trackViews ?? true;
+			const root = chatContainer || (typeof document !== 'undefined' ? document.body : null);
+			const code = form.magicJs || form.magic?.js || '';
+			const enabled = form.magicEnabled ?? form.magic?.enabled ?? !!String(code).trim();
+			if (stage === 'load') {
+				trackModalView({ id, title, kind: 'interview', trackingId, trackViews });
+				if (!code || !enabled) return;
+				const snapshot = form;
+				tick().then(() => {
+					if (!snapshot) return; // navigated away before first paint
+					try { if (typeof magicCleanup === 'function') magicCleanup(); } catch {}
+					magicCleanup = runMagicJs(code, {
+						root: chatContainer || root, data: snapshot, id, title, kind: 'interview', stage,
+						trackingId, formData: values,
+						close: () => handleClose()
+					}, { enabled: true });
+				});
+			} else if (stage === 'submit') {
+				if (trackingId) trackModalEvent({ id, title, kind: 'interview', trackingId, action: 'interview_complete' });
+				if (!code || !enabled) return;
+				runMagicJs(code, {
+					root, data: form, id, title, kind: 'interview', stage,
+					trackingId, formData: values,
+					close: () => handleClose()
+				}, { enabled: true });
+			} else if (stage === 'close') {
+				if (trackingId) trackModalEvent({ id, title, kind: 'interview', trackingId, action: 'interview_close' });
+				try { if (typeof magicCleanup === 'function') magicCleanup(); } catch {}
+				magicCleanup = null;
+			}
+		} catch (err) {
+			console.warn('[magic] interview hook failed:', err?.message || err);
+		}
+	}
 
 	let {
 		initialMode = 'fullscreen', // 'modal' | 'fullscreen'
@@ -187,6 +231,7 @@
 
 			const opening = form?.interview?.openingQuestion || form?.description || 'What would you like to share today?';
 			messages = [{ role: 'assistant', content: opening }];
+			fireInterviewMagic('load');
 		} catch (err) {
 			loadError = err.message || 'Failed to load questions';
 		}
@@ -247,6 +292,7 @@
 
 			if (data.complete) {
 				isComplete = true;
+				fireInterviewMagic('submit');
 				await fetch('/api/interviewer', {
 					method: 'PATCH',
 					headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -333,6 +379,7 @@
 	}
 
 	function handleClose() {
+		fireInterviewMagic('close');
 		if (onClose) onClose();
 		else if (typeof window !== 'undefined') {
 			if (window.history.length > 1) window.history.back();

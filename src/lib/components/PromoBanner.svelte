@@ -2,8 +2,10 @@
     import { onMount, onDestroy } from 'svelte';
     import { browser } from '$app/environment';
     import HugeIcon from './HugeIcon.svelte';
+    import { trackModalView, trackModalEvent, runMagicJs } from '$lib/utils/promoMagic.js';
 
     let promoData = null;
+    let magicCleanup = null;
     let currentImageIndex = 0;
     let imageRotationTimer = null;
     let isVideoPaused = false;
@@ -46,6 +48,38 @@
     let promoImageContainer;
     let promoCoverImg;
     let promoVideoEl;
+
+    // --- Magic actions + per-modal tracking ---
+    function promoMagicId(data) {
+        return data?.id || data?._id || data?.title || 'promo';
+    }
+    function firePromoMagic(stage, extra = {}) {
+        if (!promoData) return;
+        const id = promoMagicId(promoData);
+        const title = promoData.title || 'Promotion';
+        const trackingId = promoData.trackingId || promoData.gaId || promoData.gtmId || '';
+        const trackViews = promoData.trackViews ?? true;
+        const root = modalElement || modalOverlay || (browser ? document.body : null);
+        if (stage === 'open') {
+            trackModalView({ id, title, kind: 'promotion', trackingId, trackViews });
+        } else if (stage === 'close' || stage === 'cta_click' || stage === 'remind_later') {
+            if (trackingId) trackModalEvent({ id, title, kind: 'promotion', trackingId, action: stage === 'cta_click' ? 'promo_cta_click' : stage === 'remind_later' ? 'promo_remind_later' : 'promo_close', params: extra });
+        }
+        const code = promoData.magicJs || promoData.magic?.js || '';
+        const enabled = promoData.magicEnabled ?? promoData.magic?.enabled ?? !!String(code).trim();
+        if (stage === 'close') {
+            try { if (typeof magicCleanup === 'function') magicCleanup(); } catch {}
+            magicCleanup = null;
+            return;
+        }
+        if (stage !== 'open' || !code || !enabled) return;
+        const cleanup = runMagicJs(code, {
+            root, data: promoData, id, title, kind: 'promotion', stage,
+            trackingId,
+            close: () => closePromoModal()
+        }, { enabled: true });
+        if (stage === 'open' && typeof cleanup === 'function') magicCleanup = cleanup;
+    }
 
     // --- Markdown Parser (exact match to parent promotions.js) ---
     function parseMarkdown(text) {
@@ -327,6 +361,7 @@
                     document.body.classList.add('modal-open');
                     localStorage.setItem('promoLastShown', Date.now().toString());
                 }
+                firePromoMagic('open');
             }
         }, 1000);
     }
@@ -402,6 +437,7 @@
 
     // Modal Close
     export function closePromoModal() {
+        firePromoMagic('close');
         if (dontShowAgainChecked && browser && typeof localStorage !== 'undefined') {
             localStorage.setItem('promoDoNotShowAgain', 'true');
         }
@@ -449,6 +485,7 @@
     }
 
     export function remindMeLater() {
+        firePromoMagic('remind_later');
         if (promoVideoEl) {
             promoVideoEl.pause();
             promoVideoEl.currentTime = 0;
@@ -480,6 +517,7 @@
     }
 
     function handlePrimaryClick(e) {
+        firePromoMagic('cta_click', { href: primaryHref });
         if (primaryHref.startsWith('#')) {
             e.preventDefault();
             closePromoModal();
@@ -657,6 +695,8 @@
     });
 
     onDestroy(() => {
+        try { if (typeof magicCleanup === 'function') magicCleanup(); } catch {}
+        magicCleanup = null;
         if (imageRotationTimer) {
             clearInterval(imageRotationTimer);
             imageRotationTimer = null;

@@ -1,7 +1,51 @@
 <script>
-    import { onMount } from 'svelte';
+    import { onMount, tick } from 'svelte';
     import { activeModalStore } from '$lib/stores.js';
     import HugeIcon from './HugeIcon.svelte';
+    import { trackModalView, trackModalEvent, runMagicJs } from '$lib/utils/promoMagic.js';
+
+    let magicCleanup = null;
+
+    function fireFormMagic(stage) {
+        if (!formConfig || !formType) return;
+        const id = formConfig.id || formType;
+        const title = formConfig.title || formType;
+        const trackingId = formConfig.trackingId || formConfig.gaId || formConfig.gtmId || '';
+        const trackViews = formConfig.trackViews ?? true;
+        const root = (typeof document !== 'undefined' && document.getElementById('dynamicFormModal')) || (typeof document !== 'undefined' ? document.body : null);
+        const code = formConfig.magicJs || formConfig.magic?.js || '';
+        const enabled = formConfig.magicEnabled ?? formConfig.magic?.enabled ?? !!String(code).trim();
+        if (stage === 'open') {
+            trackModalView({ id, title, kind: 'popup', trackingId, trackViews });
+            if (!code || !enabled) return;
+            // Wait a tick so .promo-modal exists for DOM tweaks.
+            // Snapshot the config: the modal may be closed before first paint.
+            const cfg = formConfig, fd = formData;
+            tick().then(() => {
+                const el = (typeof document !== 'undefined' && document.getElementById('dynamicFormModal')) || null;
+                if (!el) return; // closed before first paint — nothing to enhance
+                try { if (typeof magicCleanup === 'function') magicCleanup(); } catch {}
+                magicCleanup = runMagicJs(code, {
+                    root: el,
+                    data: cfg, id, title, kind: 'popup', stage,
+                    trackingId, formData: fd,
+                    close: () => closeModal()
+                }, { enabled: true });
+            });
+        } else if (stage === 'submit') {
+            if (trackingId) trackModalEvent({ id, title, kind: 'popup', trackingId, action: 'form_submit' });
+            if (!code || !enabled) return;
+            runMagicJs(code, {
+                root, data: formConfig, id, title, kind: 'popup', stage,
+                trackingId, formData,
+                close: () => closeModal()
+            }, { enabled: true });
+        } else if (stage === 'close') {
+            if (trackingId) trackModalEvent({ id, title, kind: 'popup', trackingId, action: 'form_close' });
+            try { if (typeof magicCleanup === 'function') magicCleanup(); } catch {}
+            magicCleanup = null;
+        }
+    }
 
     let formType = null; // 'bug-report' | 'contribution' | 'feedback'
     let formConfig = null;
@@ -171,6 +215,7 @@
             errorMessage = '';
             formType = type;
             formConfig = cfg;
+            fireFormMagic('open');
         } catch (err) {
             console.error('Dynamic form load failed:', err);
         }
@@ -206,9 +251,11 @@
     function markSubmitted() {
         // Lets the auto-show engine treat "once" schedules as satisfied.
         try { localStorage.setItem(`materio_form_done_${formType}`, String(Date.now())); } catch {}
+        fireFormMagic('submit');
     }
 
     function closeModal() {
+        fireFormMagic('close');
         activeModalStore.set(null);
         formType = null;
         formConfig = null;
