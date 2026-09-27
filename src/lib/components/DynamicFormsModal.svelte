@@ -3,8 +3,22 @@
     import { activeModalStore } from '$lib/stores.js';
     import HugeIcon from './HugeIcon.svelte';
     import { trackModalView, trackModalEvent, runMagicJs } from '$lib/utils/promoMagic.js';
+    import { attachSheetDrag } from '$lib/utils/sheetDrag.js';
 
     let magicCleanup = null;
+
+    // Bottom-sheet drag on mobile: handle or scrolled-top pulls the sheet
+    // down to dismiss, otherwise it springs back.
+    function sheetDrag(node) {
+        const overlay = typeof document !== 'undefined' ? document.getElementById('dynamicFormModal') : null;
+        const detach = attachSheetDrag({
+            sheet: node,
+            overlay,
+            onClose: () => closeModal(),
+            handleSelector: '.sheet-drag-handle'
+        });
+        return { destroy: detach };
+    }
 
     function fireFormMagic(stage) {
         if (!formConfig || !formType) return;
@@ -437,7 +451,8 @@
 
 {#if formType && formConfig}
     <div class="promo-modal-overlay dynamic-form-overlay show" id="dynamicFormModal" role="dialog" aria-modal="true" aria-labelledby="dynamicFormTitle" on:click|self={closeModal}>
-        <div class="promo-modal dynamic-form-modal">
+        <div class="promo-modal dynamic-form-modal" use:sheetDrag>
+            <div class="sheet-drag-handle" aria-hidden="true"><span></span></div>
             <button type="button" class="promo-close-btn" on:click={closeModal} aria-label="Close">
                 <HugeIcon name="cancel-01" />
             </button>
@@ -665,5 +680,27 @@
     }
     .dynamic-form-rating .star-btn:hover .star-svg {
         transform: scale(1.1);
+    }
+
+    /* Bottom-sheet drag handle — mobile only */
+    .sheet-drag-handle {
+        display: none;
+    }
+    @media (max-width: 500px) {
+        .sheet-drag-handle {
+            display: flex;
+            justify-content: center;
+            padding: 10px 0 2px;
+            cursor: grab;
+        }
+        .sheet-drag-handle span {
+            width: 40px;
+            height: 4px;
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.18);
+        }
+        :global(body.dark-mode) .sheet-drag-handle span {
+            background: rgba(255, 255, 255, 0.28);
+        }
     }
 </style>

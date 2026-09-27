@@ -4,6 +4,7 @@
 	import { actualThemeStore } from '$lib/stores.js';
 	import { getUserData, isUserLoggedIn } from '$lib/utils/profile-image.js';
 	import { trackModalView, trackModalEvent, runMagicJs } from '$lib/utils/promoMagic.js';
+	import { attachSheetDrag } from '$lib/utils/sheetDrag.js';
 	import Bud from './Bud.svelte';
 	import BudDoesThings from './BudDoesThings.svelte';
 
@@ -363,19 +364,28 @@
 		}
 	}
 
-	let touchStartY = $state(0);
-	function onTouchStart(e) {
-		if (e.touches && e.touches[0]) {
-			touchStartY = e.touches[0].clientY;
-		}
-	}
-	function onTouchEnd(e) {
-		if (e.changedTouches && e.changedTouches[0]) {
-			const deltaY = e.changedTouches[0].clientY - touchStartY;
-			if (deltaY > 70) {
-				handleClose();
+	let touchCleanup = null;
+
+	// Bottom-sheet drag: follows the finger from the handle (or while
+	// scrolled to top), flings away on a firm drag, springs back otherwise.
+	function sheetDrag(node) {
+		try {
+			if (typeof touchCleanup === 'function') touchCleanup();
+		} catch {}
+		touchCleanup = attachSheetDrag({
+			sheet: node,
+			overlay: node.closest ? node.closest('.modal-backdrop') : null,
+			onClose: () => handleClose(),
+			handleSelector: '.modal-mobile-handle-wrap'
+		});
+		return {
+			destroy() {
+				try {
+					if (typeof touchCleanup === 'function') touchCleanup();
+				} catch {}
+				touchCleanup = null;
 			}
-		}
+		};
 	}
 
 	function handleClose() {
@@ -397,8 +407,7 @@
 				class:morphing-out={isMorphing}
 				class:responses-tab-active={activeTab === 'responses'}
 				onclick={(e) => e.stopPropagation()}
-				ontouchstart={onTouchStart}
-				ontouchend={onTouchEnd}
+				use:sheetDrag
 			>
 				<!-- Mobile drag handle -->
 				<div class="modal-mobile-handle-wrap" onclick={handleClose}>

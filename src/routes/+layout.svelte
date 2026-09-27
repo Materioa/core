@@ -419,7 +419,9 @@
 <SearchResultsModal />
 <WallpaperEngine />
 <InterviewerModal />
+{#if !hideGlobalHeader}
 <OpenInAppBanner />
+{/if}
 {#if isTauri}
 <AppUpdateModal />
 {/if}
@@ -434,10 +436,10 @@
   <SplashScreen
     bind:this={splashRef}
     ondone={handleSplashDone}
-    shuffleMs={8000}
-    budSpeed={2.4}
+    shuffleMs={4500}
+    budSpeed={2.6}
     budScale={0.9}
-    dayPhaseMs={1300}
+    dayPhaseMs={1400}
   />
 </div>
 {/if}

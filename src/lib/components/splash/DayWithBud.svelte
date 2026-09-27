@@ -60,8 +60,10 @@
     return Math.max(0.2, Math.min(3.5, s));
   }
 
+  // Floor keeps each moment readable at normal speed; fast splash
+  // configs (high `speed`, small `phaseDuration`) can push well below it.
   function phaseMs(phase: DayPhase) {
-    return Math.max(1500, (phaseDuration * phase.durFactor) / clampSpeed(speed));
+    return Math.max(350, (phaseDuration * phase.durFactor) / clampSpeed(speed));
   }
 
   let timeout: ReturnType<typeof setTimeout> | undefined;

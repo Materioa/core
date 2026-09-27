@@ -331,6 +331,24 @@ pub fn run() {
             app_window_close,
             app_window_is_maximized
         ])
+        // Second launches (e.g. materio:// taps from the browser while the
+        // app runs) focus the existing window and forward the URL instead
+        // of opening a duplicate window.
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.set_focus();
+                for arg in args.iter().skip(1) {
+                    if arg.starts_with("materio://")
+                        || arg.starts_with("https://getmaterio.app")
+                        || arg.starts_with("http://getmaterio.app")
+                    {
+                        let js = format!("if (typeof window.__materioHandleDeepLink === 'function') {{ window.__materioHandleDeepLink('{}'); }}", arg.replace('\'', "\\'"));
+                        let _ = w.eval(&js);
+                        break;
+                    }
+                }
+            }
+        }))
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(

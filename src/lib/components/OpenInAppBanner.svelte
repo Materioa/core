@@ -107,8 +107,21 @@
             window.addEventListener('blur', onHide, { once: true });
             // Android: intent: URL opens the app without any Play Console
             // setup; a missing app falls back to this page (see timer).
-            // Desktop: tries the registered materio:// protocol.
-            window.location.href = isAndroid ? intentUrl(window.location.href) : schemeUrl();
+            // Desktop: fire the registered materio:// protocol through a
+            // hidden frame so the page itself is never navigated away.
+            if (isAndroid) {
+                window.location.href = intentUrl(window.location.href);
+            } else {
+                try {
+                    const frame = document.createElement('iframe');
+                    frame.style.display = 'none';
+                    frame.src = schemeUrl();
+                    document.body.appendChild(frame);
+                    setTimeout(() => { try { frame.remove(); } catch {} }, 2500);
+                } catch {
+                    window.location.href = schemeUrl();
+                }
+            }
             setTimeout(() => {
                 window.removeEventListener('pagehide', onHide);
                 window.removeEventListener('blur', onHide);
