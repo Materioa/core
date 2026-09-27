@@ -1333,7 +1333,8 @@
         </div>
     {/if}
 
-    <!-- Check for Updates Card (Card is a button) -->
+    <!-- Check for Updates (native apps only — the website updates itself) -->
+    {#if isTauri || isCapacitor}
     <div
         class="card-layout"
         id="checkUpdatesCard"
@@ -1355,6 +1356,7 @@
             {/if}
         </div>
     </div>
+    {/if}
 
     <!-- Clear Site Data -->
     <div class="card-layout" id="clearSiteDataCard">

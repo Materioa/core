@@ -5,11 +5,10 @@
     // "Open in app" nudge for the web build.
     // - Hidden inside the native Android / desktop shells.
     // - On Android browsers it attempts a one-time silent auto-open (per
-    //   session) via an intent: URL — no Play Console needed. Tapping
-    //   "Open in app" uses an intent whose fallback is the downloads page,
-    //   so a missing app lands on "get the app" instead of an error.
-    // - On desktop it tries the materio:// scheme; if nothing handles it,
-    //   the card flips to a download ask.
+    //   session) via an intent: URL — no Play Console needed.
+    // - One button: "Open in app". If the handoff fails (still on this
+    //   page a moment later) the card flips to a download ask and the
+    //   button becomes "Download".
     //
     // Props:
     //   packageId    Android applicationId (default com.materio.app)
@@ -71,7 +70,8 @@
         }
     }
 
-    // Manual tap: missing app falls back to the downloads page.
+    // Silent auto-open falls back to this same page, so a missing app
+    // just sees the nudge below.
     function intentUrl(fallback) {
         const host = (() => { try { return window.location.host; } catch { return 'beta.getmaterio.app'; } })();
         const fb = encodeURIComponent(fallback || window.location.href);
@@ -96,24 +96,24 @@
     }
 
     export function openInApp() {
+        // If the card is already in the failed state the button is a plain
+        // download link (see template) — this path is the first tap only.
+        if (openFailed) return;
         try {
-            if (isAndroid) {
-                window.location.href = intentUrl(downloadsUrl);
-            } else {
-                // Desktop: attempt the registered protocol; if nothing handles
-                // it we are still here a moment later -> ask to download.
-                openFailed = false;
-                let left = false;
-                const onHide = () => { left = true; };
-                window.addEventListener('pagehide', onHide, { once: true });
-                window.addEventListener('blur', onHide, { once: true });
-                window.location.href = schemeUrl();
-                setTimeout(() => {
-                    window.removeEventListener('pagehide', onHide);
-                    window.removeEventListener('blur', onHide);
-                    if (!left) openFailed = true;
-                }, 1400);
-            }
+            openFailed = false;
+            let left = false;
+            const onHide = () => { left = true; };
+            window.addEventListener('pagehide', onHide, { once: true });
+            window.addEventListener('blur', onHide, { once: true });
+            // Android: intent: URL opens the app without any Play Console
+            // setup; a missing app falls back to this page (see timer).
+            // Desktop: tries the registered materio:// protocol.
+            window.location.href = isAndroid ? intentUrl(window.location.href) : schemeUrl();
+            setTimeout(() => {
+                window.removeEventListener('pagehide', onHide);
+                window.removeEventListener('blur', onHide);
+                if (!left) openFailed = true;
+            }, isAndroid ? 2200 : 1400);
         } catch {}
     }
 
@@ -142,10 +142,10 @@
         {#if openFailed}
             <div class="open-in-app-text">
                 <strong>Couldn't open the app</strong>
-                <span>It may not be installed yet — want to download it?</span>
+                <span>It may not be installed yet — download it to continue.</span>
             </div>
             <div class="open-in-app-actions">
-                <a class="open-in-app-primary" href={downloadsUrl} target="_blank" rel="noopener noreferrer">Download the app</a>
+                <a class="open-in-app-primary" href={downloadsUrl} target="_blank" rel="noopener noreferrer">Download</a>
                 <button type="button" class="open-in-app-dismiss" onclick={dismiss} aria-label="Dismiss">✕</button>
             </div>
         {:else}
@@ -155,7 +155,6 @@
             </div>
             <div class="open-in-app-actions">
                 <button type="button" class="open-in-app-primary" onclick={openInApp}>Open in app</button>
-                <a class="open-in-app-link" href={downloadsUrl} target="_blank" rel="noopener noreferrer">Get the app</a>
                 <button type="button" class="open-in-app-dismiss" onclick={dismiss} aria-label="Dismiss">✕</button>
             </div>
         {/if}
@@ -214,12 +213,6 @@
         cursor: pointer;
         text-decoration: none;
         display: inline-block;
-    }
-    .open-in-app-link {
-        font-size: 12px;
-        color: #ffb37a;
-        text-decoration: underline;
-        white-space: nowrap;
     }
     .open-in-app-dismiss {
         background: none;
