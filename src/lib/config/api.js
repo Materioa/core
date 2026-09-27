@@ -18,6 +18,15 @@ export const isCapacitor = typeof window !== 'undefined' && Boolean(
   window.location?.hostname === 'capacitor.localhost'
 );
 
+export const isAndroidApp = typeof window !== 'undefined' && Boolean(
+  window.AndroidBridge ||
+  (window.Capacitor?.getPlatform && window.Capacitor.getPlatform() === 'android') ||
+  (isCapacitor && !isTauri) ||
+  window.location?.protocol === 'capacitor:' ||
+  window.location?.hostname === 'capacitor.localhost' ||
+  (window.location?.hostname === 'localhost' && window.location?.protocol === 'https:' && !isTauri && /Android/i.test(navigator?.userAgent || ''))
+);
+
 export const isNative = isTauri || isCapacitor;
 
 // In native desktop/mobile apps, requests cannot hit local origin (tauri:// or capacitor://).

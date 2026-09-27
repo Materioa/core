@@ -341,14 +341,13 @@
 	}
 
 	.leaderboard-nudge-btn-primary {
-		background: #ff6600 !important;
-		border-color: #ff6600 !important;
+		background: var(--accent, var(--color-primary, #ff6600)) !important;
+		border-color: var(--accent, var(--color-primary, #ff6600)) !important;
 		color: #fff !important;
 	}
 
 	.leaderboard-nudge-btn-primary:hover {
-		background: #e65c00 !important;
-		border-color: #e65c00 !important;
+		filter: brightness(0.92);
 		transform: translateY(-1px);
 	}
 

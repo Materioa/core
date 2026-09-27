@@ -20,7 +20,8 @@
   import SearchResultsModal from '$lib/components/SearchResultsModal.svelte';
   import InterviewerModal from '$lib/components/InterviewerModal.svelte';
   import AppUpdateModal from '$lib/components/AppUpdateModal.svelte';
-  import { installApiInterceptor, isTauri } from '$lib/config/api.js';
+  import SplashScreen from '$lib/components/splash/SplashScreen.svelte';
+  import { installApiInterceptor, isTauri, isAndroidApp, isCapacitor } from '$lib/config/api.js';
   
   import { activeModalStore, pdfModalStore, searchModalStore, activeTab } from '$lib/stores.js';
   import { get } from 'svelte/store';
@@ -29,6 +30,41 @@
 
   if (browser) {
     installApiInterceptor();
+  }
+
+  let showSplash = false;
+  let splashExiting = false;
+  let splashRef;
+
+  function checkShouldShowSplash() {
+    if (!browser) return false;
+    if (window.location.search && window.location.search.includes('splash=1')) return true;
+    try {
+      if (sessionStorage.getItem('materio_splash_shown')) return false;
+    } catch {}
+    return Boolean(
+      isAndroidApp ||
+      window.AndroidBridge ||
+      (window.Capacitor?.getPlatform && window.Capacitor.getPlatform() === 'android') ||
+      (isCapacitor && !isTauri) ||
+      (window.location?.protocol === 'capacitor:') ||
+      (window.location?.hostname === 'capacitor.localhost')
+    );
+  }
+
+  if (browser) {
+    showSplash = checkShouldShowSplash();
+  }
+
+  function handleSplashDone() {
+    if (splashExiting) return;
+    splashExiting = true;
+    try {
+      sessionStorage.setItem('materio_splash_shown', 'true');
+    } catch {}
+    setTimeout(() => {
+      showSplash = false;
+    }, 450);
   }
 
   let headerVersion = 0;
@@ -198,6 +234,12 @@
     // Android gesture / hardware back handler
     window.__materioHandleAndroidBack = () => {
       try {
+        // 0. If splash screen is currently active, dismiss it
+        if (showSplash) {
+          handleSplashDone();
+          return true;
+        }
+
         // 1. If PDF Reader modal is open, close it
         const currentPdf = get(pdfModalStore);
         if (currentPdf && currentPdf.isOpen) {
@@ -379,3 +421,47 @@
 {#if isTauri}
 <AppUpdateModal />
 {/if}
+
+{#if showSplash}
+<div
+  class="splash-screen-overlay"
+  class:splash-screen-exit={splashExiting}
+  onclick={() => splashRef?.skipToSticker()}
+  role="presentation"
+>
+  <SplashScreen
+    bind:this={splashRef}
+    ondone={handleSplashDone}
+    shuffleMs={3000}
+    dayPhaseMs={600}
+  />
+</div>
+{/if}
+
+<style>
+  .splash-screen-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    z-index: 9999999;
+    background-color: #f7f7f2;
+    overflow: hidden;
+    pointer-events: auto;
+    opacity: 1;
+    transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  :global(body.dark-mode) .splash-screen-overlay {
+    background-color: #121310;
+  }
+
+  .splash-screen-overlay.splash-screen-exit {
+    opacity: 0;
+    pointer-events: none;
+  }
+</style>
