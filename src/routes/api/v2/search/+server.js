@@ -235,11 +235,12 @@ const SUBJECT_ABBR_MAP = {
   cc: 'Cloud Computing',
   hpc: 'High Performance Computing',
   mswd: 'MEAN Stack Web Development',
-  cs: 'Cyber Security'
+  cs: 'Cyber Security',
+  ins: 'Information and Network Security'
 };
 
 const CATEGORY_ABBR_MAP = {
-  qb: 'Question Bank',
+  qb: 'Question Banks',
   qp: 'Previous Year Questions',
   pyq: 'Previous Year Questions',
   lab: 'Lab Manual',
@@ -252,6 +253,19 @@ const CATEGORY_ABBR_MAP = {
   assign: 'Assignments',
   notes: 'Chapters'
 };
+
+// Stemmed lookup copies: tokenize() stems before lookup, so e.g. "notes"
+// arrives as "note". Both spellings resolve to the same expansion.
+const SUBJECT_ABBR_LOOKUP = {};
+for (const [k, v] of Object.entries(SUBJECT_ABBR_MAP)) {
+  SUBJECT_ABBR_LOOKUP[k] = v;
+  SUBJECT_ABBR_LOOKUP[stemToken(k)] = v;
+}
+const CATEGORY_ABBR_LOOKUP = {};
+for (const [k, v] of Object.entries(CATEGORY_ABBR_MAP)) {
+  CATEGORY_ABBR_LOOKUP[k] = v;
+  CATEGORY_ABBR_LOOKUP[stemToken(k)] = v;
+}
 
 const DISCOVERY_PHRASES = [
   'random',
@@ -333,11 +347,61 @@ function pickDiscoveryResult(resourceLib, preferredSemester) {
 
 function tokenize(text) {
   if (!text) return [];
-  return text
+  const stemmed = text
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/)
-    .filter((t) => t.length >= 2);
+    .filter((t) => t.length >= 2)
+    .map(stemToken);
+  return expandSynonyms(stemmed);
+}
+
+// Light stemmer so inflections match each other (ciphers/cipher,
+// assignments/assignment, symmetrical/symmetric). Applied to both
+// documents and queries, so both sides always agree.
+function stemToken(token) {
+  let w = token;
+  if (w.length > 5 && w.endsWith('ies')) return w.slice(0, -3) + 'y';
+  if (w.length > 6 && w.endsWith('ing')) return w.slice(0, -3);
+  if (w.length > 5 && w.endsWith('ed')) return w.slice(0, -2);
+  if (w.length > 6 && w.endsWith('ally')) return w.slice(0, -4);
+  if (w.length > 5 && w.endsWith('ly')) return w.slice(0, -2);
+  if (w.length > 6 && w.endsWith('al')) return w.slice(0, -2);
+  if (w.length > 5 && w.endsWith('ies')) return w.slice(0, -3) + 'y';
+  if (w.length > 4 && w.endsWith('es') && !w.endsWith('sses')) return w.slice(0, -2);
+  if (w.length > 4 && w.endsWith('s') && !w.endsWith('ss') && !w.endsWith('us')) {
+    return w.slice(0, -1);
+  }
+  return w;
+}
+
+// Word families that share a meaning but not a spelling. Every member
+// expands to the group root, so e.g. "symmetrical" finds
+// "Asymmetric Ciphers" and vice versa.
+const SYNONYM_GROUPS = [
+  ['symmetric', 'symmetrical', 'symmetry', 'asymmetric', 'asymmetrical', 'asymmetry'],
+  ['crypto', 'cryptography', 'cryptographic', 'encryption', 'encrypt', 'encrypted', 'cipher', 'ciphers', 'decryption', 'decrypt'],
+  ['network', 'networks', 'networking', 'internet', 'protocol', 'protocols'],
+  ['exam', 'exams', 'examination', 'test', 'tests', 'paper', 'papers'],
+  ['program', 'programs', 'programming', 'code', 'coding'],
+  ['database', 'databases', 'dbms', 'sql'],
+  ['image', 'images', 'picture', 'pictures', 'photo', 'photos'],
+  ['video', 'videos', 'lecture', 'lectures']
+];
+
+const SYNONYM_ROOT = {};
+for (const group of SYNONYM_GROUPS) {
+  for (const word of group) SYNONYM_ROOT[stemToken(word)] = stemToken(group[0]);
+}
+
+function expandSynonyms(tokens) {
+  const out = [];
+  for (const t of tokens) {
+    out.push(t);
+    const root = SYNONYM_ROOT[t];
+    if (root && root !== t) out.push(root);
+  }
+  return [...new Set(out)];
 }
 
 function buildBm25Corpus(searchIndex) {
@@ -441,8 +505,8 @@ function expandQueryWithAbbr(queryTokens) {
   let expandedCategory = null;
 
   for (const token of queryTokens) {
-    const subjectExpansion = SUBJECT_ABBR_MAP[token];
-    const categoryExpansion = CATEGORY_ABBR_MAP[token];
+    const subjectExpansion = SUBJECT_ABBR_LOOKUP[token];
+    const categoryExpansion = CATEGORY_ABBR_LOOKUP[token];
 
     if (subjectExpansion) {
       expandedSubject = subjectExpansion;
@@ -612,8 +676,13 @@ function handleDirectNavigation(query, resourceLib) {
       const isAbbrMatch = abbrs.includes(subjectPart);
       const isExactMatch = subjectLower === subjectPart;
       const isPartialMatch = subjectLower.includes(subjectPart);
+      // Abbreviation-book match: "ins ch 5" -> INS subject, even when the
+      // letters aren't a substring or initialism of the full name.
+      const mappedSubject = SUBJECT_ABBR_LOOKUP[subjectPart];
+      const isMappedMatch =
+        !!mappedSubject && subjectLower === mappedSubject.toLowerCase();
 
-      if (isAbbrMatch || isExactMatch || isPartialMatch) {
+      if (isAbbrMatch || isExactMatch || isPartialMatch || isMappedMatch) {
         let targetCategoryType = 'chapter';
         const lowerNav = navMatch[0].toLowerCase();
 
@@ -635,7 +704,7 @@ function handleDirectNavigation(query, resourceLib) {
           const itemIndex = targetNum - 1;
           if (itemIndex >= 0 && itemIndex < category.content.length) {
             const topic = category.content[itemIndex];
-            const priority = isAbbrMatch ? 3 : isExactMatch ? 2 : 1;
+            const priority = isAbbrMatch || isMappedMatch ? 3 : isExactMatch ? 2 : 1;
 
             if (!bestMatch || priority > bestMatch.priority) {
               bestMatch = {
@@ -1104,11 +1173,11 @@ function extractIntent(query) {
   const keywords = [];
 
   for (const token of tokens) {
-    if (SUBJECT_ABBR_MAP[token]) {
-      subject = SUBJECT_ABBR_MAP[token];
-      keywords.push(token, ...tokenize(SUBJECT_ABBR_MAP[token]));
-    } else if (CATEGORY_ABBR_MAP[token]) {
-      category = CATEGORY_ABBR_MAP[token];
+    if (SUBJECT_ABBR_LOOKUP[token]) {
+      subject = SUBJECT_ABBR_LOOKUP[token];
+      keywords.push(token, ...tokenize(SUBJECT_ABBR_LOOKUP[token]));
+    } else if (CATEGORY_ABBR_LOOKUP[token]) {
+      category = CATEGORY_ABBR_LOOKUP[token];
     } else if (token.length >= 3) {
       keywords.push(token);
     }
@@ -1676,14 +1745,22 @@ export async function GET({ url }) {
         }
 
         if (aiMode === 'pure' && aiResults.rankings.length === 0) {
+          // Pure AI found nothing confident: fall back to the algorithmic
+          // list rather than an empty page. Never show "no results" when
+          // the library actually has candidates.
           return json({
             success: true,
             query,
-            results: [],
-            count: 0,
+            results: algorithmicResults,
+            count: algorithmicResults.length,
+            algorithmic: {
+              results: algorithmicResults,
+              count: algorithmicResults.length
+            },
             ai: aiResults,
-            method: 'ai',
-            aiUsed: true
+            method: 'hybrid',
+            aiUsed: true,
+            pureFallback: true
           });
         }
 
@@ -1852,14 +1929,22 @@ export async function POST({ request }) {
         }
 
         if (aiMode === 'pure' && aiResults.rankings.length === 0) {
+          // Pure AI found nothing confident: fall back to the algorithmic
+          // list rather than an empty page. Never show "no results" when
+          // the library actually has candidates.
           return json({
             success: true,
             query,
-            results: [],
-            count: 0,
+            results: algorithmicResults,
+            count: algorithmicResults.length,
+            algorithmic: {
+              results: algorithmicResults,
+              count: algorithmicResults.length
+            },
             ai: aiResults,
-            method: 'ai',
-            aiUsed: true
+            method: 'hybrid',
+            aiUsed: true,
+            pureFallback: true
           });
         }
 
