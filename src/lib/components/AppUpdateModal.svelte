@@ -332,7 +332,7 @@
 		}
 	}
 
-	@media (max-width: 480px) {
+	@media (max-width: 768px) {
 		.leaderboard-nudge-card {
 			right: 12px;
 			left: 12px;
