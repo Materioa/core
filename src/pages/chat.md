@@ -439,7 +439,7 @@ permalink: /chat
             background-color: var(--bg-tertiary);
             padding: 2px 6px;
             border-radius: 4px;
-            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-family: 'Berkeley Mono', 'Cascadia Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
             font-size: 14px;
         }
 

@@ -1376,14 +1376,11 @@
         on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); checkAppUpdate(true); } }}
     >
         <div class="toggle-container" style="justify-content: space-between; align-items: center; width: 100%; margin: 0;">
-            <div class="paper-mode-info">
-                <div class="card-title-row" style="display: flex; align-items: center; gap: 10px;">
-                    <div style="display: flex; align-items: center; justify-content: center; height: 18px; width: 18px; flex-shrink: 0;">
-                        <HugeiconsIcon icon={UploadCircle01Icon} size={18} style="color: var(--color-primary, #ff8200); display: block;" />
-                    </div>
-                    <div class="paper-mode-title" style="margin: 0; line-height: 1; display: flex; align-items: center;">Check for Updates</div>
+            <div class="card-title-row" style="display: flex; align-items: center; gap: 10px;">
+                <div style="display: flex; align-items: center; justify-content: center; height: 18px; width: 18px; flex-shrink: 0;">
+                    <HugeiconsIcon icon={UploadCircle01Icon} size={18} style="color: var(--color-primary, #ff8200); display: block;" />
                 </div>
-                <div class="paper-mode-description">Get the latest app version</div>
+                <div class="paper-mode-title" style="margin: 0; line-height: 1; display: flex; align-items: center;">Check for Updates</div>
             </div>
             {#if checkingAppUpdate}
                 <span style="font-size: 12.5px; color: var(--color-primary, #ff8200); font-weight: 600; font-family: 'OpenRunde', 'Open Runde', sans-serif;">Checking…</span>
@@ -1472,7 +1469,7 @@
         <div id="licensesContent"
             style="max-height: 300px; overflow-y: auto; background-color: #f3f3ee; border: 1px solid #ddd; border-radius: 5px; padding: 15px; margin: 10px auto; text-align: center; max-width: 90%;">
             <pre id="licensesText"
-                style="font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 12px; line-height: 1.4; margin: 0; white-space: pre-wrap; color: #333; text-align: center;">Loading licenses...</pre>
+                style="font-family: 'Berkeley Mono', 'Cascadia Mono', 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 12px; line-height: 1.4; margin: 0; white-space: pre-wrap; color: #333; text-align: center;">Loading licenses...</pre>
         </div>
     </details>
 </div>
@@ -1482,7 +1479,7 @@
         <HugeIcon name="arrow-down-01"  style="margin-left: 8px; transition: transform 0.3s ease; font-size: 12px;" />
         Misc
     </summary>
-    <div style="display: flex; flex-direction: column; gap: 4px; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 12px; margin-top: 6px; align-items: center;">
+    <div style="display: flex; flex-direction: column; gap: 4px; font-family: 'Berkeley Mono', 'Cascadia Mono', 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 12px; margin-top: 6px; align-items: center;">
         <span>Materio ID: <span id="buildId">{liveBuildId}</span></span>
         {#if isTauri}
             <span>App Version: Windows v{currentAppVersion}</span>
@@ -1494,14 +1491,6 @@
     </div>
 </details>
 <style>
-    #checkUpdatesCard {
-        display: flex !important;
-        align-items: center !important;
-        min-height: 52px !important;
-        padding-top: 0 !important;
-        padding-bottom: 0 !important;
-        box-sizing: border-box !important;
-    }
     .card-title-row {
         display: flex !important;
         flex-direction: row !important;
@@ -1630,7 +1619,7 @@
         border: 1px solid rgba(0, 0, 0, 0.08);
         border-radius: 12px;
         padding: 8px 12px;
-        font-family: 'JetBrains Mono', monospace;
+        font-family: 'Berkeley Mono', 'Cascadia Mono', 'JetBrains Mono', monospace;
         font-size: 12px;
         color: var(--color-text-secondary, #666);
     }

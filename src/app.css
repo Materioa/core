@@ -211,7 +211,7 @@
   --font-body: 'OpenRunde', 'Open Runde', 'Melange', 'KMR Melange Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-melange: 'Melange', 'KMR Melange Grotesk', 'OpenRunde', 'Open Runde', sans-serif;
   --font-openrunde: 'OpenRunde', 'Open Runde', 'Melange', 'KMR Melange Grotesk', sans-serif;
-  --font-mono: 'Consolas', 'Monaco', 'Courier New', monospace;
+  --font-mono: 'Berkeley Mono', 'Cascadia Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
   --font-code: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
 }
 

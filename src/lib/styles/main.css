@@ -278,7 +278,7 @@ h1, h2, h3, h4, h5, h6,
     --font-body: 'OpenRunde', 'Open Runde', 'Melange', 'KMR Melange Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     --font-melange: 'Melange', 'KMR Melange Grotesk', 'OpenRunde', 'Open Runde', sans-serif;
     --font-openrunde: 'OpenRunde', 'Open Runde', 'Melange', 'KMR Melange Grotesk', sans-serif;
-    --font-mono: "Consolas", "Monaco", "Courier New", monospace;
+    --font-mono: "Berkeley Mono", "Cascadia Mono", "Consolas", "Monaco", "Courier New", monospace;
     --font-code: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
 
     /* Font Sizes */
@@ -3183,7 +3183,7 @@ body.dark-mode #miscCard div[style*="background-color: #f5f5f5"] {
 }
 
 body.dark-mode #buildId {
-    font-family: "Consolas", monospace;
+    font-family: "Berkeley Mono", "Cascadia Mono", "Consolas", monospace;
     color: #e0e0e0 !important;
 }
 
@@ -5298,7 +5298,7 @@ body.dark-mode #browseLocalCdnPath:hover {
     border: 1px solid #333;
     border-radius: 8px;
     padding: 12px;
-    font-family: "Consolas", "Monaco", "Courier New", monospace;
+    font-family: "Berkeley Mono", "Cascadia Mono", "Consolas", "Monaco", "Courier New", monospace;
     font-size: 13px;
     max-height: 300px;
     overflow-y: auto;
@@ -9263,7 +9263,7 @@ body.dark-mode .notifications-data-tab {
 }
 
 .shortcut-keys {
-    font-family: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+    font-family: "Berkeley Mono", "Cascadia Mono", "JetBrains Mono", "SF Mono", "Fira Code", monospace;
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-medium);
     color: var(--color-text-secondary);
@@ -9301,7 +9301,7 @@ body.dark-mode .notifications-data-tab {
     background: #f5f5f5;
     border: 1px solid #ddd;
     border-radius: 4px;
-    font-family: "SF Mono", "Fira Code", monospace;
+    font-family: "Berkeley Mono", "Cascadia Mono", "SF Mono", "Fira Code", monospace;
     font-size: 11px;
     font-weight: 600;
     color: #555;
@@ -9506,7 +9506,7 @@ body.dark-mode .shortcuts-note kbd {
     border: 1px solid #ddd;
     border-radius: 6px;
     box-shadow: 0 2px 0 #ccc;
-    font-family: "SF Mono", "Fira Code", monospace;
+    font-family: "Berkeley Mono", "Cascadia Mono", "SF Mono", "Fira Code", monospace;
     font-size: 14px;
     font-weight: 600;
     color: #333;

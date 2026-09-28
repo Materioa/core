@@ -374,7 +374,7 @@
 
   .openrunde-demo { font-family: 'OpenRunde', 'Open Runde', sans-serif; }
   .editorial-demo { font-family: 'Libre Baskerville', serif; }
-  .code-demo { font-family: 'JetBrains Mono', monospace; }
+  .code-demo { font-family: 'Berkeley Mono', 'Cascadia Mono', 'JetBrains Mono', monospace; }
 
   .size-demo { margin-top: 20px; }
 
@@ -421,7 +421,7 @@
   }
 
   .color-info code {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: 'Berkeley Mono', 'Cascadia Mono', 'JetBrains Mono', monospace;
     font-size: 13px;
     color: #666;
   }

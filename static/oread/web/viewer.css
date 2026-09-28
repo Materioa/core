@@ -1089,7 +1089,7 @@
 }
 
 .annotationLayer .textWidgetAnnotation input.comb {
-  font-family: monospace;
+  font-family: 'Berkeley Mono', 'Cascadia Mono', monospace;
   padding-left: 2px;
   padding-right: 0;
 }

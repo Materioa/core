@@ -903,7 +903,7 @@ pre code {
   overflow-x: auto;
   font-size: 0.9rem;
   line-height: 1.5;
-  font-family: "JetBrains Mono", "Space Mono", monospace;
+  font-family: "Berkeley Mono", "Cascadia Mono", "JetBrains Mono", "Space Mono", monospace;
   min-height: 1.5rem;
 }
 
@@ -1144,7 +1144,7 @@ table td code {
   border-radius: 4px;
   font-size: 0.85rem;
   font-weight: 800;
-  font-family: "JetBrains Mono", "Space Mono", monospace;
+  font-family: "Berkeley Mono", "Cascadia Mono", "JetBrains Mono", "Space Mono", monospace;
   white-space: nowrap;
 }
 
@@ -1670,7 +1670,7 @@ table td code {
   }
 
   pre code {
-    font-family: 'JetBrains Mono', 'Space Mono', 'Courier New', monospace !important;
+    font-family: 'Berkeley Mono', 'Cascadia Mono', 'JetBrains Mono', 'Space Mono', 'Courier New', monospace !important;
     font-size: 9pt !important;
     line-height: 1.4 !important;
     color: #000 !important;
@@ -1699,7 +1699,7 @@ table td code {
 
   /* Inline code */
   .post-body code:not(pre code) {
-    font-family: 'Space Mono', 'Courier New', monospace !important;
+    font-family: 'Berkeley Mono', 'Cascadia Mono', 'Space Mono', 'Courier New', monospace !important;
     font-size: 9pt !important;
     background: #f0f0f0 !important;
     padding: 1pt 2pt !important;

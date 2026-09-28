@@ -89,7 +89,7 @@
             .replace(/__(.+?)__/g, '<strong>$1</strong>')
             .replace(/\*(.+?)\*/g, '<em>$1</em>')
             .replace(/_(.+?)_/g, '<em>$1</em>')
-            .replace(/`(.+?)`/g, '<code style="background: rgba(0,0,0,0.1); padding: 2px 6px; border-radius: 4px; font-family: monospace;">$1</code>')
+            .replace(/`(.+?)`/g, '<code style="background: rgba(0,0,0,0.1); padding: 2px 6px; border-radius: 4px; font-family: &quot;Berkeley Mono&quot;, &quot;Cascadia Mono&quot;, monospace;">$1</code>')
             .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" style="color: #ff6b00; text-decoration: underline;">$1</a>')
             .replace(/\n/g, '<br>')
             .replace(/^(\d+)\.\s+(.+)$/gm, '<div style="margin: 8px 0; padding-left: 20px;"><strong>$1.</strong> $2</div>')
