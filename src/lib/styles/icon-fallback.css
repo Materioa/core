@@ -123,7 +123,7 @@
 html.fa-fallback-active .fa-house::after,
 html.fa-fallback-active .fa-home::after {
   content: " Home";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
@@ -131,34 +131,34 @@ html.fa-fallback-active .fa-comment::after,
 html.fa-fallback-active .fa-message::after,
 html.fa-fallback-active .fa-comments::after {
   content: " Chat";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-bell::after {
   content: " Notifications";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-download::after,
 html.fa-fallback-active .fa-arrow-down-to-line::after {
   content: " Downloads";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-user::after,
 html.fa-fallback-active .fa-user-circle::after {
   content: " Profile";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-gear::after,
 html.fa-fallback-active .fa-cog::after {
   content: " Settings";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
@@ -166,13 +166,13 @@ html.fa-fallback-active .fa-book-open-lines::after,
 html.fa-fallback-active .fa-book-open::after,
 html.fa-fallback-active .fa-book::after {
   content: " Open";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-trash-can::after {
   content: " Delete";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
@@ -180,7 +180,7 @@ html.fa-fallback-active .fa-xmark::after,
 html.fa-fallback-active .fa-times::after,
 html.fa-fallback-active .fa-close::after {
   content: " Close";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
@@ -188,94 +188,94 @@ html.fa-fallback-active .fa-pen::after,
 html.fa-fallback-active .fa-edit::after,
 html.fa-fallback-active .fa-pencil::after {
   content: " Edit";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-plus::after,
 html.fa-fallback-active .fa-add::after {
   content: " Add";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-minus::after,
 html.fa-fallback-active .fa-subtract::after {
   content: " Remove";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-check::after,
 html.fa-fallback-active .fa-check-circle::after {
   content: " Done";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-save::after,
 html.fa-fallback-active .fa-floppy-disk::after {
   content: " Save";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-share::after,
 html.fa-fallback-active .fa-share-nodes::after {
   content: " Share";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-copy::after {
   content: " Copy";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-print::after {
   content: " Print";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-search::after,
 html.fa-fallback-active .fa-magnifying-glass::after {
   content: " Search";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-filter::after {
   content: " Filter";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-upload::after,
 html.fa-fallback-active .fa-arrow-up-from-line::after {
   content: " Upload";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-link::after {
   content: " Link";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-info::after,
 html.fa-fallback-active .fa-info-circle::after {
   content: " Info";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-question::after,
 html.fa-fallback-active .fa-question-circle::after {
   content: " Help";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
@@ -283,21 +283,21 @@ html.fa-fallback-active .fa-exclamation::after,
 html.fa-fallback-active .fa-exclamation-circle::after,
 html.fa-fallback-active .fa-exclamation-triangle::after {
   content: " Warning";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-arrow-left::after,
 html.fa-fallback-active .fa-chevron-left::after {
   content: " Back";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-arrow-right::after,
 html.fa-fallback-active .fa-chevron-right::after {
   content: " Next";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
@@ -305,7 +305,7 @@ html.fa-fallback-active .fa-rotate::after,
 html.fa-fallback-active .fa-sync::after,
 html.fa-fallback-active .fa-refresh::after {
   content: " Refresh";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
@@ -313,7 +313,7 @@ html.fa-fallback-active .fa-sign-out::after,
 html.fa-fallback-active .fa-sign-out-alt::after,
 html.fa-fallback-active .fa-right-from-bracket::after {
   content: " Logout";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
@@ -321,262 +321,262 @@ html.fa-fallback-active .fa-sign-in::after,
 html.fa-fallback-active .fa-sign-in-alt::after,
 html.fa-fallback-active .fa-right-to-bracket::after {
   content: " Login";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-bars::after,
 html.fa-fallback-active .fa-menu::after {
   content: " Menu";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-ellipsis::after,
 html.fa-fallback-active .fa-ellipsis-vertical::after {
   content: " More";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-calendar::after {
   content: " Calendar";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-clock::after {
   content: " Time";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-location-dot::after,
 html.fa-fallback-active .fa-map-marker::after {
   content: " Location";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-file::after,
 html.fa-fallback-active .fa-file-lines::after {
   content: " File";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-folder::after {
   content: " Folder";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-image::after {
   content: " Image";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-video::after {
   content: " Video";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-music::after {
   content: " Music";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-envelope::after,
 html.fa-fallback-active .fa-mail::after {
   content: " Email";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-phone::after {
   content: " Phone";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-heart::after {
   content: " Like";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-star::after {
   content: " Favorite";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-bookmark::after {
   content: " Bookmark";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-tag::after {
   content: " Tag";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-eye::after {
   content: " View";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-eye-slash::after {
   content: " Hide";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-lock::after {
   content: " Lock";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-unlock::after {
   content: " Unlock";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-key::after {
   content: " Key";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-shield::after {
   content: " Security";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-crown::after {
   content: " Premium";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-chart-line::after,
 html.fa-fallback-active .fa-chart-bar::after {
   content: " Stats";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-list::after {
   content: " List";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-grid::after,
 html.fa-fallback-active .fa-th::after {
   content: " Grid";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-play::after {
   content: " Play";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-pause::after {
   content: " Pause";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-stop::after {
   content: " Stop";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-volume-high::after {
   content: " Unmute";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-volume-xmark::after,
 html.fa-fallback-active .fa-volume-off::after {
   content: " Mute";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 /* PDF specific */
 html.fa-fallback-active .fa-file-pdf::after {
   content: " PDF";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 /* Social icons */
 html.fa-fallback-active .fa-github::after {
   content: " GitHub";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-twitter::after {
   content: " Twitter";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-facebook::after {
   content: " Facebook";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-instagram::after {
   content: " Instagram";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-linkedin::after {
   content: " LinkedIn";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-youtube::after {
   content: " YouTube";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-whatsapp::after {
   content: " WhatsApp";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-telegram::after {
   content: " Telegram";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }
 
 html.fa-fallback-active .fa-discord::after {
   content: " Discord";
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   font-size: 0.75em;
 }

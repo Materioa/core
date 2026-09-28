@@ -185,7 +185,6 @@ h1, h2, h3, h4, h5, h6,
   font-family: var(--font-heading, 'Quadrant', 'Quadrant Notepad', Georgia, serif);
 }
 
-@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap");
 
 /* ================================================
@@ -1529,7 +1528,7 @@ i span {
 }
 
 #readingSelectionForm {
-    font-family: "Manrope", sans-serif;
+    font-family: "OpenRunde", "Open Runde", sans-serif;
     display: flex;
     flex-wrap: wrap;
     gap: 15px;
@@ -1538,7 +1537,7 @@ i span {
 }
 
 #readingSelectionForm>div {
-    font-family: "Manrope", sans-serif;
+    font-family: "OpenRunde", "Open Runde", sans-serif;
     flex: 1 1 220px;
     display: flex;
     flex-direction: column;
@@ -2279,7 +2278,7 @@ body.dark-mode #gh .contribute-button span {
 
 .pdf-insight-pill-views {
     width: 100%;
-    font-family: 'Manrope', sans-serif;
+    font-family: 'OpenRunde', 'Open Runde', sans-serif;
     font-size: 8px;
     line-height: 1.2;
     letter-spacing: 0.01em;
@@ -2695,7 +2694,7 @@ body.dark-mode .notification-date {
     list-style: none;
     cursor: var(--f-cursor-pointer);
     outline: none;
-    font-family: "Manrope", sans-serif;
+    font-family: "OpenRunde", "Open Runde", sans-serif;
     margin: 0;
 }
 
@@ -2713,7 +2712,7 @@ body.dark-mode .notification-date {
     transition: opacity 1s ease;
     background: none;
     border: none;
-    font-family: "Manrope", sans-serif;
+    font-family: "OpenRunde", "Open Runde", sans-serif;
 }
 
 #changeLogDetails[open] #changeLogContent {
@@ -6744,7 +6743,7 @@ body.dark-mode .search-result-item:hover {
     padding: 24px;
     transform: scale(0.9) translateY(20px);
     transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-    font-family: "Manrope", sans-serif;
+    font-family: "OpenRunde", "Open Runde", sans-serif;
 }
 
 .materio-modal-overlay.visible .materio-modal {
@@ -6826,7 +6825,7 @@ body.dark-mode .search-result-item:hover {
     corner-shape: squircle;
     font-size: 14px;
     font-weight: 600;
-    font-family: "Manrope", sans-serif;
+    font-family: "OpenRunde", "Open Runde", sans-serif;
     cursor: var(--f-cursor-pointer);
     transition: all 0.2s ease;
     border: none;
@@ -6935,7 +6934,7 @@ body.dark-mode .share-input-container {
     padding: 12px 16px;
     font-size: 14px;
     font-weight: 700;
-    font-family: "Manrope", sans-serif;
+    font-family: "OpenRunde", "Open Runde", sans-serif;
     cursor: var(--f-cursor-pointer);
     transition: all 0.2s ease;
     min-width: 60px;
@@ -6971,7 +6970,7 @@ body.dark-mode .share-copy-btn {
     margin: 4px 0 12px;
     color: #aaa;
     font-size: 11px;
-    font-family: "Manrope", sans-serif;
+    font-family: "OpenRunde", "Open Runde", sans-serif;
     font-weight: 600;
 }
 
@@ -7007,7 +7006,7 @@ body.dark-mode .ai-ask-divider::after {
     border: 1.5px solid rgba(0, 0, 0, 0.1);
     background: rgba(0, 0, 0, 0.03);
     color: #1a1a1a;
-    font-family: "Manrope", sans-serif;
+    font-family: "OpenRunde", "Open Runde", sans-serif;
     font-size: 13px;
     font-weight: 700;
     cursor: var(--f-cursor-pointer);
@@ -7096,7 +7095,7 @@ body.dark-mode .ai-ask-divider::after {
 
 .ai-mcp-hint a {
     font-size: 11px;
-    font-family: "Manrope", sans-serif;
+    font-family: "OpenRunde", "Open Runde", sans-serif;
     color: #aaa;
     text-decoration: none;
     transition: color 0.2s;
@@ -9471,7 +9470,7 @@ body.dark-mode .exam-timeline-item.upcoming.active .exam-timeline-dot::after {
     border: 1px solid rgba(0, 0, 0, 0.1);
     border-radius: 12px;
     cursor: var(--f-cursor-pointer);
-    font-family: "Manrope", sans-serif;
+    font-family: "OpenRunde", "Open Runde", sans-serif;
     font-size: 13px;
     font-weight: 600;
     color: #333;
@@ -9553,7 +9552,7 @@ body.dark-mode .view-style-item.selected {
     border: 1px solid rgba(0, 0, 0, 0.1);
     border-radius: 12px;
     cursor: var(--f-cursor-pointer);
-    font-family: "Manrope", sans-serif;
+    font-family: "OpenRunde", "Open Runde", sans-serif;
     font-size: 13px;
     font-weight: 600;
     color: #333;
@@ -9818,7 +9817,7 @@ body.dark-mode .changelog-btn:hover i {
     border: none;
     border-radius: 999px;
     padding: 8px 14px;
-    font-family: 'Manrope', sans-serif;
+    font-family: 'OpenRunde', 'Open Runde', sans-serif;
     font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.01em;
@@ -9923,7 +9922,7 @@ body.dark-mode .notifications-data-tab {
 
 /* Content styling */
 .keyboard-shortcuts-content {
-    font-family: "Manrope", sans-serif;
+    font-family: "OpenRunde", "Open Runde", sans-serif;
 }
 
 .shortcuts-header {
@@ -9932,6 +9931,7 @@ body.dark-mode .notifications-data-tab {
 }
 
 .shortcuts-header h2 {
+    font-family: 'Quadrant', 'Quadrant Notepad', Georgia, serif;
     font-size: 22px;
     font-weight: 700;
     color: #1a1a1a;
@@ -10274,6 +10274,7 @@ body.dark-mode .shortcuts-note kbd {
 
 .shortcut-edit-dialog h3 {
     margin: 0 0 8px;
+    font-family: 'Quadrant', 'Quadrant Notepad', Georgia, serif;
     font-size: 18px;
     font-weight: 700;
     color: #1a1a1a;
@@ -10429,7 +10430,7 @@ body.dark-mode .edit-cancel-btn:hover {
 .edit-save-btn {
     border-radius: 25px !important;
     corner-shape: squircle;
-    font-family: "Manrope", sans-serif !important;
+    font-family: "OpenRunde", "Open Runde", sans-serif !important;
 }
 
 /* Dark mode category headings */
@@ -11194,7 +11195,7 @@ body.coffee-dark-mode .sereine-setting-item:hover {
     gap: 12px;
     z-index: 100;
     color: white;
-    font-family: 'Manrope', sans-serif;
+    font-family: 'OpenRunde', 'Open Runde', sans-serif;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
     animation: fadeIn 0.3s ease;
 }
@@ -12179,7 +12180,7 @@ body.dark-mode .dynamic-form-result p {
 .wizard-next-btn {
     margin-top: 22px;
     padding: 11px 18px;
-    font-family: 'Manrope', sans-serif;
+    font-family: 'OpenRunde', 'Open Runde', sans-serif;
     font-size: 14px;
     font-weight: 600;
     color: #1f1f1f;
@@ -12208,7 +12209,7 @@ body.dark-mode .dynamic-form-result p {
 }
 
 .wizard-info-title {
-    font-family: 'Manrope', sans-serif;
+    font-family: 'Quadrant', 'Quadrant Notepad', Georgia, serif;
     font-size: 20px;
     font-weight: 700;
     color: var(--text-primary, #1a1a1a);
@@ -12316,7 +12317,7 @@ body.dark-mode .wizard-info-text-block h4 {
 
 .wizard-continue-btn {
     padding: 12px 18px;
-    font-family: 'Manrope', sans-serif;
+    font-family: 'OpenRunde', 'Open Runde', sans-serif;
     font-size: 14px;
     font-weight: 600;
     color: #ffffff;
@@ -12333,7 +12334,7 @@ body.dark-mode .wizard-info-text-block h4 {
 
 .wizard-exit-btn {
     padding: 11px 18px;
-    font-family: 'Manrope', sans-serif;
+    font-family: 'OpenRunde', 'Open Runde', sans-serif;
     font-size: 14px;
     font-weight: 500;
     color: var(--text-secondary, #666);

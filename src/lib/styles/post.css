@@ -504,7 +504,7 @@ body.dark-mode .code-tabs-nav {
   padding: 6px 16px;
   background: none;
   border: none;
-  font-family: 'Manrope', sans-serif;
+  font-family: 'OpenRunde', 'Open Runde', sans-serif;
   font-size: 0.85rem;
   font-weight: 600;
   color: #666;
@@ -1203,7 +1203,7 @@ body {
   corner-shape: squircle;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   overflow: visible;
-  font-family: 'Manrope', sans-serif;
+  font-family: 'OpenRunde', 'Open Runde', sans-serif;
   margin-top: 12px;
 }
 

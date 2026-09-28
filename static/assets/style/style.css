@@ -185,7 +185,6 @@ h1, h2, h3, h4, h5, h6,
   font-family: var(--font-heading, 'Quadrant', 'Quadrant Notepad', Georgia, serif);
 }
 
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
@@ -1694,7 +1693,7 @@ table td code {
     padding: 2pt 6pt !important;
     border-bottom-right-radius: 6px !important;
     text-transform: uppercase !important;
-    font-family: 'Manrope', sans-serif !important;
+    font-family: 'OpenRunde', 'Open Runde', sans-serif !important;
     z-index: 10 !important;
   }
 

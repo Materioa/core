@@ -66,7 +66,7 @@
 .leaderboard-subtitle {
     margin: 4px 0 14px;
     color: var(--lb-muted);
-    font-family: 'Manrope', sans-serif;
+    font-family: 'OpenRunde', 'Open Runde', sans-serif;
     font-size: 13px;
     font-weight: 600;
 }
@@ -111,7 +111,7 @@
 .leaderboard-nudge-text {
     margin: 0;
     color: #333;
-    font-family: 'Manrope', sans-serif;
+    font-family: 'OpenRunde', 'Open Runde', sans-serif;
     font-size: 13px;
     line-height: 1.2;
     font-weight: 600;
@@ -129,7 +129,7 @@
     color: #333;
     border-radius: 10px;
     padding: 4px 8px;
-    font-family: 'Manrope', sans-serif;
+    font-family: 'OpenRunde', 'Open Runde', sans-serif;
     font-size: 12px;
     font-weight: 600;
     cursor: var(--f-cursor-pointer);
@@ -166,7 +166,7 @@
     color: var(--lb-muted);
     border-radius: 999px;
     padding: 7px 12px;
-    font-family: 'Manrope', sans-serif;
+    font-family: 'OpenRunde', 'Open Runde', sans-serif;
     font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.01em;
@@ -262,7 +262,7 @@
 }
 
 .leaderboard-stage-name {
-    font-family: 'Manrope', sans-serif;
+    font-family: 'OpenRunde', 'Open Runde', sans-serif;
     font-size: 15px;
     font-weight: 800;
     line-height: 1.2;
@@ -289,7 +289,7 @@
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
-    font-family: 'Manrope', sans-serif;
+    font-family: 'OpenRunde', 'Open Runde', sans-serif;
 }
 
 .leaderboard-table thead th {
@@ -338,7 +338,7 @@
 .leaderboard-empty,
 .leaderboard-error {
     padding: 12px 4px;
-    font-family: 'Manrope', sans-serif;
+    font-family: 'OpenRunde', 'Open Runde', sans-serif;
     font-size: 13px;
 }
 

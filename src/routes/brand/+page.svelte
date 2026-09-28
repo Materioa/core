@@ -2,7 +2,7 @@
   <title>Brand Guidelines</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://site-assets.fontawesome.com/releases/v6.4.0/css/all.css" />
 </svelte:head>
 
@@ -42,10 +42,10 @@
     <div class="typo-grid">
       <div class="font-specimen">
         <div class="font-name">Primary Interface Font</div>
-        <h2 class="manrope-demo" style="font-size: 32px; font-weight: 800; margin-bottom: 10px;">Manrope</h2>
-        <p style="font-size: 13px; color: #ff8400; margin-bottom: 15px; font-weight: 600;">By Colophon Foundry</p>
-        <p class="manrope-demo" style="color: #666;">Used for all interface elements, headings, and primary body text. Modern, geometric, and highly legible.</p>
-        <div class="size-demo manrope-demo">
+        <h2 class="openrunde-demo" style="font-size: 32px; font-weight: 800; margin-bottom: 10px;">OpenRunde</h2>
+        <p style="font-size: 13px; color: #ff8400; margin-bottom: 15px; font-weight: 600;">Interface typeface</p>
+        <p class="openrunde-demo" style="color: #666;">Used for all interface elements and primary body text. Modern, geometric, and highly legible.</p>
+        <div class="size-demo openrunde-demo">
           <div class="size-row">
             <div class="size-label">800</div>
             <div style="font-size: 24px; font-weight: 800;">Headline Text</div>
@@ -229,11 +229,18 @@
 
 <style>
   .brand-page {
-    font-family: 'Manrope', sans-serif;
+    font-family: 'OpenRunde', 'Open Runde', sans-serif;
     background-color: #faf9f5;
     color: #333;
     line-height: 1.6;
     overflow-x: hidden;
+  }
+
+  .brand-page h1,
+  .brand-page h2,
+  .brand-page h3,
+  .brand-page .section-title {
+    font-family: 'Quadrant', 'Quadrant Notepad', Georgia, serif;
   }
 
   .brand-header {
@@ -365,7 +372,7 @@
     font-weight: 700;
   }
 
-  .manrope-demo { font-family: 'Manrope', sans-serif; }
+  .openrunde-demo { font-family: 'OpenRunde', 'Open Runde', sans-serif; }
   .editorial-demo { font-family: 'Libre Baskerville', serif; }
   .code-demo { font-family: 'JetBrains Mono', monospace; }
 

@@ -1383,7 +1383,7 @@
                 <div class="paper-mode-title" style="margin: 0; line-height: 1; display: flex; align-items: center;">Check for Updates</div>
             </div>
             {#if checkingAppUpdate}
-                <span style="font-size: 12.5px; color: var(--color-primary, #ff8200); font-weight: 600; font-family: 'Manrope', sans-serif;">Checking…</span>
+                <span style="font-size: 12.5px; color: var(--color-primary, #ff8200); font-weight: 600; font-family: 'OpenRunde', 'Open Runde', sans-serif;">Checking…</span>
             {/if}
         </div>
     </div>
@@ -1429,25 +1429,25 @@
     <div class="card-layout" id="notices">
         <p>
             <HugeIcon name="information-circle"  />
-            <span><a href="/about" style="font-family:'Manrope', sans-serif; font-weight: 600; color: var(--color-text-primary, #333); text-decoration: none;">About</a></span>
+            <span><a href="/about" style="font-family:'OpenRunde', 'Open Runde', sans-serif; font-weight: 600; color: var(--color-text-primary, #333); text-decoration: none;">About</a></span>
             <HugeIcon name="arrow-right-01"  />
         </p>
         <hr>
         <p>
             <HugeIcon name="file-01"  />
-            <span><a href="/privacy" style="font-family:'Manrope', sans-serif; font-weight:600; color: var(--color-text-primary, #333); text-decoration: none;">Privacy Policy</a></span>
+            <span><a href="/privacy" style="font-family:'OpenRunde', 'Open Runde', sans-serif; font-weight:600; color: var(--color-text-primary, #333); text-decoration: none;">Privacy Policy</a></span>
             <HugeIcon name="arrow-right-01"  />
         </p>
         <hr>
         <p>
             <HugeIcon name="cookie"  />
-            <span><a href="/cookies" style="font-family:'Manrope', sans-serif; font-weight: 600; color: var(--color-text-primary, #333); text-decoration: none;">Cookie Policy</a></span>
+            <span><a href="/cookies" style="font-family:'OpenRunde', 'Open Runde', sans-serif; font-weight: 600; color: var(--color-text-primary, #333); text-decoration: none;">Cookie Policy</a></span>
             <HugeIcon name="arrow-right-01"  />
         </p>
         <hr>
         <p>
             <HugeIcon name="github"  />
-            <span><a href="https://github.com/Jinansh230705" style="font-family:'Manrope', sans-serif; font-weight: 600; color: var(--color-text-primary, #333); text-decoration: none;">Developer's Github</a></span>
+            <span><a href="https://github.com/Jinansh230705" style="font-family:'OpenRunde', 'Open Runde', sans-serif; font-weight: 600; color: var(--color-text-primary, #333); text-decoration: none;">Developer's Github</a></span>
             <HugeIcon name="arrow-right-01"  />
         </p>
     </div>
@@ -1583,7 +1583,7 @@
         border-radius: 12px;
         font-size: 12.5px;
         font-weight: 600;
-        font-family: 'Manrope', sans-serif;
+        font-family: 'OpenRunde', 'Open Runde', sans-serif;
         border: 1px solid rgba(0, 0, 0, 0.14);
         background: #ffffff;
         color: #222222;

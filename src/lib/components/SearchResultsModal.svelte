@@ -215,7 +215,7 @@
                 {/if}
               </div>
               <div style="flex-shrink: 0; display: flex; align-items: center; gap: 8px;">
-                <button type="button" on:click={(e)=> openPdf(e, item)} class="search-open-btn" style="padding: 8px 16px; background: var(--color-primary, #ff8400); color: white; border: none; border-radius: 12px; corner-shape: squircle; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.2s ease; font-family: 'Manrope', sans-serif;">
+                <button type="button" on:click={(e)=> openPdf(e, item)} class="search-open-btn" style="padding: 8px 16px; background: var(--color-primary, #ff8400); color: white; border: none; border-radius: 12px; corner-shape: squircle; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.2s ease; font-family: 'OpenRunde', 'Open Runde', sans-serif;">
                   <i class="far fa-external-link" style="margin-right: 4px;"></i>Open
                 </button>
               </div>

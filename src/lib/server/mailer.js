@@ -113,7 +113,7 @@ export async function sendIncidentEmail(incidentData) {
   const html = `
 <!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet"><style>body { margin: 0; padding: 20px; background: #ffffff; font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }</style></head>
+<head><meta charset="utf-8"><style>body { margin: 0; padding: 20px; background: #ffffff; font-family: 'OpenRunde', 'Open Runde', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }</style></head>
 <body>
   <div style="max-width:600px;margin:24px auto;">
     <div style="margin-bottom:24px;"><img src="${LOGO_URL}" alt="materio." width="180" height="38" style="display:block;" /></div>

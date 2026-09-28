@@ -70,7 +70,7 @@
 </script>
 
 {#if !checked}
-	<div style="min-height:100vh; background:#faf9f5; display:flex; align-items:center; justify-content:center; color:#999; font-family: Manrope, sans-serif;">
+	<div style="min-height:100vh; background:#faf9f5; display:flex; align-items:center; justify-content:center; color:#999; font-family: 'OpenRunde', 'Open Runde', sans-serif;">
 		<span style="font-size:14px; opacity:0.6;">Loading…</span>
 	</div>
 {:else if showLanding}

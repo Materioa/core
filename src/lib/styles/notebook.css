@@ -139,7 +139,7 @@ body.dark-mode .notebook-close-btn {
     flex: 1;
     border: none;
     background: transparent;
-    font-family: 'Manrope', sans-serif;
+    font-family: 'Quadrant', 'Quadrant Notepad', Georgia, serif;
     font-size: 1.5rem;
     font-weight: 700;
     color: var(--notebook-text);
@@ -278,7 +278,7 @@ body.dark-mode .toolbar-btn:hover {
     overflow-y: auto;
     padding: 24px;
     background: var(--notebook-editor-bg);
-    font-family: 'Manrope', sans-serif;
+    font-family: 'OpenRunde', 'Open Runde', sans-serif;
     font-size: 15px;
     line-height: 1.7;
     color: var(--notebook-text);
@@ -492,7 +492,7 @@ body.dark-mode .notebook-editor code {
     padding: 10px 14px;
     border: 1px solid var(--notebook-border);
     border-radius: 25px;
-    font-family: 'Manrope', sans-serif;
+    font-family: 'OpenRunde', 'Open Runde', sans-serif;
     font-size: 14px;
     color: var(--notebook-text);
     background: var(--notebook-editor-bg);
@@ -689,7 +689,7 @@ body.dark-mode .notebook-manage-link {
     padding: 10px 16px;
     border: none;
     border-radius: 25px;
-    font-family: 'Manrope', sans-serif;
+    font-family: 'OpenRunde', 'Open Runde', sans-serif;
     font-size: 13px;
     font-weight: 600;
     cursor: var(--f-cursor-pointer);
@@ -908,7 +908,7 @@ body.dark-mode .link-pdf-option:hover {
     padding: 10px 16px;
     border: 1px solid var(--notebook-border);
     border-radius: 25px;
-    font-family: 'Manrope', sans-serif;
+    font-family: 'OpenRunde', 'Open Runde', sans-serif;
     font-size: 14px;
     color: var(--notebook-text);
     background: var(--notebook-editor-bg);
@@ -1001,7 +1001,7 @@ body.dark-mode .link-pdf-option:hover {
     padding: 24px;
     max-height: calc(85vh - 80px);
     overflow-y: auto;
-    font-family: 'Manrope', sans-serif;
+    font-family: 'OpenRunde', 'Open Runde', sans-serif;
     font-size: 15px;
     line-height: 1.7;
     color: var(--notebook-text);
@@ -1274,7 +1274,7 @@ body.dark-mode .notebook-nav-btn:hover i {
     color: white;
     border: none;
     border-radius: 25px;
-    font-family: 'Manrope', sans-serif;
+    font-family: 'OpenRunde', 'Open Runde', sans-serif;
     font-size: 14px;
     font-weight: 600;
     cursor: var(--f-cursor-pointer);

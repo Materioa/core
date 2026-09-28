@@ -1,6 +1,6 @@
 body {
   margin: 0;
-  font-family: "Manrope", sans-serif;
+  font-family: "OpenRunde", "Open Runde", sans-serif;
   background-color: var(--color-bg-body, #fffffe);
   color: #000;
   transition: background-color 0.3s ease, color 0.3s ease;

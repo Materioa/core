@@ -38,7 +38,7 @@ i[class*="hgi-"] {
     border: none;
     border-radius: 12px;
     color: white;
-    font-family: 'Manrope', sans-serif;
+    font-family: 'OpenRunde', 'Open Runde', sans-serif;
     font-weight: 700;
     font-size: 15px;
     cursor: var(--f-cursor-pointer);
@@ -92,7 +92,7 @@ i[class*="hgi-"] {
 
 .ota-progress-card h3 {
     margin: 0 0 20px 0;
-    font-family: 'Manrope', sans-serif;
+    font-family: 'Quadrant', 'Quadrant Notepad', Georgia, serif;
     font-size: 20px;
     font-weight: 700;
     color: #333;
@@ -118,7 +118,7 @@ i[class*="hgi-"] {
 
 .ota-progress-text {
     margin: 0;
-    font-family: 'Manrope', sans-serif;
+    font-family: 'OpenRunde', 'Open Runde', sans-serif;
     font-size: 14px;
     color: #666;
     text-align: center;
@@ -163,7 +163,7 @@ i[class*="hgi-"] {
 
 .ota-notification strong {
     display: block;
-    font-family: 'Manrope', sans-serif;
+    font-family: 'OpenRunde', 'Open Runde', sans-serif;
     font-size: 15px;
     font-weight: 700;
     color: #333;
@@ -172,7 +172,7 @@ i[class*="hgi-"] {
 
 .ota-notification p {
     margin: 0;
-    font-family: 'Manrope', sans-serif;
+    font-family: 'OpenRunde', 'Open Runde', sans-serif;
     font-size: 13px;
     color: #666;
     line-height: 1.4;

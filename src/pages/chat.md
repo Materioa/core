@@ -10,7 +10,6 @@ permalink: /chat
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Materio - Chat</title>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link id="highlight-theme" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -25,7 +24,7 @@ permalink: /chat
         }
 
         body {
-            font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: 'OpenRunde', 'Open Runde', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background-color: var(--bg-primary);
             color: var(--text-primary);
             height: 100vh;
@@ -335,7 +334,7 @@ permalink: /chat
             background-color: transparent;
             color: var(--text-primary);
             font-size: 16px;
-            font-family: 'Manrope', sans-serif;
+            font-family: 'OpenRunde', 'Open Runde', sans-serif;
             resize: none;
             outline: none;
         }
