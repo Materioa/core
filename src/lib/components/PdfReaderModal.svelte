@@ -4,6 +4,7 @@
     import { pdfModalStore, bookmarksStore, actualThemeStore } from "$lib/stores.js";
     import { activeModalStore } from '$lib/stores.js';
     import { savePdfOffline, isPdfOffline, getOfflinePdf } from '$lib/utils/offlineDb.js';
+    import { hashPdfBuffer, hashPdfUrl, getPdfAnnotations, savePdfAnnotations } from '$lib/utils/pdfAnnotations.js';
     import { toApiUrl } from '$lib/config/api.js';
     import HugeIcon from "./HugeIcon.svelte";
     import { HugeiconsIcon } from "@hugeicons/svelte";
@@ -76,6 +77,72 @@
     let hasOfflineData = false;
     let lastHandledPdfUrl = '';
 
+    // --- PDF annotations: viewer-native data saved locally per PDF (file untouched) ---
+    let pdfHash = null;
+    let annotIdentityReady = false;
+    let pendingAnnotStorage = {};
+    let annotInitFor = '';
+    let annotSaveTimer = null;
+
+    function postToViewer(msg) {
+        try {
+            const iframe = document.getElementById('pdf-iframe');
+            iframe?.contentWindow?.postMessage(msg, '*');
+        } catch {}
+    }
+
+    function ensureAnnotInit() {
+        if (!annotIdentityReady || !pdfHash) return;
+        const key = pdfHash + '|' + (get(pdfModalStore).pdfUrl || '');
+        if (annotInitFor === key) return;
+        annotInitFor = key;
+        postToViewer({ type: 'materioAnnotInit', annotations: { storage: pendingAnnotStorage } });
+    }
+
+    async function setupAnnotIdentity(buffer, url) {
+        annotIdentityReady = false;
+        annotInitFor = '';
+        try {
+            pdfHash = (buffer ? await hashPdfBuffer(buffer) : null) || await hashPdfUrl(url);
+            const existing = await getPdfAnnotations(pdfHash);
+            pendingAnnotStorage = (existing && existing.storage) || {};
+        } catch {
+            pdfHash = null;
+            pendingAnnotStorage = {};
+        }
+        annotIdentityReady = true;
+        ensureAnnotInit();
+    }
+
+    function queueAnnotSave(storage) {
+        if (!pdfHash) return;
+        pendingAnnotStorage = storage || {};
+        if (annotSaveTimer) clearTimeout(annotSaveTimer);
+        annotSaveTimer = setTimeout(() => { flushAnnotSave(); }, 800);
+    }
+
+    async function flushAnnotSave() {
+        if (annotSaveTimer) { clearTimeout(annotSaveTimer); annotSaveTimer = null; }
+        if (!pdfHash) return;
+        const s = get(pdfModalStore);
+        try {
+            await savePdfAnnotations({
+                pdfHash,
+                pdfUrl: s.pdfUrl || '',
+                title: s.title || s.topic || '',
+                storage: pendingAnnotStorage
+            });
+        } catch {}
+    }
+
+    function resetAnnotState() {
+        if (annotSaveTimer) { clearTimeout(annotSaveTimer); annotSaveTimer = null; }
+        pdfHash = null;
+        annotIdentityReady = false;
+        pendingAnnotStorage = {};
+        annotInitFor = '';
+    }
+
     function sendBufferToIframe(url, buffer) {
         if (!buffer || !url) return;
         const iframe = document.getElementById("pdf-iframe");
@@ -101,6 +168,8 @@
     }
 
     async function setupPdfSource(url) {
+        flushAnnotSave();
+        resetAnnotState();
         lastHandledPdfUrl = url;
         currentOfflineRecord = null;
         offlineArrayBuffer = null;
@@ -115,6 +184,7 @@
         if (url.startsWith('blob:')) {
             activeViewerUrl = url;
             isDownloaded = true;
+            setupAnnotIdentity(null, url);
             return;
         }
 
@@ -135,6 +205,7 @@
                 isDownloaded = true;
                 pdfModalStore.update(s => ({ ...s, isBookmarked: true }));
                 sendBufferToIframe(url, offlineArrayBuffer);
+                setupAnnotIdentity(offlineArrayBuffer, url);
                 return;
             }
         } catch (e) {
@@ -153,6 +224,7 @@
                 offlineArrayBuffer = buffer;
                 hasOfflineData = true;
                 sendBufferToIframe(url, buffer);
+                setupAnnotIdentity(buffer, url);
             }
         } catch (fetchErr) {
             console.warn('[PdfReader] Main fetch failed, viewer will try direct fetch:', fetchErr);
@@ -178,6 +250,7 @@
         if (offlineArrayBuffer) {
             sendBufferToIframe($pdfModalStore.pdfUrl, offlineArrayBuffer);
         }
+        ensureAnnotInit();
     }
 
     $: if ($actualThemeStore && popup && $pdfModalStore.isOpen) {
@@ -213,6 +286,12 @@
             if (e.data && (e.data.type === 'applyOverlayModes' || e.data.type === 'requestOverlayModes')) {
                 syncThemeToIframe();
             }
+            if (e.data && e.data.type === 'materioAnnotReady') {
+                ensureAnnotInit();
+            }
+            if (e.data && e.data.type === 'materioAnnotChanged') {
+                queueAnnotSave(e.data.annotations?.storage);
+            }
         };
         window.addEventListener('message', handleMsg);
 
@@ -245,6 +324,8 @@
         if (document.fullscreenElement) {
             document.exitFullscreen().catch(()=>{});
         }
+        flushAnnotSave();
+        resetAnnotState();
         cleanupActiveBlob();
         isClosing = true;
         setTimeout(() => {

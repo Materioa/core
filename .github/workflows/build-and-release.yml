@@ -166,21 +166,14 @@ jobs:
         run: |
           VER="${{ needs.resolve-version.outputs.version }}"
           mkdir -p release-windows
+          # One asset per format, versioned Tauri names only:
+          #   Materio_<ver>_x64-setup.exe (NSIS installer, used by in-app updater)
+          #   Materio_<ver>_x64_en-US.msi
+          # No unversioned aliases, no standalone binary, no updater
+          # signatures (the Tauri updater plugin is not configured).
           if [ -d "src-tauri/target/release/bundle" ]; then
-            find src-tauri/target/release/bundle/ -type f \( -name "*.msi" -o -name "*-setup.exe" -o -name "*.nsis.zip" \) -exec cp {} release-windows/ \;
-          SETUP_EXE=$(find src-tauri/target/release/bundle/ -type f -name "*-setup.exe" | head -n 1)
-          if [ -n "$SETUP_EXE" ]; then
-            cp "$SETUP_EXE" release-windows/Materio-Windows-Setup.exe || true
+            find src-tauri/target/release/bundle/ -type f \( -name "*.msi" -o -name "*-setup.exe" \) -exec cp {} release-windows/ \;
           fi
-          fi
-          if [ -f src-tauri/target/release/app.exe ]; then
-            cp src-tauri/target/release/app.exe release-windows/Materio-Windows-Standalone.exe || true
-          fi
-          if [ -f src-tauri/target/release/Materio.exe ]; then
-            cp src-tauri/target/release/Materio.exe release-windows/Materio-Windows-Standalone.exe || true
-          fi
-          # Tauri generates .nsis.zip and .nsis.zip.sig for the updater
-          find src-tauri/target/release/bundle/ -type f \( -name "*.sig" -o -name "*.nsis.zip" \) -exec cp {} release-windows/ \; 2>/dev/null || true
           ls -la release-windows/
 
       - name: Upload Windows Artifacts
@@ -273,17 +266,17 @@ jobs:
         working-directory: android
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleRelease assembleDebug
+          ./gradlew assembleRelease
 
       - name: Prepare Android Release Artifacts
         shell: bash
         run: |
+          VER="${{ needs.resolve-version.outputs.version }}"
           mkdir -p release-android
-          find android/app/build/outputs/apk/ -type f -name "*.apk" -exec cp {} release-android/ \;
+          # Single versioned APK, same convention as Windows:
+          #   Materio_<ver>_arm64.apk (no debug builds, no aliases)
           if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
-            cp android/app/build/outputs/apk/release/app-release.apk release-android/Materio-Android.apk
-          elif [ -f android/app/build/outputs/apk/debug/app-debug.apk ]; then
-            cp android/app/build/outputs/apk/debug/app-debug.apk release-android/Materio-Android.apk
+            cp android/app/build/outputs/apk/release/app-release.apk "release-android/Materio_${VER}_arm64.apk"
           fi
           ls -la release-android/
 
@@ -329,49 +322,6 @@ jobs:
           echo "Assets prepared for release:"
           ls -lh release-assets/
 
-      - name: Generate Tauri Updater JSON
-        shell: bash
-        run: |
-          VER="${{ needs.resolve-version.outputs.version }}"
-          TAG="${{ needs.resolve-version.outputs.tag }}"
-          REPO="${{ github.repository }}"
-          NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-          # Find the NSIS setup exe or msi for the download URL
-          SETUP_FILE=$(find release-assets/ -type f -name "*-setup.exe" 2>/dev/null | head -1 | xargs -r basename 2>/dev/null || echo "")
-          MSI_FILE=$(find release-assets/ -type f -name "*.msi" 2>/dev/null | head -1 | xargs -r basename 2>/dev/null || echo "")
-
-          # Read signature if available
-          SIG=""
-          SIG_FILE=$(find release-assets/ -type f -name "*.sig" 2>/dev/null | head -1 || echo "")
-          if [ -n "$SIG_FILE" ] && [ -f "$SIG_FILE" ]; then
-            SIG=$(cat "$SIG_FILE")
-          fi
-
-          # Prefer NSIS setup for the updater URL
-          WIN_ASSET="${SETUP_FILE:-$MSI_FILE}"
-          WIN_URL=""
-          if [ -n "$WIN_ASSET" ]; then
-            WIN_URL="https://github.com/${REPO}/releases/download/${TAG}/${WIN_ASSET}"
-          fi
-
-          cat > release-assets/latest.json << ENDJSON
-          {
-            "version": "${TAG}",
-            "notes": "Materio ${TAG} — automated build from ${GITHUB_SHA:0:8}",
-            "pub_date": "${NOW}",
-            "platforms": {
-              "windows-x86_64": {
-                "signature": "${SIG}",
-                "url": "${WIN_URL}"
-              }
-            }
-          }
-          ENDJSON
-
-          echo "✅ Generated updater latest.json for ${TAG}"
-          cat release-assets/latest.json
-
       - name: Delete existing release (if same tag)
         shell: bash
         run: |
@@ -384,22 +334,20 @@ jobs:
         shell: bash
         run: |
           VER="${{ needs.resolve-version.outputs.version }}"
+          TAG="${{ needs.resolve-version.outputs.tag }}"
           {
-            echo "## Materio ${{ needs.resolve-version.outputs.tag }}"
+            echo "## Materio ${TAG}"
             echo ""
             echo "### Included in this build"
             if [[ "${{ needs.build-windows.result }}" == "success" ]]; then
-              echo "- **Windows Desktop:** Native installer (.exe / .msi) with offline reading, system tray, and bundled local MCP server (\`localhost:3000/mcp\`)."
+              echo "- **Windows Desktop:** \`Materio_${VER}_x64-setup.exe\` installer (plus \`.msi\`) with offline reading, system tray, and bundled local MCP server (\`localhost:3000/mcp\`)."
             fi
             if [[ "${{ needs.build-android.result }}" == "success" ]]; then
-              echo "- **Android APK:** Fast, mobile-optimized companion with background in-app updates."
+              echo "- **Android APK:** \`Materio_${VER}_arm64.apk\` — fast, mobile-optimized companion with background in-app updates."
             fi
             echo ""
             echo "### What's new"
             echo "Auto-bump build \`${VER}\` from commit \`${{ github.sha }}\`."
-            echo ""
-            echo "---"
-            echo "_The \`latest.json\` asset in this release powers the desktop in-app updater._"
           } > release-notes.md
           cat release-notes.md
 

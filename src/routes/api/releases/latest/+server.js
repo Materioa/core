@@ -88,10 +88,12 @@ export async function GET({ fetch, platform }) {
 			const version = data.tag_name || FALLBACK_VERSION;
 			const pubDate = data.published_at || new Date().toISOString();
 
-			const winSetup = data.assets?.find(a => a.name === 'Materio-Windows-Setup.exe' || a.name.includes('-setup.exe'));
+			const winSetup = data.assets?.find(a => /materio_.*_x64-setup\.exe/i.test(a.name))
+				|| data.assets?.find(a => a.name === 'Materio-Windows-Setup.exe' || a.name.includes('-setup.exe'));
 			const winMsi = data.assets?.find(a => a.name.endsWith('.msi'));
 			const winStandalone = data.assets?.find(a => a.name.includes('Standalone') || (a.name.endsWith('.exe') && !a.name.includes('-setup')));
-			const apkAsset = data.assets?.find(a => a.name === 'Materio-Android.apk')
+			const apkAsset = data.assets?.find(a => /materio_.*_arm64\.apk/i.test(a.name))
+				|| data.assets?.find(a => a.name === 'Materio-Android.apk')
 				|| data.assets?.find(a => a.name.endsWith('.apk') && !a.name.includes('debug'));
 
 			const primaryWin = winSetup || winMsi || winStandalone;

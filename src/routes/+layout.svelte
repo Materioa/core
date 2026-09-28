@@ -23,6 +23,7 @@
   import SplashScreen from '$lib/components/splash/SplashScreen.svelte';
   import OpenInAppBanner from '$lib/components/OpenInAppBanner.svelte';
   import { installApiInterceptor, isTauri, isAndroidApp, isCapacitor } from '$lib/config/api.js';
+  import { installExternalLinkHandler } from '$lib/utils/externalLinks.js';
   
   import { activeModalStore, pdfModalStore, searchModalStore, activeTab } from '$lib/stores.js';
   import { get } from 'svelte/store';
@@ -143,6 +144,7 @@
   };
 
   onMount(() => {
+    try { installExternalLinkHandler(); } catch {}
     let prevModal = null;
     let updatingFromHash = false;
 

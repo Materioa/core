@@ -72,7 +72,7 @@
 						const res = await fetch(toApiUrl('/api/releases/latest'));
 						if (res.ok) {
 							const data = await res.json();
-							downloadUrl = data.windows?.standaloneUrl || data.windows?.downloadUrl || null;
+							downloadUrl = data.windows?.downloadUrl || data.windows?.standaloneUrl || null;
 						}
 					} catch {}
 

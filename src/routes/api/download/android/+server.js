@@ -18,8 +18,9 @@ export async function GET({ fetch, platform }) {
 
 			if (res.ok) {
 				const data = await res.json();
-				const apk = data.assets?.find(a => a.name === 'Materio-Android.apk')
-					|| data.assets?.find(a => a.name.endsWith('.apk'));
+				const apk = data.assets?.find(a => /materio_.*_arm64\.apk/i.test(a.name))
+					|| data.assets?.find(a => a.name === 'Materio-Android.apk')
+					|| data.assets?.find(a => a.name.endsWith('.apk') && !a.name.includes('debug'));
 				if (apk?.browser_download_url) {
 					targetUrl = apk.browser_download_url;
 				}

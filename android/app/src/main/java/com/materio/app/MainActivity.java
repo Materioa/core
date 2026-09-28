@@ -1,35 +1,33 @@
 package com.materio.app;
 
-import android.app.DownloadManager;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
-import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebView;
 import android.widget.Toast;
 import androidx.activity.OnBackPressedCallback;
 import androidx.core.app.NotificationCompat;
-import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import com.getcapacitor.BridgeActivity;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 public class MainActivity extends BridgeActivity {
     private long lastBackPressTime = 0;
     private String pendingDeepLink = null;
     private static final String CHANNEL_ID = "materio_updates_channel";
-    private long updateDownloadId = -1;
-    private BroadcastReceiver updateDownloadReceiver = null;
+    private static final int UPDATE_NOTIFICATION_ID = 1002;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -133,79 +131,159 @@ public class MainActivity extends BridgeActivity {
                 }
                 runOnUiThread(() -> startUpdateDownload(apkUrl, version != null ? version : ""));
             }
+
+            @JavascriptInterface
+            public void openExternal(String url) {
+                if (url == null) return;
+                String u = url.trim();
+                if (!(u.startsWith("https://") || u.startsWith("http://"))) return;
+                try {
+                    Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(u));
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(intent);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
         }, "AndroidBridge");
     }
 
-    // Self-update: download the APK with the system DownloadManager into the
+    // Self-update: download the APK in our own process straight into the
     // app's internal temp dir (getCacheDir, like Windows %TEMP%), then hand
-    // it to the package installer. Android always shows one system "Install"
-    // confirmation (no silent sideloads for non-Play apps), but the old
-    // install is replaced in place automatically — no manual uninstall and
-    // app data is preserved. Temp files are cleared on next launch.
+    // it to the package installer. DownloadManager is deliberately NOT used:
+    // it can only write to external storage and throws when pointed at
+    // internal temp. Android always shows one system "Install" confirmation
+    // (no silent sideloads for non-Play apps), but the old install is
+    // replaced in place automatically — no manual uninstall and app data is
+    // preserved. Temp files are cleared on the next attempt.
     private void startUpdateDownload(String apkUrl, String version) {
-        try {
-            Toast.makeText(MainActivity.this, "Downloading update…", Toast.LENGTH_SHORT).show();
-            DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
-            if (dm == null) return;
+        final String label = (version == null || version.isEmpty()) ? "" : " " + version;
+        runOnUiThread(() -> Toast.makeText(MainActivity.this, "Downloading update" + label + "…", Toast.LENGTH_SHORT).show());
 
+        new Thread(() -> {
             File tmpDir = new File(getCacheDir(), "updates");
-            if (!tmpDir.exists()) tmpDir.mkdirs();
+            try {
+                if (!tmpDir.exists()) tmpDir.mkdirs();
+            } catch (Exception ignored) {}
             // Clear stale temp APKs from previous attempts.
-            File[] stale = tmpDir.listFiles();
-            if (stale != null) {
-                for (File f : stale) {
-                    try { if (f.isFile()) f.delete(); } catch (Exception ignored) {}
-                }
-            }
-            String safeVer = version.replaceAll("[^A-Za-z0-9._-]", "_");
-            File dest = new File(tmpDir, safeVer.isEmpty() ? "materio-update.apk" : "materio-update-" + safeVer + ".apk");
-            if (dest.exists()) dest.delete();
-
-            DownloadManager.Request req = new DownloadManager.Request(Uri.parse(apkUrl));
-            req.setTitle("Materio update" + (version.isEmpty() ? "" : " " + version));
-            req.setDescription("Downloading new version…");
-            req.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-            req.setMimeType("application/vnd.android.package-archive");
-            req.setDestinationUri(Uri.fromFile(dest));
-
-            if (updateDownloadReceiver != null) {
-                try { unregisterReceiver(updateDownloadReceiver); } catch (Exception ignored) {}
-                updateDownloadReceiver = null;
-            }
-            updateDownloadReceiver = new BroadcastReceiver() {
-                @Override
-                public void onReceive(Context ctx, Intent intent) {
-                    long id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
-                    if (id != updateDownloadId) return;
-                    Cursor c = null;
-                    try {
-                        c = dm.query(new DownloadManager.Query().setFilterById(id));
-                        if (c != null && c.moveToFirst()) {
-                            int status = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
-                            if (status == DownloadManager.STATUS_SUCCESSFUL) {
-                                launchApkInstall(dest);
-                            } else if (status == DownloadManager.STATUS_FAILED) {
-                                Toast.makeText(MainActivity.this, "Update download failed", Toast.LENGTH_SHORT).show();
-                            }
-                        }
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    } finally {
-                        if (c != null) c.close();
+            try {
+                File[] stale = tmpDir.listFiles();
+                if (stale != null) {
+                    for (File f : stale) {
+                        try { if (f.isFile()) f.delete(); } catch (Exception ignored) {}
                     }
                 }
-            };
-            ContextCompat.registerReceiver(
-                this,
-                updateDownloadReceiver,
-                new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
-                ContextCompat.RECEIVER_NOT_EXPORTED
-            );
+            } catch (Exception ignored) {}
 
-            updateDownloadId = dm.enqueue(req);
+            String v = version != null ? version : "";
+            String safeVer = v.replaceAll("[^A-Za-z0-9._-]", "_");
+            File dest = new File(tmpDir, safeVer.isEmpty() ? "materio-update.apk" : "materio-update-" + safeVer + ".apk");
+            try {
+                if (dest.exists()) dest.delete();
+            } catch (Exception ignored) {}
+
+            showUpdateProgress(0, true);
+            HttpURLConnection conn = null;
+            InputStream in = null;
+            FileOutputStream out = null;
+            try {
+                // Resolve manually so GitHub release URLs (302 -> objects
+                // .githubusercontent.com) are followed explicitly.
+                URL url = new URL(apkUrl);
+                int redirects = 0;
+                while (true) {
+                    conn = (HttpURLConnection) url.openConnection();
+                    conn.setInstanceFollowRedirects(false);
+                    conn.setConnectTimeout(20000);
+                    conn.setReadTimeout(30000);
+                    conn.setRequestProperty("User-Agent", "Materio-Android-Updater");
+                    conn.setRequestProperty("Accept", "application/vnd.android.package-archive, application/octet-stream");
+                    int code = conn.getResponseCode();
+                    if (code == HttpURLConnection.HTTP_MOVED_PERM
+                            || code == HttpURLConnection.HTTP_MOVED_TEMP
+                            || code == HttpURLConnection.HTTP_SEE_OTHER
+                            || code == 307 || code == 308) {
+                        String loc = conn.getHeaderField("Location");
+                        conn.disconnect();
+                        conn = null;
+                        if (loc == null || redirects++ >= 5) throw new IOException("Too many redirects");
+                        url = new URL(url, loc);
+                        continue;
+                    }
+                    if (code != HttpURLConnection.HTTP_OK) throw new IOException("HTTP " + code);
+                    break;
+                }
+
+                long total = conn.getContentLengthLong();
+                String contentType = conn.getContentType();
+                if (contentType != null && contentType.contains("text/html")) {
+                    throw new IOException("Unexpected content type " + contentType);
+                }
+
+                in = conn.getInputStream();
+                out = new FileOutputStream(dest);
+                byte[] buf = new byte[64 * 1024];
+                long done = 0;
+                int n;
+                long lastUi = 0;
+                while ((n = in.read(buf)) != -1) {
+                    out.write(buf, 0, n);
+                    done += n;
+                    long now = System.currentTimeMillis();
+                    if (total > 0 && now - lastUi > 500) {
+                        lastUi = now;
+                        showUpdateProgress((int) Math.min(100, (done * 100) / total), false);
+                    }
+                }
+                out.flush();
+
+                // Guard against error pages saved as .apk ("package invalid").
+                if (dest.length() < 1024 * 1024) throw new IOException("File too small, likely an error page");
+                if (total > 0 && dest.length() < total) throw new IOException("Incomplete download");
+
+                hideUpdateProgress();
+                runOnUiThread(() -> launchApkInstall(dest));
+            } catch (Exception e) {
+                e.printStackTrace();
+                try {
+                    if (dest.exists()) dest.delete();
+                } catch (Exception ignored) {}
+                hideUpdateProgress();
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "Update download failed", Toast.LENGTH_SHORT).show());
+            } finally {
+                try { if (in != null) in.close(); } catch (Exception ignored) {}
+                try { if (out != null) out.close(); } catch (Exception ignored) {}
+                try { if (conn != null) conn.disconnect(); } catch (Exception ignored) {}
+            }
+        }).start();
+    }
+
+    private void showUpdateProgress(int percent, boolean indeterminate) {
+        try {
+            Intent intent = new Intent(this, MainActivity.class);
+            PendingIntent pi = PendingIntent.getActivity(
+                this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            );
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle("Downloading Materio update…")
+                .setContentIntent(pi)
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setProgress(100, percent, indeterminate);
+            NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (manager != null) manager.notify(UPDATE_NOTIFICATION_ID, builder.build());
         } catch (Exception e) {
             e.printStackTrace();
-            Toast.makeText(MainActivity.this, "Couldn't start update", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void hideUpdateProgress() {
+        try {
+            NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (manager != null) manager.cancel(UPDATE_NOTIFICATION_ID);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 

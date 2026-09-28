@@ -177,7 +177,7 @@ async fn install_update_and_restart(app: AppHandle, download_url: Option<String>
         use std::os::windows::process::CommandExt;
 
         let url = download_url.unwrap_or_else(|| {
-            "https://github.com/Materioa/core/releases/latest/download/Materio-Windows-Setup.exe".to_string()
+            "https://beta.getmaterio.app/api/download/windows".to_string()
         });
 
         let current_exe = std::env::current_exe().map_err(|e| e.to_string())?;
@@ -315,6 +315,19 @@ fn app_window_is_maximized(window: tauri::Window) -> bool {
     window.is_maximized().unwrap_or(false)
 }
 
+/// Opens an off-app link in the OS default browser (room posts, status
+/// page, share URLs, …). The desktop WebView ships no opener plugin, so
+/// plain target=_blank links would otherwise do nothing. Only http(s)
+/// URLs are allowed — everything else is rejected.
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    let u = url.trim();
+    if !(u.starts_with("https://") || u.starts_with("http://")) {
+        return Err("Only http(s) URLs may be opened externally".to_string());
+    }
+    open::that(u).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -329,7 +342,8 @@ pub fn run() {
             app_window_minimize,
             app_window_toggle_maximize,
             app_window_close,
-            app_window_is_maximized
+            app_window_is_maximized,
+            open_external_url
         ])
         // Second launches (e.g. materio:// taps from the browser while the
         // app runs) focus the existing window and forward the URL instead
