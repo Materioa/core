@@ -22,6 +22,7 @@
   import AppUpdateModal from '$lib/components/AppUpdateModal.svelte';
   import SplashScreen from '$lib/components/splash/SplashScreen.svelte';
   import OpenInAppBanner from '$lib/components/OpenInAppBanner.svelte';
+  import NudgeCards from '$lib/components/NudgeCards.svelte';
   import { installApiInterceptor, isTauri, isAndroidApp, isCapacitor } from '$lib/config/api.js';
   import { installExternalLinkHandler } from '$lib/utils/externalLinks.js';
   
@@ -427,6 +428,7 @@
 {#if isTauri}
 <AppUpdateModal />
 {/if}
+<NudgeCards />
 
 {#if showSplash}
 <div

@@ -3,11 +3,10 @@
 	import { browser } from '$app/environment';
 	import { isTauri, toApiUrl } from '$lib/config/api.js';
 
-	// Types of nudges: 'update' | 'offline'
-	let activeNudge = $state<'update' | 'offline' | null>(null);
+	// Update nudge state (desktop app only; offline + top-50 cards live in NudgeCards).
+	let activeNudge = $state(null);
 	let newVersion = $state<string>('');
 	let isInstalling = $state(false);
-	let dismissed = $state(false);
 
 	// Compare semver: returns true if v1 > v2
 	function isNewerVersion(remote: string, current: string): boolean {
@@ -92,39 +91,14 @@
 		}
 	}
 
-	function handleViewDownloads() {
-		if (typeof (window as any).__materioSetTab === 'function') {
-			(window as any).__materioSetTab('downloads');
-		} else {
-			window.location.href = '/downloads';
-		}
-		activeNudge = null;
-	}
-
 	function handleDismiss() {
-		dismissed = true;
 		activeNudge = null;
 	}
 
 	onMount(() => {
 		if (!browser || !isTauri) return;
 
-		// 1. Offline & Online detection for desktop app
-		const handleOffline = () => {
-			if (!dismissed) activeNudge = 'offline';
-		};
-		const handleOnline = () => {
-			if (activeNudge === 'offline') activeNudge = null;
-		};
-
-		if (!navigator.onLine) {
-			activeNudge = 'offline';
-		}
-
-		window.addEventListener('offline', handleOffline);
-		window.addEventListener('online', handleOnline);
-
-		// 2. Check for updates (desktop app only)
+		// Check for updates (desktop app only)
 		checkForUpdates();
 		const interval = setInterval(checkForUpdates, 30 * 60 * 1000); // Check every 30m
 
@@ -132,80 +106,49 @@
 		(window as any).__materioCheckUpdateModal = checkForUpdates;
 
 		return () => {
-			window.removeEventListener('offline', handleOffline);
-			window.removeEventListener('online', handleOnline);
 			clearInterval(interval);
 		};
 	});
 </script>
 
-{#if isTauri && activeNudge}
+{#if isTauri && activeNudge === 'update'}
 	<aside
 		id="appNudgeCard"
 		class="leaderboard-nudge-card"
 		role="status"
 		aria-live="polite"
 	>
-		{#if activeNudge === 'update'}
-			<img src="/assets/img/greet.webp" alt="Update" class="leaderboard-nudge-image" />
-			<div class="leaderboard-nudge-content">
-				<h4 class="leaderboard-nudge-title">Update Available</h4>
-				<p class="leaderboard-nudge-text">
-					{#if newVersion}
-						Version {newVersion.replace(/^v/, '')} is ready to install.
-					{:else}
-						A new version is ready to install.
-					{/if}
-				</p>
-				<div class="leaderboard-nudge-actions">
-					<button
-						type="button"
-						class="leaderboard-nudge-btn leaderboard-nudge-btn-primary"
-						disabled={isInstalling}
-						onclick={handleInstallAndRestart}
-					>
-						{isInstalling ? 'Updating and Restarting' : 'Update and Restart'}
-					</button>
-					<button
-						type="button"
-						class="leaderboard-nudge-btn"
-						onclick={handleDismiss}
-					>
-						Later
-					</button>
-				</div>
-				<p class="nudge-hint">
-					<span>Automatically restarts Materio with latest enhancements</span>
-				</p>
+		<img src="/assets/img/greet.webp" alt="Update" class="leaderboard-nudge-image" />
+		<div class="leaderboard-nudge-content">
+			<h4 class="leaderboard-nudge-title">Update Available</h4>
+			<p class="leaderboard-nudge-text">
+				{#if newVersion}
+					Version {newVersion.replace(/^v/, '')} is ready to install.
+				{:else}
+					A new version is ready to install.
+				{/if}
+			</p>
+			<div class="leaderboard-nudge-actions">
+				<button
+					type="button"
+					class="leaderboard-nudge-btn leaderboard-nudge-btn-primary"
+					disabled={isInstalling}
+					onclick={handleInstallAndRestart}
+				>
+					{isInstalling ? 'Updating and Restarting' : 'Update and Restart'}
+				</button>
+				<button
+					type="button"
+					class="leaderboard-nudge-btn"
+					onclick={handleDismiss}
+				>
+					Later
+				</button>
 			</div>
-		{:else if activeNudge === 'offline'}
-			<img src="/assets/img/internet.webp" alt="Offline" class="leaderboard-nudge-image" />
-			<div class="leaderboard-nudge-content">
-				<h4 class="leaderboard-nudge-title">Offline Mode</h4>
-				<p class="leaderboard-nudge-text">
-					You are currently offline. Access your downloaded materials in the library.
-				</p>
-				<div class="leaderboard-nudge-actions">
-					<button
-						type="button"
-						class="leaderboard-nudge-btn leaderboard-nudge-btn-primary"
-						onclick={handleViewDownloads}
-					>
-						View Downloads
-					</button>
-					<button
-						type="button"
-						class="leaderboard-nudge-btn"
-						onclick={handleDismiss}
-					>
-						Dismiss
-					</button>
-				</div>
-				<p class="nudge-hint">
-					<span>Save PDFs for offline reading by clicking bookmark in viewer</span>
-				</p>
-			</div>
-		{/if}
+			<p class="nudge-hint">
+				<span>Automatically restarts Materio with latest enhancements</span>
+			</p>
+		</div>
 	</aside>
 {/if}
 
