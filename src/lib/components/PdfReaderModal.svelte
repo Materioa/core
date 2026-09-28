@@ -82,7 +82,19 @@
     let annotIdentityReady = false;
     let pendingAnnotStorage = {};
     let annotInitFor = '';
-    let annotSaveTimer = null;
+    // Explicit-save model: edits accumulate in memory; nothing is written
+    // until Ctrl+S or the close-prompt confirms. Compared against the last
+    // flushed snapshot so the prompt only appears on real changes.
+    let annotDirty = false;
+    let lastSavedSnapshot = '';
+
+    function annotSnapshot(storage) {
+        try {
+            return JSON.stringify(storage || {});
+        } catch {
+            return '';
+        }
+    }
 
     function postToViewer(msg) {
         try {
@@ -102,13 +114,16 @@
     async function setupAnnotIdentity(buffer, url) {
         annotIdentityReady = false;
         annotInitFor = '';
+        annotDirty = false;
         try {
             pdfHash = (buffer ? await hashPdfBuffer(buffer) : null) || await hashPdfUrl(url);
             const existing = await getPdfAnnotations(pdfHash);
             pendingAnnotStorage = (existing && existing.storage) || {};
+            lastSavedSnapshot = annotSnapshot(pendingAnnotStorage);
         } catch {
             pdfHash = null;
             pendingAnnotStorage = {};
+            lastSavedSnapshot = '';
         }
         annotIdentityReady = true;
         ensureAnnotInit();
@@ -117,30 +132,52 @@
     function queueAnnotSave(storage) {
         if (!pdfHash) return;
         pendingAnnotStorage = storage || {};
-        if (annotSaveTimer) clearTimeout(annotSaveTimer);
-        annotSaveTimer = setTimeout(() => { flushAnnotSave(); }, 800);
+        // Only real changes mark dirty (viewer echoes init back verbatim).
+        annotDirty = annotSnapshot(pendingAnnotStorage) !== lastSavedSnapshot;
     }
 
     async function flushAnnotSave() {
-        if (annotSaveTimer) { clearTimeout(annotSaveTimer); annotSaveTimer = null; }
-        if (!pdfHash) return;
+        if (!pdfHash) return false;
         const s = get(pdfModalStore);
         try {
-            await savePdfAnnotations({
+            const ok = await savePdfAnnotations({
                 pdfHash,
                 pdfUrl: s.pdfUrl || '',
                 title: s.title || s.topic || '',
                 storage: pendingAnnotStorage
             });
-        } catch {}
+            if (ok) {
+                lastSavedSnapshot = annotSnapshot(pendingAnnotStorage);
+                annotDirty = false;
+            }
+            return ok;
+        } catch {
+            return false;
+        }
+    }
+
+    async function saveAnnotationsNow() {
+        if (!pdfHash) return;
+        if (!annotDirty && lastSavedSnapshot === annotSnapshot(pendingAnnotStorage)) {
+            if (window.materioAlert) {
+                window.materioAlert('No annotation changes to save yet — use the text, highlight or draw tools in the viewer.', { type: 'info', title: 'Annotations' });
+            }
+            return;
+        }
+        const ok = await flushAnnotSave();
+        if (window.materioAlert) {
+            if (ok) window.materioAlert('Annotations saved for this PDF. They will reappear next time you open it.', { type: 'success', title: 'Annotations Saved' });
+            else window.materioAlert('Could not save annotations. Please try again.', { type: 'danger', title: 'Save Failed' });
+        }
     }
 
     function resetAnnotState() {
-        if (annotSaveTimer) { clearTimeout(annotSaveTimer); annotSaveTimer = null; }
         pdfHash = null;
         annotIdentityReady = false;
         pendingAnnotStorage = {};
         annotInitFor = '';
+        annotDirty = false;
+        lastSavedSnapshot = '';
     }
 
     function sendBufferToIframe(url, buffer) {
@@ -261,6 +298,7 @@
         if (typeof window !== 'undefined') {
             window.openPdfModal = (url, metadata) => openPdfModal(url, metadata);
             window.loadPdfWithCache = (url, metadata) => openPdfModal(url, metadata);
+            window.__materioSavePdfAnnotations = () => saveAnnotationsNow();
         }
 
         const syncFullscreen = () => {
@@ -287,6 +325,9 @@
                 syncThemeToIframe();
             }
             if (e.data && e.data.type === 'materioAnnotReady') {
+                // The viewer (re)loaded: any earlier init post may have been
+                // lost before its listener existed, so force a fresh post.
+                annotInitFor = '';
                 ensureAnnotInit();
             }
             if (e.data && e.data.type === 'materioAnnotChanged') {
@@ -320,11 +361,26 @@
         }
     }
 
-    function closeModal() {
+    async function closeModal() {
         if (document.fullscreenElement) {
             document.exitFullscreen().catch(()=>{});
         }
-        flushAnnotSave();
+        // Prompt to save annotation changes, like the linked-notebook flow.
+        if (pdfHash && annotDirty) {
+            let save = true;
+            try {
+                if (window.materioConfirm) {
+                    const res = await window.materioConfirm(
+                        'Do you want to save your annotations for this PDF? They will reappear next time you open it.',
+                        { title: 'Save Annotations?', confirmText: 'Save', cancelText: "Don't Save", type: 'info' }
+                    );
+                    save = res === true || res === 'confirm';
+                }
+            } catch {}
+            if (save) {
+                await flushAnnotSave();
+            }
+        }
         resetAnnotState();
         cleanupActiveBlob();
         isClosing = true;

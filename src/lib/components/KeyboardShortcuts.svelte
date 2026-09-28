@@ -135,6 +135,17 @@
             }
             if (ctrl && shift && key === "k") { prevent(); click("aiSearchToggle"); document.getElementById("quickSearchInput")?.focus(); return; }
             if (ctrl && key === "k") { prevent(); document.getElementById("quickSearchInput")?.focus(); return; }
+            if (ctrl && key === "s") {
+                // Save PDF annotations when the reader is open (blocks the
+                // browser's Save-page dialog for an explicit in-app save).
+                try {
+                    if ($pdfModalStore.isOpen && typeof window.__materioSavePdfAnnotations === 'function') {
+                        prevent();
+                        window.__materioSavePdfAnnotations();
+                        return;
+                    }
+                } catch {}
+            }
             if ((shift && key === "?") || (ctrl && key === "/")) { prevent(); toggleShortcutDialog(); return; }
             if (alt && shift && key === "n") { 
                 prevent(); 
