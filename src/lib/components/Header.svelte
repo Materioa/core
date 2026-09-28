@@ -73,6 +73,101 @@
     } catch {}
   }
 
+  // --- Custom window chrome FX (desktop app only) ---
+  // Frameless windows get no OS snap flyout or native tooltips, so we
+  // render our own: a Windows-styled tooltip for min/max/close and a
+  // snap-layout popup on the maximize button.
+  let winTip = null; // { text, x, y }
+  let winTipTimer = null;
+  let snapOpen = false;
+  let snapX = 0;
+  let snapY = 0;
+  let snapTimer = null;
+
+  function clearChromeTimers() {
+    if (winTipTimer) { clearTimeout(winTipTimer); winTipTimer = null; }
+    if (snapTimer) { clearTimeout(snapTimer); snapTimer = null; }
+  }
+
+  function hideChromeFx() {
+    clearChromeTimers();
+    winTip = null;
+    snapOpen = false;
+  }
+
+  function chromeHover(e) {
+    if (!isDesktopApp) return;
+    let t = null;
+    try { t = e.target && e.target.closest ? e.target : null; } catch { return; }
+    if (!t) return;
+    try {
+      if (t.closest('.snap-flyout')) return; // keep open while choosing
+      const btn = t.closest('.window-control-btn');
+      if (!btn) { hideChromeFx(); return; }
+      clearChromeTimers();
+      const label = btn.getAttribute('aria-label') || 'Window';
+      const r = btn.getBoundingClientRect();
+      winTipTimer = setTimeout(() => {
+        winTip = { text: label, x: Math.max(8, r.right - 6), y: r.bottom + 10 };
+      }, 650);
+      if (btn.classList.contains('btn-max') && !snapOpen) {
+        snapTimer = setTimeout(() => {
+          const w = 224;
+          snapX = Math.max(8, r.right - w - 2);
+          snapY = r.bottom + 8;
+          winTip = null;
+          snapOpen = true;
+        }, 550);
+      } else if (!btn.classList.contains('btn-max')) {
+        snapOpen = false;
+      }
+    } catch {}
+  }
+
+  async function snapLayout(kind) {
+    snapOpen = false;
+    winTip = null;
+    try {
+      const api = window.__TAURI__?.window;
+      const win = api?.getCurrentWindow ? api.getCurrentWindow() : null;
+      if (!win || !api?.PhysicalPosition || !api?.PhysicalSize) {
+        handleToggleMaximize();
+        return;
+      }
+      try { await win.unmaximize(); } catch {}
+      if (kind === 'max') {
+        try { await win.maximize(); } catch {}
+        setTimeout(checkMaximized, 120);
+        return;
+      }
+      let area = null;
+      try {
+        const mon = await win.currentMonitor();
+        area = mon?.workArea || mon?.size || null;
+      } catch {}
+      if (!area || !area.width || !area.height) {
+        handleToggleMaximize();
+        return;
+      }
+      const ax = area.x || 0;
+      const ay = area.y || 0;
+      const aw = area.width;
+      const ah = area.height;
+      let x = ax, y = ay, w = aw, h = ah;
+      if (kind === 'left') { w = Math.floor(aw / 2); }
+      else if (kind === 'right') { x = ax + Math.ceil(aw / 2); w = Math.floor(aw / 2); }
+      else if (kind === 'tl') { w = Math.floor(aw / 2); h = Math.floor(ah / 2); }
+      else if (kind === 'tr') { x = ax + Math.ceil(aw / 2); w = Math.floor(aw / 2); h = Math.floor(ah / 2); }
+      else if (kind === 'bl') { y = ay + Math.ceil(ah / 2); w = Math.floor(aw / 2); h = Math.floor(ah / 2); }
+      else if (kind === 'br') { x = ax + Math.ceil(aw / 2); y = ay + Math.ceil(ah / 2); w = Math.floor(aw / 2); h = Math.floor(ah / 2); }
+      await win.setPosition(new api.PhysicalPosition(Math.round(x), Math.round(y)));
+      await win.setSize(new api.PhysicalSize(Math.round(w), Math.round(h)));
+      setTimeout(checkMaximized, 120);
+    } catch {
+      try { handleToggleMaximize(); } catch {}
+    }
+  }
+
   onMount(() => {
     checkHealth();
     if (typeof window !== 'undefined') {
@@ -85,14 +180,23 @@
         window.location?.protocol === 'tauri:'
       );
     }
+    // Window-chrome FX hover delegation (tooltips + snap flyout).
+    const hoverListener = (e) => chromeHover(e);
+    if (typeof window !== 'undefined') window.addEventListener('mouseover', hoverListener);
     if (isDesktopApp) {
       checkMaximized();
       const onResize = () => checkMaximized();
       window.addEventListener('resize', onResize);
       return () => {
         window.removeEventListener('resize', onResize);
+        window.removeEventListener('mouseover', hoverListener);
+        hideChromeFx();
       };
     }
+    return () => {
+      window.removeEventListener('mouseover', hoverListener);
+      hideChromeFx();
+    };
   });
 
   async function checkHealth() {
@@ -190,12 +294,12 @@
       {#if isDesktopApp}
       <div class="desktop-window-divider" aria-hidden="true"></div>
       <div class="desktop-window-controls" aria-label="Window Controls">
-          <button type="button" class="window-control-btn btn-min" on:click|stopPropagation={handleMinimize} aria-label="Minimize" title="Minimize">
+          <button type="button" class="window-control-btn btn-min" on:click|stopPropagation={handleMinimize} aria-label="Minimize">>
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M 0 5.5 H 10" stroke="currentColor" stroke-width="1"/>
               </svg>
           </button>
-          <button type="button" class="window-control-btn btn-max" on:click|stopPropagation={handleToggleMaximize} aria-label={isMaximized ? "Restore" : "Maximize"} title={isMaximized ? "Restore" : "Maximize"}>
+          <button type="button" class="window-control-btn btn-max" on:click|stopPropagation={handleToggleMaximize} aria-label={isMaximized ? "Restore" : "Maximize"}>>
               {#if isMaximized}
                   <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path d="M 2.5 2.5 V 2 C 2.5 1.17 3.17 0.5 4 0.5 H 8 C 8.83 0.5 9.5 1.17 9.5 2 V 6 C 9.5 6.83 8.83 7.5 8 7.5 H 7.5" stroke="currentColor" stroke-width="1"/>
@@ -207,7 +311,7 @@
                   </svg>
               {/if}
           </button>
-          <button type="button" class="window-control-btn btn-close" on:click|stopPropagation={handleClose} aria-label="Close" title="Close">
+          <button type="button" class="window-control-btn btn-close" on:click|stopPropagation={handleClose} aria-label="Close">>
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M 1 1 L 9 9 M 9 1 L 1 9" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
               </svg>
@@ -252,12 +356,12 @@
 
   {#if isDesktopApp}
   <div class="desktop-window-controls site-header-controls" aria-label="Window Controls">
-      <button type="button" class="window-control-btn btn-min" on:click|stopPropagation={handleMinimize} aria-label="Minimize" title="Minimize">
+      <button type="button" class="window-control-btn btn-min" on:click|stopPropagation={handleMinimize} aria-label="Minimize">>
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M 0 5.5 H 10" stroke="currentColor" stroke-width="1"/>
           </svg>
       </button>
-      <button type="button" class="window-control-btn btn-max" on:click|stopPropagation={handleToggleMaximize} aria-label={isMaximized ? "Restore" : "Maximize"} title={isMaximized ? "Restore" : "Maximize"}>
+      <button type="button" class="window-control-btn btn-max" on:click|stopPropagation={handleToggleMaximize} aria-label={isMaximized ? "Restore" : "Maximize"}>>
           {#if isMaximized}
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M 2.5 2.5 V 2 C 2.5 1.17 3.17 0.5 4 0.5 H 8 C 8.83 0.5 9.5 1.17 9.5 2 V 6 C 9.5 6.83 8.83 7.5 8 7.5 H 7.5" stroke="currentColor" stroke-width="1"/>
@@ -269,7 +373,7 @@
               </svg>
           {/if}
       </button>
-      <button type="button" class="window-control-btn btn-close" on:click|stopPropagation={handleClose} aria-label="Close" title="Close">
+      <button type="button" class="window-control-btn btn-close" on:click|stopPropagation={handleClose} aria-label="Close">>
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M 1 1 L 9 9 M 9 1 L 1 9" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
           </svg>
@@ -277,6 +381,24 @@
   </div>
   {/if}
 </header>
+{/if}
+
+{#if isDesktopApp}
+  {#if winTip}
+    <div class="win-tip" style="left: {winTip.x}px; top: {winTip.y}px;" role="tooltip">{winTip.text}</div>
+  {/if}
+  {#if snapOpen}
+    <div class="snap-flyout" style="left: {snapX}px; top: {snapY}px;" role="menu" aria-label="Snap layouts" on:mouseleave={hideChromeFx}>
+      <div class="snap-grid">
+        <button type="button" class="snap-opt" on:click={() => snapLayout('left')} aria-label="Snap left"><span class="snap-mini"><i class="snap-on snap-left"></i></span></button>
+        <button type="button" class="snap-opt" on:click={() => snapLayout('max')} aria-label="Maximize"><span class="snap-mini"><i class="snap-on snap-full"></i></span></button>
+        <button type="button" class="snap-opt" on:click={() => snapLayout('right')} aria-label="Snap right"><span class="snap-mini"><i class="snap-on snap-right"></i></span></button>
+        <button type="button" class="snap-opt" on:click={() => snapLayout('tl')} aria-label="Snap top left"><span class="snap-mini"><i class="snap-on snap-tl"></i></span></button>
+        <button type="button" class="snap-opt" on:click={() => snapLayout('tr')} aria-label="Snap top right"><span class="snap-mini"><i class="snap-on snap-tr"></i></span></button>
+        <button type="button" class="snap-opt" on:click={() => snapLayout('bl')} aria-label="Snap bottom left"><span class="snap-mini"><i class="snap-on snap-bl"></i></span></button>
+      </div>
+    </div>
+  {/if}
 {/if}
 
 <style>
@@ -365,4 +487,72 @@
     background-color: #b22518 !important;
     color: #ffffff !important;
   }
+
+  /* Native-styled tooltip (Win11 dark tooltip look, both themes). */
+  .win-tip {
+    position: fixed;
+    z-index: 9999995;
+    transform: translateX(-100%);
+    background: #2b2b2b;
+    color: #ffffff;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 12px;
+    line-height: 1.3;
+    padding: 5px 10px;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  /* Snap-layout flyout (mica-style translucent panel). */
+  .snap-flyout {
+    position: fixed;
+    z-index: 9999994;
+    background: rgba(43, 43, 46, 0.8);
+    -webkit-backdrop-filter: blur(30px) saturate(1.5);
+    backdrop-filter: blur(30px) saturate(1.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 8px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  }
+  .snap-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 64px);
+    gap: 6px;
+  }
+  .snap-opt {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    border-radius: 6px;
+  }
+  .snap-mini {
+    position: relative;
+    display: block;
+    width: 64px;
+    height: 44px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+  }
+  .snap-opt:hover .snap-mini {
+    background: rgba(255, 255, 255, 0.15);
+  }
+  .snap-mini .snap-on {
+    position: absolute;
+    background: var(--color-primary, #ff6b00);
+    opacity: 0.9;
+    border-radius: 2px;
+  }
+  .snap-left { left: 3px; top: 3px; bottom: 3px; width: calc(50% - 5px); }
+  .snap-right { right: 3px; top: 3px; bottom: 3px; width: calc(50% - 5px); }
+  .snap-full { left: 3px; right: 3px; top: 3px; bottom: 3px; }
+  .snap-tl { left: 3px; top: 3px; width: calc(50% - 5px); height: calc(50% - 5px); }
+  .snap-tr { right: 3px; top: 3px; width: calc(50% - 5px); height: calc(50% - 5px); }
+  .snap-bl { left: 3px; bottom: 3px; width: calc(50% - 5px); height: calc(50% - 5px); }
 </style>
