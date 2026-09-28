@@ -316,4 +316,25 @@
 			transform: translateY(0) scale(1);
 		}
 	}
+
+	@media (max-width: 480px) {
+		.leaderboard-nudge-card {
+			right: 12px;
+			left: 12px;
+			bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+			width: auto;
+			grid-template-columns: 52px 1fr;
+			padding: 10px 12px;
+			border-radius: 16px;
+		}
+
+		.leaderboard-nudge-image {
+			width: 44px;
+			height: 44px;
+		}
+
+		.leaderboard-nudge-text {
+			font-size: 12px;
+		}
+	}
 </style>
