@@ -8,6 +8,16 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Which apps to build'
+        required: false
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - android
+          - windows
 
 permissions:
   contents: write
@@ -42,11 +52,58 @@ jobs:
           echo "📦 Version: ${RAW}  Tag: v${RAW}"
 
   # ─────────────────────────────────────────────
+  #  Which platforms does this push touch?
+  #  Website-only pushes build NEITHER native app; android/** builds
+  #  Android only; src-tauri/** builds Windows only. Tags and manual
+  #  runs default to both (dispatch can narrow via the platform input).
+  # ─────────────────────────────────────────────
+  changes:
+    name: Detect Changed Platforms
+    runs-on: ubuntu-latest
+    outputs:
+      android: ${{ steps.set.outputs.android }}
+      windows: ${{ steps.set.outputs.windows }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute changed paths
+        id: set
+        shell: bash
+        run: |
+          ANDROID=true
+          WINDOWS=true
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" != refs/tags/* ]]; then
+            BEFORE="${{ github.event.before }}"
+            if [[ "$BEFORE" == "0000000000000000000000000000000000000000" ]]; then
+              BEFORE="HEAD~1"
+            fi
+            FILES=$(git diff --name-only "$BEFORE" "${{ github.sha }}" 2>/dev/null || git diff --name-only HEAD~1 HEAD)
+            echo "--- changed files ---"
+            echo "$FILES"
+            ANDROID=false
+            WINDOWS=false
+            echo "$FILES" | grep -Eq '^(android/|capacitor\.config\.json)' && ANDROID=true || true
+            if echo "$FILES" | grep -Eq '^(src-tauri/|\.github/workflows/build-and-release\.yml)'; then
+              ANDROID=true
+              WINDOWS=true
+            fi
+          fi
+          if [[ "${{ github.event.inputs.platform }}" == "android" ]]; then WINDOWS=false; fi
+          if [[ "${{ github.event.inputs.platform }}" == "windows" ]]; then ANDROID=false; fi
+          echo "android=$ANDROID" >> $GITHUB_OUTPUT
+          echo "windows=$WINDOWS" >> $GITHUB_OUTPUT
+          echo "▶ android=$ANDROID windows=$WINDOWS"
+
+  # ─────────────────────────────────────────────
   #  Windows (Tauri)
   # ─────────────────────────────────────────────
   build-windows:
     name: Build Windows App (Tauri)
-    needs: resolve-version
+    needs: [resolve-version, changes]
+    if: needs.changes.outputs.windows == 'true'
     runs-on: windows-latest
     steps:
       - name: Checkout repository
@@ -138,7 +195,8 @@ jobs:
   # ─────────────────────────────────────────────
   build-android:
     name: Build Android App (Capacitor)
-    needs: resolve-version
+    needs: [resolve-version, changes]
+    if: needs.changes.outputs.android == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -241,7 +299,7 @@ jobs:
   # ─────────────────────────────────────────────
   publish-release:
     name: Publish to GitHub Releases
-    needs: [resolve-version, build-windows, build-android]
+    needs: [resolve-version, changes, build-windows, build-android]
     if: always() && !cancelled() && (needs.build-windows.result == 'success' || needs.build-android.result == 'success')
     runs-on: ubuntu-latest
     steps:
@@ -322,6 +380,29 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Compose Release Notes
+        shell: bash
+        run: |
+          VER="${{ needs.resolve-version.outputs.version }}"
+          {
+            echo "## Materio ${{ needs.resolve-version.outputs.tag }}"
+            echo ""
+            echo "### Included in this build"
+            if [[ "${{ needs.build-windows.result }}" == "success" ]]; then
+              echo "- **Windows Desktop:** Native installer (.exe / .msi) with offline reading, system tray, and bundled local MCP server (\`localhost:3000/mcp\`)."
+            fi
+            if [[ "${{ needs.build-android.result }}" == "success" ]]; then
+              echo "- **Android APK:** Fast, mobile-optimized companion with background in-app updates."
+            fi
+            echo ""
+            echo "### What's new"
+            echo "Auto-bump build \`${VER}\` from commit \`${{ github.sha }}\`."
+            echo ""
+            echo "---"
+            echo "_The \`latest.json\` asset in this release powers the desktop in-app updater._"
+          } > release-notes.md
+          cat release-notes.md
+
       - name: Publish Release to GitHub
         uses: softprops/action-gh-release@v2
         with:
@@ -330,18 +411,7 @@ jobs:
           make_latest: true
           draft: false
           prerelease: false
-          body: |
-            ## Materio ${{ needs.resolve-version.outputs.tag }}
-            
-            ### Downloads
-            - **Windows Desktop:** Native installer (.exe / .msi) with offline reading, system tray, and bundled local MCP server (`localhost:3000/mcp`).
-            - **Android APK:** Fast, mobile-optimized companion with background in-app updates.
-            
-            ### What's new
-            Auto-bump build `${{ needs.resolve-version.outputs.version }}` from commit `${{ github.sha }}`.
-            
-            ---
-            _The `latest.json` asset in this release powers the desktop in-app updater._
+          bodyFile: release-notes.md
           files: |
             release-assets/*
         env:
