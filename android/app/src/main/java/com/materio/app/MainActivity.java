@@ -124,23 +124,41 @@ public class MainActivity extends BridgeActivity {
             @JavascriptInterface
             public void downloadAndInstallUpdate(String apkUrl, String version) {
                 if (apkUrl == null || apkUrl.isEmpty()) return;
+                // Reject non-APK URLs up front: a GitHub 404 HTML page saved
+                // as .apk is what produces "package invalid" on install.
+                String lower = apkUrl.toLowerCase().split("\\?")[0];
+                if (!apkUrl.startsWith("https://") || !lower.endsWith(".apk")) {
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "Update not published for Android yet", Toast.LENGTH_SHORT).show());
+                    return;
+                }
                 runOnUiThread(() -> startUpdateDownload(apkUrl, version != null ? version : ""));
             }
         }, "AndroidBridge");
     }
 
-    // Self-update: download the APK with the system DownloadManager, then
-    // hand it to the package installer. Android always shows one system
-    // "Install" confirmation (no silent sideloads for non-Play apps), but
-    // the old install is replaced in place — no manual uninstall needed
-    // and app data is preserved.
+    // Self-update: download the APK with the system DownloadManager into the
+    // app's internal temp dir (getCacheDir, like Windows %TEMP%), then hand
+    // it to the package installer. Android always shows one system "Install"
+    // confirmation (no silent sideloads for non-Play apps), but the old
+    // install is replaced in place automatically — no manual uninstall and
+    // app data is preserved. Temp files are cleared on next launch.
     private void startUpdateDownload(String apkUrl, String version) {
         try {
             Toast.makeText(MainActivity.this, "Downloading update…", Toast.LENGTH_SHORT).show();
             DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
             if (dm == null) return;
 
-            File dest = new File(getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "materio-update.apk");
+            File tmpDir = new File(getCacheDir(), "updates");
+            if (!tmpDir.exists()) tmpDir.mkdirs();
+            // Clear stale temp APKs from previous attempts.
+            File[] stale = tmpDir.listFiles();
+            if (stale != null) {
+                for (File f : stale) {
+                    try { if (f.isFile()) f.delete(); } catch (Exception ignored) {}
+                }
+            }
+            String safeVer = version.replaceAll("[^A-Za-z0-9._-]", "_");
+            File dest = new File(tmpDir, safeVer.isEmpty() ? "materio-update.apk" : "materio-update-" + safeVer + ".apk");
             if (dest.exists()) dest.delete();
 
             DownloadManager.Request req = new DownloadManager.Request(Uri.parse(apkUrl));
@@ -193,10 +211,17 @@ public class MainActivity extends BridgeActivity {
 
     private void launchApkInstall(File apk) {
         try {
+            // Guard against error pages saved as .apk (GitHub 404 HTML is a
+            // few KB; a real APK is tens of MB).
+            if (apk == null || !apk.exists() || apk.length() < 1024 * 1024) {
+                Toast.makeText(this, "Update file invalid — please try again", Toast.LENGTH_SHORT).show();
+                return;
+            }
             Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", apk);
             Intent intent = new Intent(Intent.ACTION_VIEW);
             intent.setDataAndType(uri, "application/vnd.android.package-archive");
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
             startActivity(intent);
         } catch (Exception e) {
             e.printStackTrace();

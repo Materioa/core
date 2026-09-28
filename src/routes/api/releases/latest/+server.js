@@ -47,6 +47,7 @@ export async function GET({ fetch, platform }) {
 		windows: {
 			name: 'Materio-Windows-Setup.exe',
 			version: FALLBACK_VERSION,
+			available: true,
 			downloadUrl: `https://github.com/${GITHUB_REPO}/releases/download/${FALLBACK_VERSION}/Materio-Windows-Setup.exe`,
 			msiUrl: `https://github.com/${GITHUB_REPO}/releases/download/${FALLBACK_VERSION}/Materio_${FALLBACK_VERSION.replace('v', '')}_x64_en-US.msi`,
 			standaloneUrl: `https://github.com/${GITHUB_REPO}/releases/download/${FALLBACK_VERSION}/Materio-Windows-Standalone.exe`,
@@ -56,6 +57,7 @@ export async function GET({ fetch, platform }) {
 		android: {
 			name: 'Materio-Android.apk',
 			version: FALLBACK_VERSION,
+			available: true,
 			downloadUrl: `https://github.com/${GITHUB_REPO}/releases/download/${FALLBACK_VERSION}/Materio-Android.apk`,
 			size: '53.9 MB',
 			format: 'APK'
@@ -88,6 +90,14 @@ export async function GET({ fetch, platform }) {
 
 			const primaryWin = winSetup || winMsi || winStandalone;
 
+			// Per-platform availability: a release may ship only one platform
+			// (e.g. v2.1.46 was Windows-only). Never fabricate a download URL
+			// for a platform whose asset is absent — a guessed URL 404s to a
+			// GitHub HTML page, which the Android installer then rejects as
+			// "package invalid". Absent asset => available:false, url:null.
+			const winAvailable = Boolean(primaryWin?.browser_download_url);
+			const apkAvailable = Boolean(apkAsset?.browser_download_url);
+
 			const releasePayload = {
 				version,
 				pub_date: pubDate,
@@ -96,27 +106,31 @@ export async function GET({ fetch, platform }) {
 				notes: data.body || defaultData.notes,
 				platforms: {
 					'windows-x86_64': {
-						url: primaryWin?.browser_download_url || defaultData.windows.downloadUrl,
+						url: primaryWin?.browser_download_url || null,
+						available: winAvailable,
 						signature: ''
 					},
 					'android-arm64': {
-						url: apkAsset?.browser_download_url || defaultData.android.downloadUrl
+						url: apkAsset?.browser_download_url || null,
+						available: apkAvailable
 					}
 				},
 				windows: {
-					name: primaryWin?.name || defaultData.windows.name,
-					version,
-					downloadUrl: primaryWin?.browser_download_url || defaultData.windows.downloadUrl,
-					msiUrl: winMsi?.browser_download_url || defaultData.windows.msiUrl,
-					standaloneUrl: winStandalone?.browser_download_url || defaultData.windows.standaloneUrl,
-					size: primaryWin ? formatBytes(primaryWin.size) : defaultData.windows.size,
+					name: primaryWin?.name || null,
+					version: winAvailable ? version : null,
+					available: winAvailable,
+					downloadUrl: primaryWin?.browser_download_url || null,
+					msiUrl: winMsi?.browser_download_url || null,
+					standaloneUrl: winStandalone?.browser_download_url || null,
+					size: primaryWin ? formatBytes(primaryWin.size) : null,
 					format: primaryWin?.name?.endsWith('.msi') ? 'MSI Installer' : 'EXE Installer'
 				},
 				android: {
-					name: apkAsset?.name || defaultData.android.name,
-					version,
-					downloadUrl: apkAsset?.browser_download_url || defaultData.android.downloadUrl,
-					size: apkAsset ? formatBytes(apkAsset.size) : defaultData.android.size,
+					name: apkAsset?.name || null,
+					version: apkAvailable ? version : null,
+					available: apkAvailable,
+					downloadUrl: apkAsset?.browser_download_url || null,
+					size: apkAsset ? formatBytes(apkAsset.size) : null,
 					format: 'APK'
 				}
 			};

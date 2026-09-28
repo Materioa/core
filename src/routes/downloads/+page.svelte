@@ -35,11 +35,13 @@
 			.then(r => r.ok ? r.json() : null)
 			.then(d => {
 				if (d) {
-					if (d.windows?.downloadUrl) releaseData.windows.downloadUrl = d.windows.downloadUrl;
+					if (d.windows?.available !== false && d.windows?.downloadUrl) releaseData.windows.downloadUrl = d.windows.downloadUrl;
 					if (d.windows?.msiUrl) releaseData.windows.msiUrl = d.windows.msiUrl;
 					if (d.windows?.size) releaseData.windows.size = d.windows.size;
-					if (d.android?.downloadUrl) releaseData.android.downloadUrl = d.android.downloadUrl;
-					if (d.android?.size) releaseData.android.size = d.android.size;
+					// Only overwrite the APK link when this release actually
+					// ships one — otherwise the button would 404.
+					if (d.android?.available !== false && d.android?.downloadUrl) releaseData.android.downloadUrl = d.android.downloadUrl;
+					if (d.android?.available !== false && d.android?.size) releaseData.android.size = d.android.size;
 					if (d.version) releaseData.version = d.version;
 				}
 			})

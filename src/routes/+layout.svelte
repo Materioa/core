@@ -22,7 +22,6 @@
   import AppUpdateModal from '$lib/components/AppUpdateModal.svelte';
   import SplashScreen from '$lib/components/splash/SplashScreen.svelte';
   import OpenInAppBanner from '$lib/components/OpenInAppBanner.svelte';
-  import DesktopContextMenu from '$lib/components/DesktopContextMenu.svelte';
   import { installApiInterceptor, isTauri, isAndroidApp, isCapacitor } from '$lib/config/api.js';
   
   import { activeModalStore, pdfModalStore, searchModalStore, activeTab } from '$lib/stores.js';
@@ -425,7 +424,6 @@
 {/if}
 {#if isTauri}
 <AppUpdateModal />
-<DesktopContextMenu />
 {/if}
 
 {#if showSplash}

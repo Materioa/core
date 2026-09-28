@@ -45,8 +45,13 @@
 			const res = await fetch(toApiUrl('/api/releases/latest'));
 			if (res.ok) {
 				const data = await res.json();
-				if (data.version && isNewerVersion(data.version, currentAppVersion)) {
-					newVersion = data.version;
+				// Platform-aware: only prompt when this release actually ships
+				// a Windows asset (an Android-only tag must not nudge desktop).
+				const winInfo = data.windows || {};
+				if (winInfo.available === false || !winInfo.downloadUrl) return;
+				const remoteVer = (winInfo.version || data.version || '').replace(/^v/, '');
+				if (remoteVer && isNewerVersion(remoteVer, currentAppVersion)) {
+					newVersion = winInfo.version || data.version;
 					activeNudge = 'update';
 				}
 			}

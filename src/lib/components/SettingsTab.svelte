@@ -262,7 +262,14 @@
             const res = await fetch(toApiUrl('/api/releases/latest'));
             if (res.ok) {
                 const data = await res.json();
-                const remoteVer = (data.version || '').replace(/^v/, '');
+                // Platform-aware: the latest GH tag may not ship an APK
+                // (e.g. a Windows-only release). Only offer an Android update
+                // when this release actually contains an APK asset — otherwise
+                // we'd download a 404 HTML page and the installer reports
+                // "package invalid".
+                const androidInfo = data.android || {};
+                const apkAvailable = androidInfo.available !== false && Boolean(androidInfo.downloadUrl);
+                const remoteVer = ((apkAvailable ? (androidInfo.version || data.version) : data.version) || '').replace(/^v/, '');
                 const localVer = currentAppVersion;
 
                 const isNewer = (r, l) => {
@@ -275,10 +282,27 @@
                     return false;
                 };
 
+                if (!apkAvailable) {
+                    if (isManual) {
+                        showToastMessage('You are on the latest version!');
+                    }
+                    return;
+                }
+
                 if (isNewer(remoteVer, localVer)) {
+                    const rawApkUrl = androidInfo.downloadUrl;
+                    // Validate: must be an https URL ending in .apk, else we'd
+                    // save an error page as .apk ("package invalid").
+                    const apkUrlOk = typeof rawApkUrl === 'string'
+                        && rawApkUrl.startsWith('https://')
+                        && rawApkUrl.split('?')[0].toLowerCase().endsWith('.apk');
+                    if (!apkUrlOk) {
+                        if (isManual) showToastMessage('Update not published for Android yet.');
+                        return;
+                    }
                     showToastMessage(`Version ${data.version} is available!`);
 
-                    const apkUrl = data.android?.downloadUrl || 'https://getmaterio.app/api/download/android';
+                    const apkUrl = rawApkUrl;
                     if (window.AndroidBridge?.sendNotification) {
                         window.AndroidBridge.sendNotification('Materio Update Available', `Version ${data.version} is ready to download.`, apkUrl);
                     } else if ('Notification' in window && Notification.permission === 'granted') {
