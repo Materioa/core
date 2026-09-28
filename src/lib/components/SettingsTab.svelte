@@ -1376,11 +1376,14 @@
         on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); checkAppUpdate(true); } }}
     >
         <div class="toggle-container" style="justify-content: space-between; align-items: center; width: 100%; margin: 0;">
-            <div class="card-title-row" style="display: flex; align-items: center; gap: 10px;">
-                <div style="display: flex; align-items: center; justify-content: center; height: 18px; width: 18px; flex-shrink: 0;">
-                    <HugeiconsIcon icon={UploadCircle01Icon} size={18} style="color: var(--color-primary, #ff8200); display: block;" />
+            <div class="paper-mode-info">
+                <div class="card-title-row" style="display: flex; align-items: center; gap: 10px;">
+                    <div style="display: flex; align-items: center; justify-content: center; height: 18px; width: 18px; flex-shrink: 0;">
+                        <HugeiconsIcon icon={UploadCircle01Icon} size={18} style="color: var(--color-primary, #ff8200); display: block;" />
+                    </div>
+                    <div class="paper-mode-title" style="margin: 0; line-height: 1; display: flex; align-items: center;">Check for Updates</div>
                 </div>
-                <div class="paper-mode-title" style="margin: 0; line-height: 1; display: flex; align-items: center;">Check for Updates</div>
+                <div class="paper-mode-description">Get the latest app version</div>
             </div>
             {#if checkingAppUpdate}
                 <span style="font-size: 12.5px; color: var(--color-primary, #ff8200); font-weight: 600; font-family: 'OpenRunde', 'Open Runde', sans-serif;">Checking…</span>
