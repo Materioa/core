@@ -7,6 +7,12 @@ const DEFAULT_REPO = 'Materioa/core';
 let cachedRelease = null;
 let lastFetchTime = 0;
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+// Upper bound for serving a stale cached release when GitHub is
+// unreachable/rate-limited. Without this, an unauthenticated worker (60
+// req/hr per egress IP) can get stuck on an old tag forever and native
+// apps never see new releases. Past this age we fall through to the
+// static fallback instead of lying with an outdated version.
+const STALE_MAX_MS = 30 * 60 * 1000; // 30 minutes
 
 function formatBytes(bytes) {
 	if (!bytes || bytes <= 0) return null;
@@ -150,8 +156,10 @@ export async function GET({ fetch, platform }) {
 		console.warn('Failed to query GitHub repository releases:', err);
 	}
 
-	// If fetch failed but we have a stale cache, serve stale cache instead of fallback
-	if (cachedRelease) {
+	// If fetch failed but we have a fresh-ish cache, serve it briefly instead
+	// of the fallback — but never older than STALE_MAX_MS, or clients get
+	// pinned to an outdated version (e.g. missing a new release).
+	if (cachedRelease && (now - lastFetchTime < STALE_MAX_MS)) {
 		return json(cachedRelease, {
 			headers: {
 				'Cache-Control': 'public, max-age=60',
