@@ -1,25 +1,35 @@
 package com.materio.app;
 
+import android.app.DownloadManager;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebView;
 import android.widget.Toast;
 import androidx.activity.OnBackPressedCallback;
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
 import com.getcapacitor.BridgeActivity;
+import java.io.File;
 
 public class MainActivity extends BridgeActivity {
     private long lastBackPressTime = 0;
     private String pendingDeepLink = null;
     private static final String CHANNEL_ID = "materio_updates_channel";
+    private long updateDownloadId = -1;
+    private BroadcastReceiver updateDownloadReceiver = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -110,7 +120,88 @@ public class MainActivity extends BridgeActivity {
                 pendingDeepLink = null;
                 return link != null ? link : "";
             }
+
+            @JavascriptInterface
+            public void downloadAndInstallUpdate(String apkUrl, String version) {
+                if (apkUrl == null || apkUrl.isEmpty()) return;
+                runOnUiThread(() -> startUpdateDownload(apkUrl, version != null ? version : ""));
+            }
         }, "AndroidBridge");
+    }
+
+    // Self-update: download the APK with the system DownloadManager, then
+    // hand it to the package installer. Android always shows one system
+    // "Install" confirmation (no silent sideloads for non-Play apps), but
+    // the old install is replaced in place — no manual uninstall needed
+    // and app data is preserved.
+    private void startUpdateDownload(String apkUrl, String version) {
+        try {
+            Toast.makeText(MainActivity.this, "Downloading update…", Toast.LENGTH_SHORT).show();
+            DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+            if (dm == null) return;
+
+            File dest = new File(getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "materio-update.apk");
+            if (dest.exists()) dest.delete();
+
+            DownloadManager.Request req = new DownloadManager.Request(Uri.parse(apkUrl));
+            req.setTitle("Materio update" + (version.isEmpty() ? "" : " " + version));
+            req.setDescription("Downloading new version…");
+            req.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            req.setMimeType("application/vnd.android.package-archive");
+            req.setDestinationUri(Uri.fromFile(dest));
+
+            if (updateDownloadReceiver != null) {
+                try { unregisterReceiver(updateDownloadReceiver); } catch (Exception ignored) {}
+                updateDownloadReceiver = null;
+            }
+            updateDownloadReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context ctx, Intent intent) {
+                    long id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
+                    if (id != updateDownloadId) return;
+                    Cursor c = null;
+                    try {
+                        c = dm.query(new DownloadManager.Query().setFilterById(id));
+                        if (c != null && c.moveToFirst()) {
+                            int status = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+                            if (status == DownloadManager.STATUS_SUCCESSFUL) {
+                                launchApkInstall(dest);
+                            } else if (status == DownloadManager.STATUS_FAILED) {
+                                Toast.makeText(MainActivity.this, "Update download failed", Toast.LENGTH_SHORT).show();
+                            }
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    } finally {
+                        if (c != null) c.close();
+                    }
+                }
+            };
+            ContextCompat.registerReceiver(
+                this,
+                updateDownloadReceiver,
+                new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            );
+
+            updateDownloadId = dm.enqueue(req);
+        } catch (Exception e) {
+            e.printStackTrace();
+            Toast.makeText(MainActivity.this, "Couldn't start update", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void launchApkInstall(File apk) {
+        try {
+            Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", apk);
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setDataAndType(uri, "application/vnd.android.package-archive");
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(intent);
+        } catch (Exception e) {
+            e.printStackTrace();
+            Toast.makeText(this, "Couldn't open installer", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void createNotificationChannel() {

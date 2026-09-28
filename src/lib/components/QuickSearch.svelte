@@ -1,6 +1,7 @@
 <script>
   import Fuse from 'fuse.js';
-  import { onMount } from 'svelte';
+    import { onMount } from 'svelte';
+  import { get } from 'svelte/store';
   import { searchModalStore } from '$lib/stores.js';
   import HugeIcon from './HugeIcon.svelte';
 
@@ -159,6 +160,8 @@
   }
 
   function handleFocus() {
+    // Clicking the box opens the search modal immediately, even empty.
+    if (!get(searchModalStore).isOpen) openSearchModal();
     if (searchQuery.trim()) handleSearch();
   }
 

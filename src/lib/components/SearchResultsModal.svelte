@@ -1,13 +1,41 @@
 <script>
-  import { onMount, tick } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import { get } from 'svelte/store';
   import { searchModalStore, pdfModalStore, openPdfModal } from '$lib/stores.js';
   import HugeIcon from './HugeIcon.svelte';
+
+  // Thinking verbs, cycled while AI search runs. Lowercase, plain.
 
   let container = null;
   let slot = null;
   let originalParent = null;
   let nextSibling = null;
+
+  const THINK_VERBS = [
+    'thinking', 'pondering', 'searching', 'sifting', 'matching',
+    'reranking', 'honing', 'weighing', 'narrowing', 'gathering',
+    'checking', 'refining'
+  ];
+  let thinkIndex = 0;
+  let thinkTimer = null;
+
+  $: {
+    if ($searchModalStore.isAiLoading) {
+      if (!thinkTimer) {
+        thinkTimer = setInterval(() => {
+          thinkIndex = (thinkIndex + 1) % THINK_VERBS.length;
+        }, 1200);
+      }
+    } else if (thinkTimer) {
+      clearInterval(thinkTimer);
+      thinkTimer = null;
+      thinkIndex = 0;
+    }
+  }
+
+  onDestroy(() => {
+    if (thinkTimer) clearInterval(thinkTimer);
+  });
 
   function rememberHome() {
     // (Re)capture the search box home — QuickSearch may mount after this
@@ -121,9 +149,40 @@
   :global(#modalSearchSlot .quick-search-wrapper) {
     width: 100%;
   }
-  @keyframes spinSlow {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+
+  /* AI thinking line: plain lowercase text with a light sweep.
+     No cards, pills, icons, caps or italics. */
+  .ai-thinking {
+    padding: 2px 2px 12px;
+    font-size: 12px;
+  }
+  .ai-thinking-text {
+    background: linear-gradient(
+      90deg,
+      currentColor 0%,
+      currentColor 38%,
+      rgba(160, 160, 160, 0.35) 50%,
+      currentColor 62%,
+      currentColor 100%
+    );
+    background-size: 220% 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: ai-think-sweep 2.2s linear infinite;
+  }
+  @keyframes ai-think-sweep {
+    0% { background-position: 200% 0; }
+    100% { background-position: -20% 0; }
+  }
+
+  /* Narrow viewports: keep the transplanted search box clear of the
+     absolute close button at the top-right. */
+  @media (max-width: 600px) {
+    #modalSearchSlot {
+      padding-right: 54px;
+      box-sizing: border-box;
+    }
   }
 </style>
 
@@ -133,25 +192,8 @@
     <div class="promo-content">
       <div id="modalSearchSlot"></div>
 
-      {#if $searchModalStore.aiUsed}
-        <div class="ai-search-indicator" style="padding: 10px 16px; background: linear-gradient(135deg, rgba(255, 130, 0, 0.12), rgba(255, 45, 149, 0.12)); border: 1px solid rgba(255, 45, 149, 0.2); border-radius: 14px; margin-bottom: 12px;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <HugeIcon name="sparkles" style="color: #ff2d95; font-size: 15px;" />
-            <span style="font-size: 12px; font-weight: 700; color: #ff2d95; text-transform: uppercase; letter-spacing: 0.5px;">AI-Powered Search</span>
-          </div>
-          {#if $searchModalStore.ai?.intent}
-            <div style="margin-top: 4px; font-size: 11px; color: var(--text-secondary, #666); font-style: italic;">
-              {$searchModalStore.ai.intent}
-            </div>
-          {/if}
-        </div>
-      {/if}
-
       {#if $searchModalStore.isAiLoading}
-        <div class="ai-loading-indicator" style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; margin-bottom: 10px; border-radius: 10px; background: rgba(255, 45, 149, 0.08); color: #ff2d95; font-size: 12px;">
-          <HugeIcon name="sparkles" style="animation: spinSlow 2s linear infinite; font-size: 14px;" />
-          <span>Analyzing and reranking materials with AI...</span>
-        </div>
+        <div class="ai-thinking"><span class="ai-thinking-text">{THINK_VERBS[thinkIndex]}…</span></div>
       {/if}
 
       <h2><span class="promo-title" id="searchResultsModalTitle">{$searchModalStore.query ? `Search results for "${$searchModalStore.query}"` : 'Results'}</span></h2>
@@ -167,8 +209,7 @@
                 <div class="search-result-title">{item.topic} <span style="color: {scoreColor}; font-size: 11px; font-weight: 700; font-family: var(--font-primary), sans-serif; margin-left: 6px;">{score}%</span></div>
                 <div class="search-result-category">{item.category}</div>
                 {#if result.aiExplanation}
-                  <div class="search-result-ai-explanation" style="margin-top: 6px; font-size: 11px; color: #ff2d95; font-style: italic; line-height: 1.4; display: flex; align-items: center; gap: 4px;">
-                    <HugeIcon name="sparkles" style="color: #ff2d95; font-size: 12px; flex-shrink: 0;" />
+                  <div class="search-result-ai-explanation" style="margin-top: 6px; font-size: 11px; color: var(--text-secondary, #777); line-height: 1.4;">
                     <span>{result.aiExplanation}</span>
                   </div>
                 {/if}

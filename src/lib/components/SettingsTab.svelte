@@ -289,7 +289,14 @@
                     }
 
                     if (isManual && isCapacitor) {
-                        window.open(apkUrl, '_system');
+                        // In-app self-update: system downloads the APK and the
+                        // package installer replaces this install in place
+                        // (one system confirmation tap, data preserved).
+                        if (window.AndroidBridge?.downloadAndInstallUpdate) {
+                            window.AndroidBridge.downloadAndInstallUpdate(apkUrl, data.version || '');
+                        } else {
+                            window.open(apkUrl, '_system');
+                        }
                     } else if (isManual && isTauri && typeof window.__materioCheckUpdateModal === 'function') {
                         window.__materioCheckUpdateModal();
                     }
