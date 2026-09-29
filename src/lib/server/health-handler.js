@@ -98,8 +98,14 @@ async function checkSupabase() {
 
   const startTime = Date.now();
   try {
-    const { data, error } = await supabase.auth.getSession();
-    if (error && error.message !== 'Auth session missing!') throw error;
+    // Lightweight REST ping. The old auth.getSession() call can wedge
+    // on edge runtimes (storage/lock backed); a plain fetch always
+    // settles and proves the same thing for health purposes.
+    const res = await boundedFetch(`${supabase.supabaseUrl}/rest/v1/`, {
+      headers: { apikey: supabase.supabaseKey }
+    });
+    if (!res.ok) throw new Error(`Status ${res.status}`);
+    await res.arrayBuffer().catch(() => null);
     const latency = Date.now() - startTime;
     return { status: 'connected', latencyMs: latency };
   } catch (err) {
@@ -109,10 +115,23 @@ async function checkSupabase() {
   }
 }
 
+// Bounded fetch helper: dependency checks must never hang the worker.
+// A plain fetch without a signal can pend forever on the edge; the abort
+// guarantees every check settles within a few seconds.
+async function boundedFetch(url, { timeoutMs = 4000, ...init } = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function checkCdnAPI() {
   const startTime = Date.now();
   try {
-    const res = await fetch('https://cdn.getmaterio.app/api/health', {
+    const res = await boundedFetch('https://cdn.getmaterio.app/api/health', {
       method: 'GET',
       headers: { 'User-Agent': 'Materio-Health-Check' }
     });
@@ -155,7 +174,7 @@ async function checkInternetConnection() {
 
 async function checkIncidentIO() {
   try {
-    const res = await fetch(INCIDENT_IO_SUMMARY_URL, {
+    const res = await boundedFetch(INCIDENT_IO_SUMMARY_URL, {
       method: 'GET',
       headers: { Accept: 'application/json' }
     });
@@ -701,10 +720,17 @@ export async function handleHealthGet({ request, url, params }) {
   const cpuLoad = os.loadavg();
   const uptime = process.uptime();
 
+  // Belt and braces: even if a dependency check wedges, health answers
+  // within seconds instead of hanging the worker.
+  const checkTimeout = (p, fallback) =>
+    Promise.race([
+      p,
+      new Promise((resolve) => setTimeout(() => resolve(fallback), 8000))
+    ]);
   const [supabaseStatus, cdnStatus, incidentStatus] = await Promise.all([
-    checkSupabase(),
-    checkCdnAPI(),
-    checkIncidentIO()
+    checkTimeout(checkSupabase(), { status: 'error', message: 'check timed out' }),
+    checkTimeout(checkCdnAPI(), { status: 'error', message: 'check timed out' }),
+    checkTimeout(checkIncidentIO(), { hasIncident: false, incident: null })
   ]);
 
   let version = VERSION;

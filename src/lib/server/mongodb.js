@@ -38,8 +38,17 @@ export async function getMongoDb() {
 	})();
 
 	try {
-		return await connecting;
+		// Bound the wait: a stalled handshake must fail fast (handlers
+		// answer 500 JSON) instead of hanging the worker. A slow connect
+		// keeps running behind to warm the cache for the next request.
+		return await Promise.race([
+			connecting,
+			new Promise((_, reject) =>
+				setTimeout(() => reject(new Error('Mongo connect timed out')), 8000)
+			)
+		]);
 	} catch (error) {
+		connecting.catch(() => {});
 		connecting = null;
 		throw error;
 	}
