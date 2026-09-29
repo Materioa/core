@@ -24,6 +24,9 @@
  * - ctx.formData: live form values (forms only, else undefined)
  * - ctx.close():  closes the modal
  * - ctx.track(name, params): fires a GA/GTM event scoped to this modal
+ * - ctx.isApp:    true inside the Android / Windows apps, false on web.
+ *                  Skip app-only noise with `if (ctx.isApp) return;`
+ * - ctx.platform: 'web' | 'android' | 'windows'
  *
  * Everything is admin-trusted but still guarded: syntax/runtime errors are
  * caught and logged, never break the modal. Tracking scripts load lazily,
@@ -47,6 +50,40 @@ export function trackingKind(id) {
 
 function isBrowser() {
 	return typeof window !== 'undefined' && typeof document !== 'undefined';
+}
+
+/**
+ * Where this bundle is running. Mirrors $lib/config/api.js detection:
+ * - 'android': Capacitor native (window.Capacitor / AndroidBridge / capacitor: URL)
+ * - 'windows': Tauri desktop (window.__TAURI__* / tauri: URL)
+ * - 'web':     regular browser
+ */
+export function detectPlatform() {
+	if (!isBrowser()) return 'web';
+	try {
+		if (
+			window.__TAURI_INTERNALS__ ||
+			window.__TAURI__ ||
+			window.__TAURI_METADATA__ ||
+			window.location?.hostname === 'tauri.localhost' ||
+			window.location?.protocol === 'tauri:'
+		)
+			return 'windows';
+		const cap = window.Capacitor;
+		if (
+			(cap?.isNativePlatform && cap.isNativePlatform()) ||
+			(cap?.getPlatform && cap.getPlatform() !== 'web') ||
+			window.AndroidBridge ||
+			window.location?.protocol === 'capacitor:' ||
+			window.location?.hostname === 'capacitor.localhost'
+		)
+			return 'android';
+	} catch {}
+	return 'web';
+}
+
+export function isNativeApp() {
+	return detectPlatform() !== 'web';
 }
 
 /** Lazily inject gtag.js (GA4/UA/AW) or the GTM container. Safe to call repeatedly. */
@@ -169,10 +206,16 @@ export function runMagicJs(code, ctx = {}, opts = {}) {
 		kind: 'promotion',
 		stage: 'open',
 		formData: undefined,
+		isApp: undefined,
+		platform: undefined,
 		close: () => {},
 		track: () => false,
 		...ctx
 	};
+	// Shell is auto-detected; an explicitly passed value always wins.
+	// Previews pin platform:'web' so they stay in web mode.
+	if (typeof fullCtx.platform !== 'string' || !fullCtx.platform) fullCtx.platform = detectPlatform();
+	if (typeof fullCtx.isApp !== 'boolean') fullCtx.isApp = fullCtx.platform !== 'web';
 	// Backfill overlay when callers only pass root (or vice versa), so
 	// snippets always get a usable overlay on web, Android (Capacitor
 	// webview) and Windows (Tauri webview) — all three run this bundle.
