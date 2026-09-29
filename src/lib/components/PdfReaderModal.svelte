@@ -262,6 +262,8 @@
         currentOfflineRecord = null;
         offlineArrayBuffer = null;
         hasOfflineData = false;
+        // Drop the content crossfade so the next PDF fades in fresh.
+        try { document.getElementById('popup')?.classList.remove('loaded'); } catch {}
 
         if (!url) {
             activeViewerUrl = '';
@@ -351,6 +353,8 @@
         if (offlineArrayBuffer) {
             sendBufferToIframe($pdfModalStore.pdfUrl, offlineArrayBuffer);
         }
+        // Crossfade the viewer content in (see #pdf-iframe opacity rules).
+        try { document.getElementById('popup')?.classList.add('loaded'); } catch {}
         ensureAnnotInit();
     }
 
@@ -473,7 +477,7 @@
             isClosing = false;
             showShareModal = false;
             closeInProgress = false;
-        }, 150);
+        }, 220);
         } catch {
             closeInProgress = false;
         }
