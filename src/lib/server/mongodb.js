@@ -24,12 +24,30 @@ export async function getMongoDb() {
 	const uri = env.MONGODB_URI || process.env.MONGODB_URI;
 	if (!uri) throw new Error('MONGODB_URI is not configured');
 
+	const started = Date.now();
 	connecting = (async () => {
+		// Pool sizing for Workers: one page load fans out into several
+		// concurrent API calls that can land on the SAME isolate. A small
+		// pool forces checkouts into the driver's wait queue — and on
+		// workerd a queued waiter that wakes in another request's context
+		// is cancelled and hangs forever. So: roomy pool, idle conns
+		// released fast, and any waiter still stuck fails fast (the 8s
+		// race below turns it into a 500 JSON, never a hung worker).
 		const client = new MongoClient(uri, {
-			serverSelectionTimeoutMS: 5000,
-			connectTimeoutMS: 5000,
-			maxPoolSize: 3,
-			minPoolSize: 1
+			// Cold handshakes from the edge (SRV DNS + TCP + throttled TLS)
+			// take seconds of wall time but little CPU — allow them room.
+			// Once one request per isolate connects, the pool + edge cache
+			// serve everything else in milliseconds.
+			serverSelectionTimeoutMS: 12000,
+			connectTimeoutMS: 12000,
+			// Dead pooled sockets must error out instead of hanging a
+			// request forever (Atlas/LB idle kills). Reads transparently
+			// retry once on a fresh connection (driver default).
+			socketTimeoutMS: 8000,
+			maxPoolSize: 20,
+			minPoolSize: 0,
+			maxIdleTimeMS: 30000,
+			waitQueueTimeoutMS: 15000
 		});
 		await client.connect();
 		cachedClient = client;
@@ -41,15 +59,27 @@ export async function getMongoDb() {
 		// Bound the wait: a stalled handshake must fail fast (handlers
 		// answer 500 JSON) instead of hanging the worker. A slow connect
 		// keeps running behind to warm the cache for the next request.
-		return await Promise.race([
+		const db = await Promise.race([
 			connecting,
 			new Promise((_, reject) =>
-				setTimeout(() => reject(new Error('Mongo connect timed out')), 8000)
+				setTimeout(() => reject(new Error('Mongo connect timed out')), 20000)
 			)
 		]);
+		const took = Date.now() - started;
+		if (took > 1000) {
+			try { console.warn(`[mongo] slow connect: ${took}ms`); } catch {}
+		}
+		return db;
 	} catch (error) {
+		const took = Date.now() - started;
+		try { console.warn(`[mongo] connect failed after ${took}ms: ${error?.message || error}`); } catch {}
 		connecting.catch(() => {});
 		connecting = null;
+		// Heal pools poisoned by leaked checkouts: drop everything so the
+		// next request reconnects fresh instead of queuing behind ghosts.
+		try { if (cachedClient) await cachedClient.close().catch(() => {}); } catch {}
+		cachedClient = null;
+		cachedDb = null;
 		throw error;
 	}
 }

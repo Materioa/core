@@ -49,7 +49,8 @@ export function isCacheableRequest(request, url) {
 /**
  * Serves `producer()` through the edge cache with a `ttlSeconds` lifetime.
  * Only 200 responses are stored. Returns live responses untouched when the
- * Cache API is unavailable. Never throws.
+ * Cache API is unavailable. Every cache operation is time-boxed: a wedged
+ * Cache API degrades to a live response, never a hung worker. Never throws.
  */
 export async function cachedResponse(request, ttlSeconds, producer) {
 	const miss = async () => {
@@ -59,10 +60,34 @@ export async function cachedResponse(request, ttlSeconds, producer) {
 		} catch {}
 		return res;
 	};
+	// Time-boxed cache read: on timeout treat as a miss.
+	const safeMatch = async (key) => {
+		try {
+			return await Promise.race([
+				caches.default.match(key),
+				new Promise((resolve) => setTimeout(() => resolve(undefined), 3000))
+			]);
+		} catch {
+			return undefined;
+		}
+	};
+	// Time-boxed cache write: on timeout keep serving the live response.
+	const safePut = async (key, res, ttl) => {
+		try {
+			const store = res.clone();
+			store.headers.set('Cache-Control', `public, max-age=${ttl}, s-maxage=${ttl}`);
+			await Promise.race([
+				caches.default.put(key, store),
+				new Promise((_, reject) =>
+					setTimeout(() => reject(new Error('edge put timeout')), 5000)
+				)
+			]);
+		} catch {}
+	};
 	try {
 		if (!hasEdgeCache()) return await miss();
 		const key = edgeCacheKey(request.url);
-		const hit = await caches.default.match(key);
+		const hit = await safeMatch(key);
 		if (hit) {
 			// Re-wrap: cached responses are immutable, but hooks.server.js
 			// sets per-request CORS headers afterwards.
@@ -71,16 +96,7 @@ export async function cachedResponse(request, ttlSeconds, producer) {
 			return res;
 		}
 		const res = await producer();
-		try {
-			if (res && res.ok && res.status === 200) {
-				const store = res.clone();
-				store.headers.set(
-					'Cache-Control',
-					`public, max-age=${ttlSeconds}, s-maxage=${ttlSeconds}`
-				);
-				await caches.default.put(key, store);
-			}
-		} catch {}
+		if (res && res.ok && res.status === 200) await safePut(key, res, ttlSeconds);
 		try {
 			if (res) res.headers.set('X-Edge-Cache', 'MISS');
 		} catch {}

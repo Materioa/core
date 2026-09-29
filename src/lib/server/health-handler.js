@@ -101,7 +101,9 @@ async function checkSupabase() {
     // Lightweight REST ping. The old auth.getSession() call can wedge
     // on edge runtimes (storage/lock backed); a plain fetch always
     // settles and proves the same thing for health purposes.
-    const res = await boundedFetch(`${supabase.supabaseUrl}/rest/v1/`, {
+    // Auth service health endpoint (PostgREST root 401s on apikey-only
+    // pings). Same proof of life, correct status code.
+    const res = await boundedFetch(`${supabase.supabaseUrl}/auth/v1/health`, {
       headers: { apikey: supabase.supabaseKey }
     });
     if (!res.ok) throw new Error(`Status ${res.status}`);
@@ -732,6 +734,9 @@ export async function handleHealthGet({ request, url, params }) {
     checkTimeout(checkCdnAPI(), { status: 'error', message: 'check timed out' }),
     checkTimeout(checkIncidentIO(), { hasIncident: false, incident: null })
   ]);
+  if (supabaseStatus.status === 'error' || cdnStatus.status === 'error') {
+    try { console.warn(`[health] failing deps: supabase=${supabaseStatus.status}(${supabaseStatus.latencyMs}ms:${supabaseStatus.message || ''}) cdn=${cdnStatus.status}(${cdnStatus.latencyMs}ms:${cdnStatus.message || ''})`); } catch {}
+  }
 
   let version = VERSION;
   try {
