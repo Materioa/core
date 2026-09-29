@@ -43,29 +43,31 @@ export async function GET({ fetch, platform }) {
 		notes: 'Official native apps for Windows and Android with full offline study vault and local MCP server.',
 		platforms: {
 			'windows-x86_64': {
-				url: `https://github.com/${GITHUB_REPO}/releases/download/${FALLBACK_VERSION}/Materio-Windows-Setup.exe`,
+				url: null,
+				available: false,
 				signature: ''
 			},
 			'android-arm64': {
-				url: `https://github.com/${GITHUB_REPO}/releases/download/${FALLBACK_VERSION}/Materio-Android.apk`
+				url: null,
+				available: false
 			}
 		},
 		windows: {
-			name: 'Materio-Windows-Setup.exe',
-			version: FALLBACK_VERSION,
-			available: true,
-			downloadUrl: `https://github.com/${GITHUB_REPO}/releases/download/${FALLBACK_VERSION}/Materio-Windows-Setup.exe`,
-			msiUrl: `https://github.com/${GITHUB_REPO}/releases/download/${FALLBACK_VERSION}/Materio_${FALLBACK_VERSION.replace('v', '')}_x64_en-US.msi`,
-			standaloneUrl: `https://github.com/${GITHUB_REPO}/releases/download/${FALLBACK_VERSION}/Materio-Windows-Standalone.exe`,
-			size: '78.5 MB',
+			name: null,
+			version: null,
+			available: false,
+			downloadUrl: null,
+			msiUrl: null,
+			standaloneUrl: null,
+			size: null,
 			format: 'EXE Installer'
 		},
 		android: {
-			name: 'Materio-Android.apk',
-			version: FALLBACK_VERSION,
-			available: true,
-			downloadUrl: `https://github.com/${GITHUB_REPO}/releases/download/${FALLBACK_VERSION}/Materio-Android.apk`,
-			size: '53.9 MB',
+			name: null,
+			version: null,
+			available: false,
+			downloadUrl: null,
+			size: null,
 			format: 'APK'
 		}
 	};
@@ -88,13 +90,14 @@ export async function GET({ fetch, platform }) {
 			const version = data.tag_name || FALLBACK_VERSION;
 			const pubDate = data.published_at || new Date().toISOString();
 
-			const winSetup = data.assets?.find(a => /materio_.*_x64-setup\.exe/i.test(a.name))
-				|| data.assets?.find(a => a.name === 'Materio-Windows-Setup.exe' || a.name.includes('-setup.exe'));
-			const winMsi = data.assets?.find(a => a.name.endsWith('.msi'));
-			const winStandalone = data.assets?.find(a => a.name.includes('Standalone') || (a.name.endsWith('.exe') && !a.name.includes('-setup')));
-			const apkAsset = data.assets?.find(a => /materio_.*_arm64\.apk/i.test(a.name))
-				|| data.assets?.find(a => a.name === 'Materio-Android.apk')
-				|| data.assets?.find(a => a.name.endsWith('.apk') && !a.name.includes('debug'));
+			const assetName = (a) => (a && a.name) || '';
+			const winSetup = data.assets?.find(a => /materio_.*_x64-setup\.exe/i.test(assetName(a)))
+				|| data.assets?.find(a => assetName(a) === 'Materio-Windows-Setup.exe' || assetName(a).includes('-setup.exe'));
+			const winMsi = data.assets?.find(a => assetName(a).endsWith('.msi'));
+			const winStandalone = data.assets?.find(a => assetName(a).includes('Standalone') || (assetName(a).endsWith('.exe') && !assetName(a).includes('-setup')));
+			const apkAsset = data.assets?.find(a => /materio_.*_arm64\.apk/i.test(assetName(a)))
+				|| data.assets?.find(a => assetName(a) === 'Materio-Android.apk')
+				|| data.assets?.find(a => assetName(a).endsWith('.apk') && !assetName(a).includes('debug'));
 
 			const primaryWin = winSetup || winMsi || winStandalone;
 

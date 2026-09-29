@@ -103,7 +103,18 @@ export function installExternalLinkHandler() {
                     (parsed.port || '') === (here.port || '') &&
                     parsed.protocol === here.protocol;
                 if (sameOrigin) return;
-                // Off-app link (room subdomain, status, share, github, …) → OS browser.
+                // Insightroom lives on its own host but should open inside
+                // the native shell (in-place WebView navigation) instead of
+                // the OS browser, so users stay in the app.
+                if (parsed.hostname === 'room.getmaterio.app') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    try {
+                        window.location.href = parsed.toString();
+                    } catch {}
+                    return;
+                }
+                // Off-app link (status, share, github, …) → OS browser.
                 e.preventDefault();
                 e.stopPropagation();
                 openExternal(parsed.toString());

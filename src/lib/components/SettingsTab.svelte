@@ -300,6 +300,12 @@
                         if (isManual) showToastMessage('Update not published for Android yet.');
                         return;
                     }
+                    // If the update nudge card is already showing (or was
+                    // shown), stay quiet on auto checks — the card is the
+                    // prompt. Manual checks always report.
+                    let nudgeShown = false;
+                    try { nudgeShown = window.__materioUpdateNudgeShown === true; } catch {}
+                    if (!isManual && nudgeShown) return;
                     showToastMessage(`Version ${data.version} is available!`);
 
                     const apkUrl = rawApkUrl;
@@ -680,6 +686,7 @@
     function applyAccentColor(colorKey){
         document.body.classList.remove('accent-orange','accent-yellow','accent-green','accent-teal','accent-blue','accent-pink','accent-purple','accent-lilac','accent-grey');
         if(colorKey!=='default') document.body.classList.add(`accent-${colorKey}`);
+        try { window.__materioApplyAccent?.(colorKey); } catch {}
         const currentText=document.getElementById('currentAccentText');
         const currentDot=document.getElementById('currentAccentDot');
         const names={default:'Default', orange:'Orange', yellow:'Yellow', green:'Green', teal:'Teal', blue:'Blue', pink:'Pink', purple:'Purple', lilac:'Lilac', grey:'Grey'};

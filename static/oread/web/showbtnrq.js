@@ -64,7 +64,7 @@
         window.location.protocol === 'capacitor:' ||
         window.location.hostname === 'capacitor.localhost' ||
         (window.location.hostname === 'localhost' && window.location.port !== '5173');
-      const profileUrl = isNative ? 'https://beta.getmaterio.app/api/v2/profile' : '/api/v2/profile';
+      const profileUrl = isNative ? 'https://getmaterio.app/api/v2/profile' : '/api/v2/profile';
 
       const response = await fetch(profileUrl, {
         method: 'GET',

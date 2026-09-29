@@ -9028,6 +9028,51 @@ body.dark-mode .changelog-btn:hover i {
     border-radius: var(--radius-circle);
 }
 
+/* Desktop app update button in navbar - matches changelog-btn */
+.update-btn {
+    color: var(--color-text-primary);
+    text-decoration: none;
+    padding: var(--spacing-md);
+    width: 100%;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: larger;
+    transition: var(--transition-smooth);
+    position: relative;
+}
+
+.update-btn i {
+    color: var(--color-text-primary);
+    transition: color var(--transition-normal);
+}
+
+.update-btn:hover i {
+    color: var(--color-primary-alt);
+}
+
+body.dark-mode .update-btn i {
+    color: var(--color-dark-text-tertiary);
+}
+
+body.dark-mode .update-btn:hover i {
+    color: var(--color-primary-alt);
+}
+
+/* Update indicator dot for the desktop update button */
+.update-btn.has-update::after {
+    content: "";
+    position: absolute;
+    top: 55%;
+    left: 50%;
+    transform: translate(4px, -12px);
+    width: 8px;
+    height: 8px;
+    background: var(--color-primary-alt);
+    border-radius: var(--radius-circle);
+}
+
 /* Notification Badge Style */
 .navbar a[data-tab="notifications"][data-count]::after {
     content: attr(data-count);

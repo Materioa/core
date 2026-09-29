@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
 	import { isTauri, toApiUrl } from '$lib/config/api.js';
+	import { desktopUpdateStore } from '$lib/stores.js';
 
 	// Update nudge state (desktop app only; offline + top-50 cards live in NudgeCards).
 	let activeNudge = $state(null);
@@ -30,8 +31,10 @@
 					if (update?.available) {
 						newVersion = update.version;
 						activeNudge = 'update';
+						desktopUpdateStore.set({ available: true, version: newVersion });
 						return;
 					}
+					desktopUpdateStore.set({ available: false, version: '' });
 				} catch (e) {
 					console.warn('Tauri updater check failed, falling back to API:', e);
 				}
@@ -47,11 +50,17 @@
 				// Platform-aware: only prompt when this release actually ships
 				// a Windows asset (an Android-only tag must not nudge desktop).
 				const winInfo = data.windows || {};
-				if (winInfo.available === false || !winInfo.downloadUrl) return;
+				if (winInfo.available === false || !winInfo.downloadUrl) {
+					desktopUpdateStore.set({ available: false, version: '' });
+					return;
+				}
 				const remoteVer = (winInfo.version || data.version || '').replace(/^v/, '');
 				if (remoteVer && isNewerVersion(remoteVer, currentAppVersion)) {
 					newVersion = winInfo.version || data.version;
 					activeNudge = 'update';
+					desktopUpdateStore.set({ available: true, version: newVersion });
+				} else {
+					desktopUpdateStore.set({ available: false, version: '' });
 				}
 			}
 		} catch (err) {
@@ -61,6 +70,8 @@
 
 	async function handleInstallAndRestart() {
 		isInstalling = true;
+		// The navbar update icon goes away once the update starts.
+		desktopUpdateStore.set({ available: false, version: '' });
 		try {
 			// Tauri desktop app native updater & restarter
 			if (isTauri) {
@@ -104,6 +115,15 @@
 
 		// Expose global trigger for settings page check button
 		(window as any).__materioCheckUpdateModal = checkForUpdates;
+
+		// Navbar update icon re-opens the update card (desktop app only).
+		(window as any).__materioShowUpdateNudge = () => {
+			if (newVersion) {
+				activeNudge = 'update';
+			} else {
+				checkForUpdates();
+			}
+		};
 
 		return () => {
 			clearInterval(interval);

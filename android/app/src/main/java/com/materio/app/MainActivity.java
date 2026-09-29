@@ -214,7 +214,12 @@ public class MainActivity extends BridgeActivity {
                     break;
                 }
 
-                long total = conn.getContentLengthLong();
+                // getContentLength() (int) is used instead of
+                // getContentLengthLong() so updates also work on minSdk 22/23.
+                long total = -1;
+                try {
+                    total = conn.getContentLength();
+                } catch (Exception ignored) {}
                 String contentType = conn.getContentType();
                 if (contentType != null && contentType.contains("text/html")) {
                     throw new IOException("Unexpected content type " + contentType);
@@ -261,9 +266,13 @@ public class MainActivity extends BridgeActivity {
     private void showUpdateProgress(int percent, boolean indeterminate) {
         try {
             Intent intent = new Intent(this, MainActivity.class);
-            PendingIntent pi = PendingIntent.getActivity(
-                this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-            );
+            int piFlags = PendingIntent.FLAG_UPDATE_CURRENT;
+            // FLAG_IMMUTABLE only exists on API 23+; resolve it by value so
+            // the updater also runs on the minSdk 22 devices.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                piFlags |= PendingIntent.FLAG_IMMUTABLE;
+            }
+            PendingIntent pi = PendingIntent.getActivity(this, 0, intent, piFlags);
             NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentTitle("Downloading Materio update…")

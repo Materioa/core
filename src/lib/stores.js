@@ -133,6 +133,14 @@ export const notificationsStore = writable({
     items: []
 });
 
+// Desktop (Tauri) update availability — set by AppUpdateModal when a newer
+// Windows build is found; the navbar shows an update button while true and
+// hides it again once the update starts/finishes. App-only, never on web.
+export const desktopUpdateStore = writable({
+    available: false,
+    version: ''
+});
+
 // Search Results Modal Store (parent: #searchResultsModal)
 export const searchModalStore = writable({
     isOpen: false,

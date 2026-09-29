@@ -177,7 +177,7 @@ async fn install_update_and_restart(app: AppHandle, download_url: Option<String>
         use std::os::windows::process::CommandExt;
 
         let url = download_url.unwrap_or_else(|| {
-            "https://beta.getmaterio.app/api/download/windows".to_string()
+            "https://getmaterio.app/api/download/windows".to_string()
         });
 
         let current_exe = std::env::current_exe().map_err(|e| e.to_string())?;

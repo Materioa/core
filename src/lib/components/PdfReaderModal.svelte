@@ -108,7 +108,12 @@
         const key = pdfHash + '|' + (get(pdfModalStore).pdfUrl || '');
         if (annotInitFor === key) return;
         annotInitFor = key;
-        postToViewer({ type: 'materioAnnotInit', annotations: { storage: pendingAnnotStorage } });
+        const msg = { type: 'materioAnnotInit', annotations: { storage: pendingAnnotStorage } };
+        postToViewer(msg);
+        // The viewer listener may not exist yet on first load; retry so the
+        // restore is never lost. Guarded by annotInitFor so each PDF inits once.
+        setTimeout(() => { if (annotInitFor === key) postToViewer(msg); }, 600);
+        setTimeout(() => { if (annotInitFor === key) postToViewer(msg); }, 1800);
     }
 
     async function setupAnnotIdentity(buffer, url) {
@@ -129,11 +134,44 @@
         ensureAnnotInit();
     }
 
-    function queueAnnotSave(storage) {
+    function queueAnnotSave(storage, opts = {}) {
         if (!pdfHash) return;
         pendingAnnotStorage = storage || {};
+        if (opts.synced) {
+            // Post-restore canonical snapshot (fresh editor ids): rebase the
+            // clean baseline instead of flagging dirty.
+            lastSavedSnapshot = annotSnapshot(pendingAnnotStorage);
+            annotDirty = false;
+            return;
+        }
         // Only real changes mark dirty (viewer echoes init back verbatim).
         annotDirty = annotSnapshot(pendingAnnotStorage) !== lastSavedSnapshot;
+    }
+
+    // Ask the viewer for an immediate snapshot (flushes its debounce) and
+    // wait briefly so Ctrl+S / close use the very latest strokes.
+    let flushWaiter = null;
+    let flushWaiterResolve = null;
+    function requestViewerFlush(timeoutMs = 800) {
+        postToViewer({ type: 'materioAnnotFlush' });
+        if (flushWaiter) return flushWaiter;
+        flushWaiter = new Promise((resolve) => {
+            const done = () => {
+                flushWaiter = null;
+                flushWaiterResolve = null;
+                resolve();
+            };
+            const timer = setTimeout(done, timeoutMs);
+            flushWaiterResolve = () => { clearTimeout(timer); done(); };
+        });
+        return flushWaiter;
+    }
+    function resolveFlushWaiter() {
+        if (flushWaiterResolve) {
+            const r = flushWaiterResolve;
+            flushWaiterResolve = null;
+            r();
+        }
     }
 
     async function flushAnnotSave() {
@@ -158,6 +196,9 @@
 
     async function saveAnnotationsNow() {
         if (!pdfHash) return;
+        // Pull the latest strokes out of the viewer first (debounce-proof),
+        // otherwise a Ctrl+S right after drawing saves a stale snapshot.
+        try { await requestViewerFlush(700); } catch {}
         if (!annotDirty && lastSavedSnapshot === annotSnapshot(pendingAnnotStorage)) {
             if (window.materioAlert) {
                 window.materioAlert('No annotation changes to save yet — use the text, highlight or draw tools in the viewer.', { type: 'info', title: 'Annotations' });
@@ -205,7 +246,11 @@
     }
 
     async function setupPdfSource(url) {
-        flushAnnotSave();
+        // Persist the previous PDF's unsaved edits before switching identity.
+        // Awaited so resetAnnotState() can't wipe the snapshot mid-flush.
+        try {
+            if (pdfHash && annotDirty) await flushAnnotSave();
+        } catch {}
         resetAnnotState();
         lastHandledPdfUrl = url;
         currentOfflineRecord = null;
@@ -221,6 +266,19 @@
         if (url.startsWith('blob:')) {
             activeViewerUrl = url;
             isDownloaded = true;
+            // blob: URLs are per-session (a fresh UUID every open), so a
+            // URL-derived hash would never match on reopen. Hash the bytes
+            // instead so the sidecar key stays stable for the same file.
+            try {
+                const res = await fetch(url);
+                if (res.ok) {
+                    const buf = await res.arrayBuffer();
+                    if (buf && buf.byteLength > 0) {
+                        setupAnnotIdentity(buf.slice(0), url);
+                        return;
+                    }
+                }
+            } catch {}
             setupAnnotIdentity(null, url);
             return;
         }
@@ -299,6 +357,7 @@
             window.openPdfModal = (url, metadata) => openPdfModal(url, metadata);
             window.loadPdfWithCache = (url, metadata) => openPdfModal(url, metadata);
             window.__materioSavePdfAnnotations = () => saveAnnotationsNow();
+            window.__materioClosePdfModal = () => closeModal();
         }
 
         const syncFullscreen = () => {
@@ -332,6 +391,16 @@
             }
             if (e.data && e.data.type === 'materioAnnotChanged') {
                 queueAnnotSave(e.data.annotations?.storage);
+                resolveFlushWaiter();
+            }
+            if (e.data && e.data.type === 'materioAnnotSynced') {
+                queueAnnotSave(e.data.annotations?.storage, { synced: true });
+                resolveFlushWaiter();
+            }
+            if (e.data && e.data.type === 'materioAnnotSaveRequest') {
+                // Ctrl/Cmd+S pressed inside the viewer iframe (parent key
+                // handlers never fire while the iframe has focus).
+                saveAnnotationsNow();
             }
         };
         window.addEventListener('message', handleMsg);
@@ -361,9 +430,18 @@
         }
     }
 
+    let closeInProgress = false;
     async function closeModal() {
+        if (closeInProgress) return;
+        closeInProgress = true;
+        try {
         if (document.fullscreenElement) {
             document.exitFullscreen().catch(()=>{});
+        }
+        // Flush the viewer's debounce first so a close right after drawing
+        // still sees the latest strokes before deciding to prompt.
+        if (pdfHash) {
+            try { await requestViewerFlush(700); } catch {}
         }
         // Prompt to save annotation changes, like the linked-notebook flow.
         if (pdfHash && annotDirty) {
@@ -388,7 +466,11 @@
             pdfModalStore.update((state) => ({ ...state, isOpen: false }));
             isClosing = false;
             showShareModal = false;
+            closeInProgress = false;
         }, 150);
+        } catch {
+            closeInProgress = false;
+        }
     }
 
 

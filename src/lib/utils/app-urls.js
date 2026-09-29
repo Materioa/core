@@ -46,7 +46,7 @@ export function getAppUrls(currentOrigin) {
  */
 export function getLoginUrl(callbackUrl) {
   const urls = getAppUrls();
-  let origin = 'https://beta.getmaterio.app';
+  let origin = 'https://getmaterio.app';
   if (typeof window !== 'undefined' && window.location?.origin) {
     origin = window.location.origin;
   }
@@ -61,7 +61,7 @@ export function getLoginUrl(callbackUrl) {
  */
 export function getSignupUrl(callbackUrl) {
   const urls = getAppUrls();
-  let origin = 'https://beta.getmaterio.app';
+  let origin = 'https://getmaterio.app';
   if (typeof window !== 'undefined' && window.location?.origin) {
     origin = window.location.origin;
   }

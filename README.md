@@ -4,7 +4,7 @@ Materio is an all-in-one study app: library resources, PDF reader, notebooks,
 flashcards, community rooms, AI search and interview prep — on web, Android
 and desktop from a single SvelteKit codebase.
 
-- Web app: `https://beta.getmaterio.app`
+- Web app: `https://getmaterio.app`
 - Repository: `https://github.com/Materioa/core`
 
 ## Stack
@@ -60,7 +60,7 @@ which reads from the local `.env` via `scripts/push-env.mjs`.
 
 Versioned JSON APIs live under `src/routes/api/v2/` (search, forms,
 promotions, releases, interviewer, billing, health, …). Native apps talk to
-the production backend at `https://beta.getmaterio.app`; on web, same-origin
+the production backend at `https://getmaterio.app`; on web, same-origin
 relative paths are used.
 
 ## Native releases and OTA updates

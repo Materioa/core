@@ -31,7 +31,7 @@ export const isNative = isTauri || isCapacitor;
 
 // In native desktop/mobile apps, requests cannot hit local origin (tauri:// or capacitor://).
 // They must point to the remote production backend API on Cloudflare.
-const DEFAULT_REMOTE_API = 'https://beta.getmaterio.app';
+const DEFAULT_REMOTE_API = 'https://getmaterio.app';
 
 export const API_BASE_URL = (() => {
   if (typeof window === 'undefined') return DEFAULT_REMOTE_API;
@@ -54,7 +54,7 @@ export const API_BASE_URL = (() => {
 
 /**
  * Helper to build full endpoint URL depending on platform.
- * Example: toApiUrl('/api/v2/search') -> 'https://beta.getmaterio.app/api/v2/search' in native apps
+ * Example: toApiUrl('/api/v2/search') -> 'https://getmaterio.app/api/v2/search' in native apps
  */
 export function toApiUrl(path) {
   if (!path) return '';

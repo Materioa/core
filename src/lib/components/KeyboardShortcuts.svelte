@@ -129,7 +129,14 @@
             if (event.key === "Escape") {
                 prevent();
                 if (showEditModal) { closeEditModal(); return; }
-                if ($pdfModalStore.isOpen) pdfModalStore.update((state) => ({ ...state, isOpen: false }));
+                // Route the PDF close through the reader so its unsaved-
+                // annotations prompt runs (a direct store close would skip it).
+                if ($pdfModalStore.isOpen) {
+                    try {
+                        if (typeof window.__materioClosePdfModal === 'function') window.__materioClosePdfModal();
+                        else pdfModalStore.update((state) => ({ ...state, isOpen: false }));
+                    } catch { pdfModalStore.update((state) => ({ ...state, isOpen: false })); }
+                }
                 else activeModalStore.set(null);
                 return;
             }

@@ -36,10 +36,19 @@ function openMetaDB() {
 export async function hashPdfBuffer(buffer) {
     if (!buffer) return null;
     try {
-        const digest = await crypto.subtle.digest('SHA-256', buffer);
-        return Array.from(new Uint8Array(digest))
-            .map((b) => b.toString(16).padStart(2, '0'))
-            .join('');
+        if (window.crypto?.subtle) {
+            const digest = await crypto.subtle.digest('SHA-256', buffer);
+            return Array.from(new Uint8Array(digest))
+                .map((b) => b.toString(16).padStart(2, '0'))
+                .join('');
+        }
+    } catch {
+        // fall through to non-crypto fallback below (Tauri/offline WebViews
+        // may lack SubtleCrypto)
+    }
+    try {
+        const view = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+        return 'fnv-' + fnv1aHex(view) + '-' + view.length.toString(36);
     } catch {
         return null;
     }
@@ -49,14 +58,38 @@ export async function hashPdfBuffer(buffer) {
 export async function hashPdfUrl(url) {
     if (!url) return null;
     try {
-        const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('url:' + url));
-        return 'url-' + Array.from(new Uint8Array(digest))
-            .map((b) => b.toString(16).padStart(2, '0'))
-            .join('')
-            .slice(0, 32);
+        if (window.crypto?.subtle) {
+            const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('url:' + url));
+            return 'url-' + Array.from(new Uint8Array(digest))
+                .map((b) => b.toString(16).padStart(2, '0'))
+                .join('')
+                .slice(0, 32);
+        }
+    } catch {
+        // fall through to fallback below
+    }
+    try {
+        const bytes = new TextEncoder().encode('url:' + url);
+        return 'url-' + fnv1aHex(bytes);
     } catch {
         return null;
     }
+}
+
+/** FNV-1a 32-bit hex (x4 lanes for longer inputs). Sync fallback when
+ *  SubtleCrypto is unavailable (desktop Tauri / insecure contexts). */
+function fnv1aHex(bytes) {
+    let h1 = 0x811c9dc5, h2 = 0x811c9dc5 ^ 0x9e3779b9, h3 = h2 ^ 0x85ebca6b, h4 = h3 ^ 0xc2b2ae35;
+    const step = Math.max(1, Math.floor(bytes.length / 4096));
+    for (let i = 0; i < bytes.length; i += step) {
+        const b = bytes[i];
+        h1 = Math.imul(h1 ^ b, 0x01000193) >>> 0;
+        h2 = Math.imul(h2 ^ (b + 1), 0x01000193) >>> 0;
+        h3 = Math.imul(h3 ^ (b + 7), 0x01000193) >>> 0;
+        h4 = Math.imul(h4 ^ (b + 13), 0x01000193) >>> 0;
+    }
+    const hex = (n) => n.toString(16).padStart(8, '0');
+    return hex(h1) + hex(h2) + hex(h3) + hex(h4);
 }
 
 export async function getPdfAnnotations(pdfHash) {

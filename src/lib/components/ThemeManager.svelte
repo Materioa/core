@@ -15,6 +15,23 @@
     let mediaQueryList = null;
     let mediaQueryListener = null;
 
+    // Accent palette shared with the Settings accent picker. Applying the
+    // hex here (not just a body class) drives --color-primary,
+    // --color-primary-alt and --accent, so navbar dots, the notification
+    // badge and every icon/button using those vars follow the accent.
+    const ACCENT_HEX = {
+        default: '#ff8400',
+        orange: '#ff8400',
+        yellow: '#eab308',
+        green: '#22c55e',
+        teal: '#14b8a6',
+        blue: '#3b82f6',
+        pink: '#ec4899',
+        purple: '#8b5cf6',
+        lilac: '#a78bfa',
+        grey: '#6b7280'
+    };
+
     $: if (typeof document !== 'undefined' && $page) {
         const isHome = $page.url.pathname === '/';
         document.body.classList.toggle('home-tab-active', isHome);
@@ -286,6 +303,7 @@
         currentAccent = color;
         if (typeof document !== 'undefined') {
             document.documentElement.style.setProperty('--color-primary', color);
+            document.documentElement.style.setProperty('--color-primary-alt', color);
             document.documentElement.style.setProperty('--accent', color);
             try {
                 localStorage.setItem('materio_accent_color', color);
@@ -293,11 +311,17 @@
         }
     }
 
+    function applyAccentKey(key) {
+        const hex = ACCENT_HEX[key] || ACCENT_HEX.default;
+        applyAccent(hex);
+    }
+
     onMount(() => {
         if (typeof window !== 'undefined') {
             window.cycleTheme = cycleTheme;
             window.applyThemeBasedOnConditions = applyThemeBasedOnConditions;
             window.resolveSystemTheme = resolveSystemTheme;
+            window.__materioApplyAccent = applyAccentKey;
 
             // Read initial theme cookie / localStorage
             const savedTheme = getCookie('theme') || 'system';
@@ -308,6 +332,14 @@
             if (savedAccent) {
                 currentAccent = savedAccent;
                 applyAccent(savedAccent);
+            } else {
+                // Settings stores the picker choice as the `accentColor`
+                // cookie (e.g. "blue"); map it to hex so dots, icons and
+                // buttons follow the chosen accent on every load.
+                const savedAccentKey = getCookie('accentColor');
+                if (savedAccentKey && savedAccentKey !== 'default') {
+                    applyAccentKey(savedAccentKey);
+                }
             }
 
             // Apply immediately on mount

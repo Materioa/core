@@ -1985,6 +1985,7 @@ async function handleNotificationsFeature(request, url) {
 const ANALYTICS_ALLOWED_ORIGIN_HOSTS = new Set([
   'getmaterio.app',
   'www.getmaterio.app',
+  'beta.getmaterio.app',
   'materioa.netlify.app',
   'materioa.vercel.app',
   'materioapp.in',

@@ -1,6 +1,6 @@
 <script>
     import { onMount } from 'svelte';
-    import { activeTab, activeModalStore } from '$lib/stores.js';
+    import { activeTab, activeModalStore, desktopUpdateStore, notificationsStore } from '$lib/stores.js';
     import HugeIcon from '$lib/components/HugeIcon.svelte';
     import { isTauri, isCapacitor } from '$lib/config/api.js';
 
@@ -51,11 +51,36 @@
         } catch (err) {
             console.error('Open modal failed:', err);
         }
+        // The shortcuts indicator dot disappears after the first open.
+        if (modal === 'shortcuts') {
+            try {
+                localStorage.setItem('materio_shortcuts_seen', '1');
+                document.getElementById('keyboardShortcutsBtn')?.classList.add('seen');
+            } catch {}
+        }
+    }
+
+    function openUpdateCard(e) {
+        if (e && e.preventDefault) e.preventDefault();
+        try {
+            if (typeof window !== 'undefined' && typeof window.__materioShowUpdateNudge === 'function') {
+                window.__materioShowUpdateNudge();
+            } else if (typeof window !== 'undefined' && typeof window.__materioCheckUpdateModal === 'function') {
+                window.__materioCheckUpdateModal();
+            }
+        } catch (err) {
+            console.error('Open update card failed:', err);
+        }
     }
 
     import { getLoginUrl, getOverviewUrl } from '$lib/utils/app-urls.js';
 
     onMount(async () => {
+        try {
+            if (localStorage.getItem('materio_shortcuts_seen') === '1') {
+                document.getElementById('keyboardShortcutsBtn')?.classList.add('seen');
+            }
+        } catch {}
         const profileModule = await import('$lib/utils/profile-image.js').catch(e => null);
         if (profileModule && typeof profileModule.init === 'function') {
             profileModule.init();
@@ -87,7 +112,7 @@
             </svg>
         </a>
 
-        <a href="/notifications" class="tab-link" class:active={$activeTab === 'notifications'} data-tab="notifications" aria-label="Notifications" onclick={(e) => setTab('notifications', e)}>
+        <a href="/notifications" class="tab-link" class:active={$activeTab === 'notifications'} data-tab="notifications" data-count={$notificationsStore.unreadCount || 0} aria-label="Notifications" onclick={(e) => setTab('notifications', e)}>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" color="currentColor"
                 fill="none" stroke="#141B34" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M15.5 18C15.5 19.933 13.933 21.5 12 21.5C10.067 21.5 8.5 19.933 8.5 18" />
@@ -125,6 +150,15 @@
     </div>
 
     <div class="navbar-bottom-group">
+        {#if isTauri && $desktopUpdateStore.available}
+            <a href="#" class="update-btn desktop-only has-update" id="desktopUpdateBtn" role="button"
+                aria-label="Update Available" title="Update Available" onclick={(e) => openUpdateCard(e)}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" color="currentColor" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z"></path>
+                    <path d="M16 11.5C16 11.5 13.054 7.50001 12 7.5C10.9459 7.49999 8 11.5 8 11.5M12 8V16.5"></path>
+                </svg>
+            </a>
+        {/if}
         <a href="/changelog" class="changelog-btn desktop-only" role="button" aria-label="Changelog" title="Changelog">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" color="currentColor"
                 fill="none" stroke="#141B34" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

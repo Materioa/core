@@ -1,17 +1,22 @@
 <script>
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
-	import { toApiUrl } from '$lib/config/api.js';
+	import { toApiUrl, isCapacitor } from '$lib/config/api.js';
 	import { getSignupUrl } from '$lib/utils/app-urls.js';
 
-	// Ports of the two bottom-right nudge cards from the room site:
+	// Ports of the bottom-right nudge cards:
 	//   1. Offline nudge  — "You seem to be offline…" + View Downloads.
-	//   2. Leaderboard top-50 nudge — anonymous top-50 readers get a
+	//   2. Update nudge (Capacitor/mobile) — mirrors the desktop update
+	//      nudge: "Version X is ready" + Update button that triggers the
+	//      in-app self-update (temp download -> system installer).
+	//   3. Leaderboard top-50 nudge — anonymous top-50 readers get a
 	//      once-a-day "Create an account to see where you rank" card.
-	// One card at a time; offline takes precedence over top-50.
+	// One card at a time; offline > update > top-50.
 
-	let card = $state(null); // 'offline' | 'top50' | null
+	let card = $state(null); // 'offline' | 'upd' | 'top50' | null
 	let top50Rank = $state(0);
+	let mobileVersion = $state('');
+	let mobileApkUrl = $state('');
 	let dismissedOffline = $state(false);
 
 	const TOP50_KEY = 'materio_top50_nudge_shown_on';
@@ -63,6 +68,79 @@
 		card = null;
 	}
 
+	// --- Update nudge (Capacitor/mobile; desktop uses AppUpdateModal) ---
+	function localAppVersion() {
+		try {
+			if (typeof __MATERIO_APP_VERSION__ !== 'undefined' && __MATERIO_APP_VERSION__) {
+				return String(__MATERIO_APP_VERSION__).replace(/^v/, '');
+			}
+		} catch {}
+		try {
+			if (window.__MATERIO_APP_VERSION__) return String(window.__MATERIO_APP_VERSION__).replace(/^v/, '');
+		} catch {}
+		return '2.1.14';
+	}
+
+	function isNewerVersion(remote, current) {
+		const clean = (v) => String(v || '').replace(/^v/, '').split('.').map((n) => parseInt(n, 10) || 0);
+		const r = clean(remote);
+		const c = clean(current);
+		const len = Math.max(r.length, c.length);
+		for (let i = 0; i < len; i++) {
+			if ((r[i] || 0) !== (c[i] || 0)) return (r[i] || 0) > (c[i] || 0);
+		}
+		return false;
+	}
+
+	async function maybeShowUpdate() {
+		if (!browser || !isCapacitor) return false;
+		try {
+			if (card) return false;
+			try {
+				if (!navigator.onLine) return false;
+			} catch {}
+			const res = await fetch(toApiUrl('/api/releases/latest'));
+			if (!res.ok) return false;
+			const data = await res.json();
+			const androidInfo = data.android || {};
+			// Only prompt when this release actually ships an APK.
+			if (androidInfo.available === false || !androidInfo.downloadUrl) return false;
+			const remoteVer = String(androidInfo.version || data.version || '').replace(/^v/, '');
+			if (!remoteVer || !isNewerVersion(remoteVer, localAppVersion())) return false;
+			const rawUrl = androidInfo.downloadUrl;
+			if (typeof rawUrl !== 'string' || !rawUrl.startsWith('https://') || !rawUrl.split('?')[0].toLowerCase().endsWith('.apk')) {
+				return false;
+			}
+			if (card) return false;
+			mobileVersion = remoteVer;
+			mobileApkUrl = rawUrl;
+			card = 'upd';
+			try {
+				window.__materioUpdateNudgeShown = true;
+			} catch {}
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	function handleMobileUpdate() {
+		const url = mobileApkUrl;
+		const ver = mobileVersion;
+		card = null;
+		try {
+			if (url && window.AndroidBridge?.downloadAndInstallUpdate) {
+				window.AndroidBridge.downloadAndInstallUpdate(url, ver || '');
+				return;
+			}
+		} catch {}
+		handleViewDownloads();
+	}
+
+	function dismissUpdate() {
+		card = null;
+	}
+
 	// --- Leaderboard top-50 card (mirrors room maybeShowTop50Nudge) ---
 	async function maybeShowTop50() {
 		if (!browser) return;
@@ -109,11 +187,15 @@
 		syncOfflineCard();
 		window.addEventListener('offline', syncOfflineCard);
 		window.addEventListener('online', syncOfflineCard);
-		const t = setTimeout(maybeShowTop50, 5000);
+		// Update nudge first (mobile), then top-50 only if nothing claimed the slot.
+		maybeShowUpdate().then((shown) => {
+			if (!shown) {
+				setTimeout(maybeShowTop50, 4000);
+			}
+		});
 		return () => {
 			window.removeEventListener('offline', syncOfflineCard);
 			window.removeEventListener('online', syncOfflineCard);
-			clearTimeout(t);
 		};
 	});
 </script>
@@ -134,6 +216,31 @@
 			</div>
 			<p class="nudge-hint">
 				<span>Save PDFs for offline reading by clicking bookmark in viewer</span>
+			</p>
+		</div>
+	</aside>
+{:else if card === 'upd'}
+	<aside id="appUpdateNudgeCard" class="leaderboard-nudge-card" role="status" aria-live="polite">
+		<img src="/assets/img/greet.webp" alt="Update" class="leaderboard-nudge-image" />
+		<div class="leaderboard-nudge-content">
+			<h4 class="leaderboard-nudge-title">Update Available</h4>
+			<p class="leaderboard-nudge-text">
+				{#if mobileVersion}
+					Version {mobileVersion} is ready to install.
+				{:else}
+					A new version is ready to install.
+				{/if}
+			</p>
+			<div class="leaderboard-nudge-actions">
+				<button type="button" class="leaderboard-nudge-btn leaderboard-nudge-btn-primary" onclick={handleMobileUpdate}>
+					Update
+				</button>
+				<button type="button" class="leaderboard-nudge-btn" onclick={dismissUpdate}>
+					Later
+				</button>
+			</div>
+			<p class="nudge-hint">
+				<span>Downloads in the background, one tap to install</span>
 			</p>
 		</div>
 	</aside>

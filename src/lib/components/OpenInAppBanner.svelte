@@ -18,7 +18,7 @@
     let {
         packageId = 'com.materio.app',
         scheme = 'materio',
-        downloadsUrl = 'https://beta.getmaterio.app/downloads',
+        downloadsUrl = 'https://getmaterio.app/downloads',
         dismissDays = 30
     } = $props();
 
@@ -73,13 +73,13 @@
     // Silent auto-open falls back to this same page, so a missing app
     // just sees the nudge below.
     function intentUrl(fallback) {
-        const host = (() => { try { return window.location.host; } catch { return 'beta.getmaterio.app'; } })();
+        const host = (() => { try { return window.location.host; } catch { return 'getmaterio.app'; } })();
         const fb = encodeURIComponent(fallback || window.location.href);
         return `intent://${host}${currentPath()}#Intent;scheme=https;package=${packageId};S.browser_fallback_url=${fb};end`;
     }
 
     function schemeUrl() {
-        const host = (() => { try { return window.location.host; } catch { return 'beta.getmaterio.app'; } })();
+        const host = (() => { try { return window.location.host; } catch { return 'getmaterio.app'; } })();
         return `${scheme}://${host}${currentPath()}`;
     }
 
