@@ -19,17 +19,35 @@
     // hex here (not just a body class) drives --color-primary,
     // --color-primary-alt and --accent, so navbar dots, the notification
     // badge and every icon/button using those vars follow the accent.
+    // Single source of truth for applied accents — kept identical to the
+    // Settings accent picker swatches (SettingsTab `accentColors`) so the
+    // dot preview and every button using --accent always match.
     const ACCENT_HEX = {
         default: '#ff8400',
-        orange: '#ff8400',
-        yellow: '#eab308',
-        green: '#22c55e',
-        teal: '#14b8a6',
-        blue: '#3b82f6',
-        pink: '#ec4899',
-        purple: '#8b5cf6',
-        lilac: '#a78bfa',
-        grey: '#6b7280'
+        orange: '#ff6138',
+        yellow: '#f1b539',
+        green: '#257d2d',
+        teal: '#3ab49b',
+        blue: '#3f6bbd',
+        pink: '#f47272',
+        purple: '#967bb6',
+        lilac: '#c8a2c8',
+        grey: '#8a8d91'
+    };
+
+    // Hexes this palette replaced (older applied values). Devices that
+    // stored one get moved to the matching swatch on load, so nobody has
+    // to re-pick to see the corrected color.
+    const LEGACY_ACCENT_HEX = {
+        '#ff8400': '#ff8400',
+        '#eab308': '#f1b539',
+        '#22c55e': '#257d2d',
+        '#14b8a6': '#3ab49b',
+        '#3b82f6': '#3f6bbd',
+        '#ec4899': '#f47272',
+        '#8b5cf6': '#967bb6',
+        '#a78bfa': '#c8a2c8',
+        '#6b7280': '#8a8d91'
     };
 
     $: if (typeof document !== 'undefined' && $page) {
@@ -330,8 +348,9 @@
 
             const savedAccent = localStorage.getItem('materio_accent_color');
             if (savedAccent) {
-                currentAccent = savedAccent;
-                applyAccent(savedAccent);
+                const legacyFixed = LEGACY_ACCENT_HEX[savedAccent.toLowerCase()] || savedAccent;
+                currentAccent = legacyFixed;
+                applyAccent(legacyFixed);
             } else {
                 // Settings stores the picker choice as the `accentColor`
                 // cookie (e.g. "blue"); map it to hex so dots, icons and
