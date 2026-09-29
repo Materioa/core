@@ -21,7 +21,7 @@
 
 	async function checkForUpdates() {
 		// Only show desktop app update nudges; never show restart/update nudge on the website
-		if (!browser || !isTauri) return;
+		if (!browser || !isTauri) return { status: 'skipped' };
 		try {
 			// In Tauri v2, if @tauri-apps/plugin-updater is configured:
 			if (isTauri && (window as any).__TAURI__?.updater) {
@@ -32,19 +32,18 @@
 						newVersion = update.version;
 						activeNudge = 'update';
 						desktopUpdateStore.set({ available: true, version: newVersion });
-						return;
+						return { status: 'update', remote: newVersion, local: currentVersion() };
 					}
-					desktopUpdateStore.set({ available: false, version: '' });
 				} catch (e) {
 					console.warn('Tauri updater check failed, falling back to API:', e);
 				}
 			}
 
-			// Fallback: check /api/releases/latest
+			// Fallback: check /api/releases/latest (cache-busted: a stale
+			// WebView HTTP cache must never mask a published release)
+			const localVer = currentVersion();
 			// @ts-ignore
-			const builtVersion = typeof __MATERIO_APP_VERSION__ !== 'undefined' ? __MATERIO_APP_VERSION__ : null;
-			const currentAppVersion = (window as any).__MATERIO_APP_VERSION__ || builtVersion || '2.1.0';
-			const res = await fetch(toApiUrl('/api/releases/latest'));
+			const res = await fetch(toApiUrl(`/api/releases/latest?t=${Date.now()}`));
 			if (res.ok) {
 				const data = await res.json();
 				// Platform-aware: only prompt when this release actually ships
@@ -52,19 +51,34 @@
 				const winInfo = data.windows || {};
 				if (winInfo.available === false || !winInfo.downloadUrl) {
 					desktopUpdateStore.set({ available: false, version: '' });
-					return;
+					return { status: 'current', remote: null, local: localVer };
 				}
 				const remoteVer = (winInfo.version || data.version || '').replace(/^v/, '');
-				if (remoteVer && isNewerVersion(remoteVer, currentAppVersion)) {
+				console.info(`[updater] local=${localVer} remote=${remoteVer || '?'}`);
+				if (remoteVer && isNewerVersion(remoteVer, localVer)) {
 					newVersion = winInfo.version || data.version;
 					activeNudge = 'update';
 					desktopUpdateStore.set({ available: true, version: newVersion });
+					return { status: 'update', remote: newVersion, local: localVer };
 				} else {
 					desktopUpdateStore.set({ available: false, version: '' });
+					return { status: 'current', remote: remoteVer || null, local: localVer };
 				}
 			}
+			return { status: 'error', remote: null, local: localVer, error: `HTTP ${res.status}` };
 		} catch (err) {
 			console.warn('Update check failed:', err);
+			return { status: 'error', remote: null, local: currentVersion(), error: String(err) };
+		}
+	}
+
+	function currentVersion(): string {
+		try {
+			// @ts-ignore
+			const built = typeof __MATERIO_APP_VERSION__ !== 'undefined' ? __MATERIO_APP_VERSION__ : null;
+			return String((window as any).__MATERIO_APP_VERSION__ || built || '2.1.0').replace(/^v/, '');
+		} catch {
+			return '2.1.0';
 		}
 	}
 

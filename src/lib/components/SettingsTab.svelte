@@ -259,7 +259,7 @@
         }
 
         try {
-            const res = await fetch(toApiUrl('/api/releases/latest'));
+            const res = await fetch(toApiUrl(`/api/releases/latest?t=${Date.now()}`));
             if (res.ok) {
                 const data = await res.json();
                 // Platform-aware: the latest GH tag may not ship an APK
@@ -328,7 +328,20 @@
                             window.open(apkUrl, '_system');
                         }
                     } else if (isManual && isTauri && typeof window.__materioCheckUpdateModal === 'function') {
-                        window.__materioCheckUpdateModal();
+                        // Desktop: report the verdict with versions so a miss
+                        // is instantly diagnosable (compare vs network).
+                        try {
+                            const verdict = await window.__materioCheckUpdateModal();
+                            if (verdict && verdict.status === 'update') {
+                                showToastMessage(`Update available: v${String(verdict.remote || '').replace(/^v/, '')} (installed v${verdict.local})`);
+                            } else if (verdict && verdict.status === 'current') {
+                                showToastMessage(`You are on the latest version (v${verdict.local})!`);
+                            } else if (verdict && verdict.status === 'error') {
+                                showToastMessage(`Could not reach update server${verdict.error ? ': ' + verdict.error : '.'}`);
+                            }
+                        } catch {
+                            window.__materioCheckUpdateModal();
+                        }
                     }
                 } else {
                     if (isManual) {

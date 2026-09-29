@@ -1,6 +1,6 @@
 {
   "name": "materio-svelte",
-  "version": "2.1.50",
+  "version": "2.1.70",
   "private": true,
   "scripts": {
     "dev": "vite dev",
