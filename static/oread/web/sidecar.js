@@ -100,61 +100,71 @@
         }
     }
 
-    // Plain-JSON snapshot of the viewer's EDITOR annotations. Uses the
-    // `serializable` getter (each editor's serialize()) so the result is
-    // postMessage/IndexedDB-safe. Entries whose image bitmap can't be
-    // persisted (stamp/signature photos) are skipped rather than failing
-    // the whole snapshot.
+    // Plain-JSON snapshot of the viewer's EDITOR annotations.
+    //
+    // Deliberately NOT built on `annotationStorage.serializable`: that
+    // getter is all-or-nothing — one editor whose serialize() throws (e.g.
+    // a drawing whose outlines aren't built yet) kills the WHOLE snapshot,
+    // and the getAll() fallback can't recover live editor instances. So
+    // each entry is serialized individually inside its own try/catch: one
+    // bad editor is skipped, the rest survive. Image bitmaps
+    // (stamp/signature photos) still can't be persisted and are skipped.
     function snapshotPlain() {
         var st = storage();
         if (!st) return null;
+        var raw = null;
         try {
-            var s = null;
-            try {
-                s = st.serializable;
-            } catch (e) {
-                s = null;
-            }
-            if (s && s.map && typeof s.map.forEach === 'function' && s.map.size > 0) {
-                var out = {};
-                s.map.forEach(function (val, key) {
-                    if (!isEditorData(val)) return;
-                    if (val.bitmap) return; // can't persist ImageBitmap reliably; skip
-                    try {
-                        var copy = JSON.parse(JSON.stringify(val));
-                        if (copy && typeof copy === 'object') {
-                            out[key] = copy;
-                        }
-                    } catch (e) {
-                        /* skip uncloneable entry */
-                    }
-                });
-                return out;
-            }
-            // No serializable editors — fall back to getAll, keeping editor
-            // data only and dropping live editor instances.
-            try {
-                var all = st.getAll();
-                if (!all) return {};
-                var plain = {};
-                for (var k in all) {
-                    if (!Object.prototype.hasOwnProperty.call(all, k)) continue;
-                    var v = all[k];
-                    if (v && typeof v === 'object' && (v.div || v.parent || v._uiManager)) continue;
-                    if (!isEditorData(v)) continue;
-                    try {
-                        plain[k] = JSON.parse(JSON.stringify(v));
-                    } catch (e) {
-                        /* skip */
-                    }
-                }
-                return plain;
-            } catch (e) {
-                return {};
-            }
+            raw = st.getAll();
         } catch (e) {
             return null;
         }
+        if (!raw) return {};
+        var out = {};
+        for (var k in raw) {
+            if (!Object.prototype.hasOwnProperty.call(raw, k)) continue;
+            var v = raw[k];
+            if (v && typeof v.serialize === 'function') {
+                // Live editor instance: serialize it in isolation.
+                try {
+                    var s = v.serialize(false);
+                    if (!s || typeof s !== 'object') continue;
+                    if (s.bitmap) continue;
+                    var copy = JSON.parse(JSON.stringify(s));
+                    if (copy && typeof copy === 'object' && isEditorData(copy)) {
+                        out[k] = copy;
+                    }
+                } catch (e) {
+                    /* skip this editor only */
+                }
+            } else if (isEditorData(v)) {
+                try {
+                    out[k] = JSON.parse(JSON.stringify(v));
+                } catch (e) {
+                    /* skip */
+                }
+            }
+        }
+        return out;
+    }
+
+    // Finalize any open drawing/highlight session so the visible strokes
+    // become committable editors before a snapshot. Passive change
+    // detection (debounce/poll) must NEVER mutate user state, so this runs
+    // only on explicit save paths: Ctrl+S, parent flush (close/Ctrl+S).
+    function commitOpenDrawing() {
+        try {
+            var v = viewer();
+            if (!v) return;
+            var ui = null;
+            try {
+                ui = v._layerProperties && v._layerProperties.annotationEditorUIManager;
+            } catch (e) {
+                ui = null;
+            }
+            if (ui && typeof ui.commitOrRemove === 'function') {
+                ui.commitOrRemove();
+            }
+        } catch (e) { /* ignore */ }
     }
 
     function emitChangedNow() {
@@ -425,6 +435,7 @@
                 scheduleRestore(0);
             }
         } else if (data.type === 'materioAnnotFlush') {
+            commitOpenDrawing();
             emitChangedNow();
         }
     });
@@ -437,6 +448,7 @@
             if (mod && (e.key === 's' || e.key === 'S' || e.code === 'KeyS')) {
                 e.preventDefault();
                 e.stopPropagation();
+                commitOpenDrawing();
                 emitChangedNow();
                 try {
                     window.parent.postMessage({ type: 'materioAnnotSaveRequest' }, '*');
