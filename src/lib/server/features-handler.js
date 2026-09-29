@@ -177,6 +177,88 @@ async function handleInsights(url) {
 }
 
 // ==========================================
+// 1b. Promo Stats (per-promotion Beacon views from GA4)
+// ==========================================
+// The Beacon runtime pushes modal_view / promo_cta_click / promo_close …
+// events with modal_id (+modal_title) params. This reports them back for
+// the admin panel. Matches on id OR title because the id the client sends
+// (from the served promotions feed) isn't always the admin editor's id.
+const PROMO_STAT_EVENTS = ['modal_view', 'promo_cta_click', 'promo_remind_later', 'promo_close'];
+
+async function handlePromoStats(request, url) {
+  try {
+    const isAdmin = await checkAdminUser(request, url);
+    if (!isAdmin) return json({ error: 'Admin privileges required' }, { status: 403 });
+
+    const modalId = String(url.searchParams.get('modalId') || url.searchParams.get('modal_id') || '').trim().slice(0, 120);
+    const title = String(url.searchParams.get('title') || '').trim().slice(0, 160);
+    if (!modalId && !title) return json({ error: 'modalId or title is required' }, { status: 400 });
+    const days = Math.min(90, Math.max(1, parseInt(url.searchParams.get('days') || '30', 10) || 30));
+
+    let analyticsDataClient;
+    try {
+      analyticsDataClient = getAnalyticsDataClient();
+    } catch (err) {
+      return json({ supported: false, reason: 'not-configured' }, { status: 503 });
+    }
+    const propertyId = env.GA4_PROPERTY_ID || process.env.GA4_PROPERTY_ID;
+    if (!analyticsDataClient || !propertyId) {
+      return json({ supported: false, reason: 'not-configured' }, { status: 503 });
+    }
+
+    const orFilters = [];
+    if (modalId) orFilters.push({ filter: { fieldName: 'customEvent:modal_id', stringFilter: { matchType: 'EXACT', value: modalId } } });
+    if (title) orFilters.push({ filter: { fieldName: 'customEvent:modal_title', stringFilter: { matchType: 'EXACT', value: title } } });
+
+    let response;
+    try {
+      response = await analyticsDataClient.properties.runReport({
+        property: `properties/${propertyId}`,
+        requestBody: {
+          dimensions: [{ name: 'eventName' }],
+          metrics: [{ name: 'eventCount' }],
+          dateRanges: [{ startDate: `${days}daysAgo`, endDate: 'today' }],
+          dimensionFilter: {
+            andGroup: {
+              expressions: [
+                { filter: { fieldName: 'eventName', inListFilter: { values: PROMO_STAT_EVENTS } } },
+                ...(orFilters.length > 1 ? [{ orGroup: { expressions: orFilters } }] : orFilters)
+              ]
+            }
+          }
+        }
+      });
+    } catch (err) {
+      // Most commonly: the modal_id/modal_title custom dimensions aren't
+      // registered in GA4 yet (data appears ~a day after registration).
+      console.warn('promo-stats GA4 query failed:', err?.message);
+      return json({ supported: false, reason: 'not-ready', modalId }, { status: 200 });
+    }
+
+    const byEvent = {};
+    for (const row of response.data?.rows || []) {
+      const name = row.dimensionValues?.[0]?.value || '';
+      const count = Number(row.metricValues?.[0]?.value || 0);
+      if (name) byEvent[name] = (byEvent[name] || 0) + (Number.isFinite(count) ? count : 0);
+    }
+    const views = byEvent.modal_view || 0;
+    const taps = byEvent.promo_cta_click || 0;
+    const closes = byEvent.promo_close || 0;
+    const later = byEvent.promo_remind_later || 0;
+    return json({
+      supported: true, modalId, rangeDays: days,
+      views, taps, closes, remindLater: later,
+      total: views + taps + closes + later
+    }, {
+      headers: { 'Cache-Control': 'private, max-age=300' }
+    });
+  } catch (error) {
+    console.error('promo-stats failed:', error);
+    return json({ supported: false, reason: 'error' }, { status: 500 });
+  }
+}
+
+// ==========================================
 // 2. Notifications Feed Feature (Merged MongoDB + JSON)
 // ==========================================
 async function fetchJsonNotifications() {
@@ -2683,6 +2765,7 @@ export function resolveFeatureAction(url, params) {
   const pathname = url.pathname;
 
   if (action === 'analytics-views' || action === 'views') return 'analytics-views';
+  if (action === 'promo-stats' || action === 'promoStats') return 'promo-stats';
   if (action === 'analytics-leaderboard' || action === 'leaderboard') return 'analytics-leaderboard';
   if (action === 'analytics') return 'analytics';
   if (action === 'notifications-feed') return 'notifications-feed';
@@ -2740,6 +2823,9 @@ export async function handleFeaturesRequest({ request, url, params }) {
 
   if (feature === 'analytics-views' || feature === 'views') {
     return handleAnalyticsViews(url);
+  }
+  if (feature === 'promo-stats') {
+    return handlePromoStats(request, url);
   }
   if (feature === 'analytics-leaderboard' || feature === 'leaderboard') {
     return handleAnalyticsLeaderboard(request, url);
