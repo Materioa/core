@@ -13,10 +13,6 @@
 	},
 	"routes": [
 		{
-			"pattern": "getmaterio.app/*",
-			"zone_name": "getmaterio.app"
-		},
-		{
 			"pattern": "beta.getmaterio.app/*",
 			"zone_name": "getmaterio.app"
 		}
