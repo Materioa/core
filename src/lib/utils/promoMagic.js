@@ -25,7 +25,8 @@
  * - ctx.close():  closes the modal
  * - ctx.track(name, params): fires a GA/GTM event scoped to this modal
  * - ctx.isApp:    true inside the Android / Windows apps, false on web.
- *                  Skip app-only noise with `if (ctx.isApp) return;`
+ *                  Hide a modal in-app with `if (ctx.isApp) return false;`
+ *                  (returning false closes it — a bare `return;` does not).
  * - ctx.platform: 'web' | 'android' | 'windows'
  *
  * Everything is admin-trusted but still guarded: syntax/runtime errors are
@@ -57,10 +58,15 @@ function isBrowser() {
  * - 'android': Capacitor native (window.Capacitor / AndroidBridge / capacitor: URL)
  * - 'windows': Tauri desktop (window.__TAURI__* / tauri: URL)
  * - 'web':     regular browser
+ *
+ * Checks the __materioShell marker first (set once at app boot, immune to
+ * bridge-timing quirks), then the live bridge signals.
  */
 export function detectPlatform() {
 	if (!isBrowser()) return 'web';
 	try {
+		const shell = window.__materioShell;
+		if (shell === 'windows' || shell === 'android') return shell;
 		if (
 			window.__TAURI_INTERNALS__ ||
 			window.__TAURI__ ||
@@ -256,6 +262,16 @@ export function runMagicJs(code, ctx = {}, opts = {}) {
 	}
 	try {
 		const cleanup = fn(fullCtx);
+		// Returning `false` suppresses the modal (closes it). This is the
+		// documented way to conditionally hide a modal, e.g.:
+		//   if (ctx.isApp) return false;
+		// (A bare `return;` only skips the snippet body — the modal stays.)
+		if (cleanup === false) {
+			try {
+				fullCtx.close();
+			} catch {}
+			return null;
+		}
 		if (typeof window !== 'undefined') {
 			window.__materioMagic = window.__materioMagic || {};
 			window.__materioMagic[fullCtx.id] = { lastStage: fullCtx.stage, at: Date.now() };

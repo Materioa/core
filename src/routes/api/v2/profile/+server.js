@@ -39,15 +39,50 @@ async function verifyViaAuthService(token) {
 		const u = data?.user || {};
 		return {
 			id: u.id ?? null,
-			tier: null,
-			isPlusUser: !!(u.isPlusUser ?? u.is_plus_user),
+			tier: u.tier ?? null,
+			role: u.role ?? u.user_role ?? null,
+			isPlusUser: isPlusLike(u),
 			isLiteUser: !!(u.isLiteUser ?? u.is_lite_user),
-			hasAdminPrivileges: !!(u.hasAdminPrivileges ?? u.has_admin_privileges)
+			hasAdminPrivileges: isAdminLike(u)
 		};
 	} catch (err) {
 		console.warn('Auth-service profile proxy failed:', err?.message);
 		return null;
 	}
+}
+
+// Broad plan/role matching: the auth service, Supabase rows and JWTs spell
+// "paid" and "admin" many ways (is_plus_user, tier:'super', role:'owner',
+// …). Missing a spelling silently hides Plus-gated UI, so accept the superset.
+const PLUS_TIERS = new Set(['plus', 'pro', 'super', 'admin', 'premium', 'lifetime', 'ultimate', 'vip', 'paid']);
+const ADMIN_ROLES = new Set(['admin', 'superadmin', 'super-admin', 'super', 'superuser', 'owner', 'root', 'staff']);
+
+function str(v) {
+	return String(v ?? '').trim().toLowerCase();
+}
+
+function isPlusLike(u) {
+	if (!u || typeof u !== 'object') return false;
+	if (u.isPlusUser === true || u.is_plus_user === true || u.is_plus === true ||
+		u.isPlus === true || u.plus === true || u.is_pro === true || u.isPro === true ||
+		u.isLiteUser === true || u.is_lite_user === true) return true;
+	if (PLUS_TIERS.has(str(u.tier))) return true;
+	if (PLUS_TIERS.has(str(u.role)) || ADMIN_ROLES.has(str(u.role))) return true;
+	return false;
+}
+
+function isAdminLike(u) {
+	if (!u || typeof u !== 'object') return false;
+	if (u.hasAdminPrivileges === true || u.has_admin_privileges === true ||
+		u.isAdmin === true || u.is_admin === true ||
+		u.isSuperUser === true || u.is_superuser === true ||
+		u.isSuperAdmin === true || u.is_super_admin === true ||
+		u.superuser === true || u.is_staff === true) return true;
+	// Product tier names: 'super' is the admin tier, 'admin' likewise.
+	if (ADMIN_ROLES.has(str(u.role)) || ADMIN_ROLES.has(str(u.user_role))) return true;
+	const tier = str(u.tier);
+	if (tier === 'super' || tier === 'admin') return true;
+	return false;
 }
 export async function GET({ request }) {
 	try {
@@ -56,20 +91,25 @@ export async function GET({ request }) {
 		const decoded = verifyToken(token);
 		const uid = decoded?.id || decoded?.sub;
 		if (uid) {
-			let tier = null;
-			let isPro = false;
+			// Canonical entitlement columns (see auth migrations: Plus(UI)
+			// -> is_lite_user, Pro(UI) -> is_plus_user, Super(UI) ->
+			// has_admin_privileges). There are no tier/is_pro columns — the
+			// old select silently errored and every real user read as free.
+			let isPlusUser = false;
+			let isLiteUser = false;
 			let admin = false;
 			try {
 				const client = supabaseAdmin || supabase;
 				const { data, error } = await client
 					.from('users')
-					.select('tier, is_pro')
+					.select('has_admin_privileges, is_plus_user, is_lite_user')
 					.eq('id', uid)
 					.limit(1);
 				const row = !error && Array.isArray(data) ? data[0] : null;
 				if (row) {
-					tier = row.tier ?? null;
-					isPro = !!row.is_pro;
+					isPlusUser = !!row.is_plus_user;
+					isLiteUser = !!row.is_lite_user;
+					admin = !!row.has_admin_privileges;
 				}
 			} catch (err) {
 				console.warn('Profile lookup failed:', err?.message);
@@ -82,8 +122,11 @@ export async function GET({ request }) {
 				const email = String(decoded?.email || '').toLowerCase();
 				if (email && adminList.includes(email)) admin = true;
 			} catch {}
-			const isPlusUser = isPro || ['plus', 'pro'].includes(String(tier || '').toLowerCase());
-			return json({ user: { id: uid, tier, isPlusUser, isLiteUser: false, hasAdminPrivileges: admin } });
+			const role = decoded?.role ?? decoded?.user_role ?? decoded?.app_metadata?.role ?? null;
+			const decodedSignals = { ...(decoded || {}), role };
+			if (isAdminLike(decodedSignals)) admin = true;
+			if (isPlusLike(decodedSignals)) isPlusUser = true;
+			return json({ user: { id: uid, role, isPlusUser, isLiteUser, hasAdminPrivileges: admin } });
 		}
 
 		// Local secret didn't sign this token — ask the auth service that minted it.

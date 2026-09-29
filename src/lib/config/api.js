@@ -29,6 +29,16 @@ export const isAndroidApp = typeof window !== 'undefined' && Boolean(
 
 export const isNative = isTauri || isCapacitor;
 
+// Shell marker for admin-authored magic snippets (promoMagic detectPlatform)
+// and any other code that must know the shell without re-sniffing bridges.
+// Set once at bundle evaluation so it is available before any modal logic.
+if (typeof window !== 'undefined') {
+  try {
+    if (isTauri) window.__materioShell = 'windows';
+    else if (isCapacitor) window.__materioShell = 'android';
+  } catch {}
+}
+
 // In native desktop/mobile apps, requests cannot hit local origin (tauri:// or capacitor://).
 // They must point to the remote production backend API on Cloudflare.
 const DEFAULT_REMOTE_API = 'https://getmaterio.app';

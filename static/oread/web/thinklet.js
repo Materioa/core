@@ -80,26 +80,32 @@
 
   // Wait for showbtnrq.js's verdict (it verifies first and publishes
   // window.__materioPlusVerified) instead of racing a duplicate fetch.
-  // Returns true/false when known, null on timeout (caller falls back).
+  // Thinklet admits lite: a thinklet-level (or legacy save-level) verdict
+  // grants access. Returns true/false when known, null on timeout.
   function awaitPlusVerdict(timeoutMs) {
-    return new Promise((resolve) => {
+    const read = () => {
       try {
         const v = window.__materioPlusVerified;
         if (v && v.done === true) {
-          resolve(v.plus === true);
-          return;
+          return (v.thinklet === true || v.save === true || v.plus === true) ? true : false;
         }
       } catch (e) { /* ignore */ }
+      return null;
+    };
+    return new Promise((resolve) => {
+      const first = read();
+      if (first !== null) {
+        resolve(first);
+        return;
+      }
       const started = Date.now();
       const timer = setInterval(() => {
-        try {
-          const v = window.__materioPlusVerified;
-          if (v && v.done === true) {
-            clearInterval(timer);
-            resolve(v.plus === true);
-            return;
-          }
-        } catch (e) { /* ignore */ }
+        const val = read();
+        if (val !== null) {
+          clearInterval(timer);
+          resolve(val);
+          return;
+        }
         if (Date.now() - started > (timeoutMs || 5000)) {
           clearInterval(timer);
           resolve(null);
@@ -108,14 +114,34 @@
     });
   }
 
+  // Broad paid/admin matching (mirrors showbtnrq.js + the profile server).
+  function isPrivilegedUser(u) {
+    if (!u || typeof u !== 'object') return false;
+    if (u.isPlusUser === true || u.is_plus_user === true || u.is_plus === true ||
+      u.isPlus === true || u.plus === true || u.is_pro === true || u.isPro === true ||
+      u.isLiteUser === true || u.is_lite_user === true ||
+      u.hasAdminPrivileges === true || u.has_admin_privileges === true ||
+      u.isAdmin === true || u.is_admin === true ||
+      u.isSuperUser === true || u.is_superuser === true ||
+      u.isSuperAdmin === true || u.is_super_admin === true ||
+      u.superuser === true || u.is_staff === true) return true;
+    const tier = String(u.tier || '').trim().toLowerCase();
+    if (['plus', 'pro', 'super', 'admin', 'premium', 'lifetime', 'ultimate', 'vip', 'paid'].indexOf(tier) >= 0) return true;
+    const role = String(u.role || u.user_role || '').trim().toLowerCase();
+    if (['admin', 'superadmin', 'super-admin', 'super', 'superuser', 'owner', 'root', 'staff', 'plus', 'pro'].indexOf(role) >= 0) return true;
+    return false;
+  }
+
   async function verifyThinkletAccess() {
     if (isThinkletReleaseOfferActive()) {
       return true;
     }
 
-    if (window.checkPlusStatus?.() === true) {
-      return true;
-    }
+    try {
+      if (window.__materioCheckThinkletStatus?.() === true || window.checkPlusStatus?.() === true) {
+        return true;
+      }
+    } catch (e) { /* ignore */ }
 
     const verdict = await awaitPlusVerdict(5000);
     if (verdict === true) {
@@ -142,7 +168,11 @@
       }
 
       const data = await response.json();
-      return data.user?.isPlusUser === true || data.user?.isLiteUser === true || data.user?.hasAdminPrivileges === true;
+      const ok = isPrivilegedUser(data.user);
+      try {
+        console.info('[oread] thinklet check:', JSON.stringify({ ok, tier: data.user?.tier ?? null, role: data.user?.role ?? null }));
+      } catch (e) { /* ignore */ }
+      return ok;
     } catch (error) {
       console.error('Thinklet access verification failed:', error);
       return false;

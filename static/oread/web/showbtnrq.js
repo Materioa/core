@@ -6,6 +6,51 @@
   let verifiedPlusStatus = false;
   let statusVerified = false;
 
+  // Broad paid/admin matching (mirrors the /api/v2/profile server): plan
+  // and role flags are spelled many ways across services (is_plus_user,
+  // tier:'super', role:'owner', is_superuser, …). Accept the superset so a
+  // spelling miss can never hide Plus-gated UI from entitled users.
+  //
+  // Product tier names: 'super' = admin tier, 'pro' = plus tier,
+  // 'plus' = lite tier. Lite users get Thinklet but NEVER the save button.
+  function normWord(v) {
+    return String(v || '').trim().toLowerCase();
+  }
+
+  var PRO_TIERS = ['pro', 'super', 'admin', 'premium', 'lifetime', 'ultimate', 'vip', 'paid'];
+  var LITE_WORDS = ['plus', 'lite'];
+  var ADMIN_ROLES = ['admin', 'superadmin', 'super-admin', 'super', 'superuser', 'owner', 'root', 'staff'];
+
+  // Save buttons: Plus-level (pro tier) or admin. Lite-only signals
+  // (is_plus / isLite / tier 'plus' / role 'plus') are EXCLUDED here.
+  function canSave(u) {
+    if (!u || typeof u !== 'object') return false;
+    if (u.isPlusUser === true || u.is_plus_user === true ||
+      u.isPro === true || u.is_pro === true ||
+      u.hasAdminPrivileges === true || u.has_admin_privileges === true ||
+      u.isAdmin === true || u.is_admin === true ||
+      u.isSuperUser === true || u.is_superuser === true ||
+      u.isSuperAdmin === true || u.is_super_admin === true ||
+      u.superuser === true || u.is_staff === true) return true;
+    if (PRO_TIERS.indexOf(normWord(u.tier)) >= 0) return true;
+    var role = normWord(u.role || u.user_role);
+    if (role === 'pro' || ADMIN_ROLES.indexOf(role) >= 0) return true;
+    return false;
+  }
+
+  // Thinklet: everything that can save, plus lite-tier signals.
+  function canUseThinklet(u) {
+    if (canSave(u)) return true;
+    if (!u || typeof u !== 'object') return false;
+    if (u.isLiteUser === true || u.is_lite_user === true ||
+      u.is_plus === true || u.isPlus === true || u.plus === true) return true;
+    var tier = normWord(u.tier);
+    if (LITE_WORDS.indexOf(tier) >= 0) return true;
+    var role = normWord(u.role || u.user_role);
+    if (LITE_WORDS.indexOf(role) >= 0) return true;
+    return false;
+  }
+
   // Private helper functions
   function setCookie(name, value, days) {
     const date = new Date();
@@ -26,24 +71,27 @@
 
   // Publish the verification verdict so sibling scripts (thinklet.js)
   // can reuse it instead of racing a second profile fetch.
-  function publishVerdict(plus) {
+  // Shape: { done, save, thinklet } — save excludes lite, thinklet includes it.
+  function publishVerdict(save, thinklet) {
     try {
-      window.__materioPlusVerified = { done: true, plus: plus === true };
+      window.__materioPlusVerified = { done: true, save: save === true, thinklet: thinklet === true };
     } catch (e) { /* ignore */ }
   }
 
-  // Private function to toggle Plus-gated button visibility (save buttons
-  // + Thinklet AI button). Unhiding is safe: the Thinklet panel itself
-  // stays gated on its own verifiedAccess check before opening.
-  function toggleGatedButtons(show) {
+  // Private function to toggle Plus-gated button visibility. Save buttons
+  // need save-level access (Plus tier or admin — lite excluded); the
+  // Thinklet AI button needs thinklet-level (includes lite). Unhiding is
+  // safe: the Thinklet panel itself stays gated on its own verifiedAccess
+  // check before opening.
+  function toggleGatedButtons(save, thinklet) {
     // Only allow if status has been verified through proper channels
     if (!statusVerified) {
       console.warn('Unauthorized access attempt detected');
       return;
     }
 
-    toggleDownloadButton(show);
-    if (show && verifiedPlusStatus) {
+    toggleDownloadButton(save);
+    if (thinklet) {
       document.getElementById('thinkletButton')?.removeAttribute('hidden');
       document.getElementById('thinkletSeparator')?.removeAttribute('hidden');
     }
@@ -106,10 +154,16 @@
 
       const data = await response.json();
       statusVerified = true;
-      // Check for Plus users OR Super users (admin privileges)
-      const plus = data.user?.isPlusUser === true || data.user?.hasAdminPrivileges === true;
-      publishVerdict(plus);
-      return plus;
+      // Split gates: save needs Plus-level or admin (lite excluded),
+      // Thinklet admits lite as well. See canSave / canUseThinklet.
+      const save = canSave(data.user);
+      const thinklet = canUseThinklet(data.user);
+      try {
+        console.info('[oread] plus check:', JSON.stringify({ save, thinklet, tier: data.user?.tier ?? null, role: data.user?.role ?? null }));
+      } catch (e) { /* ignore */ }
+      publishVerdict(save, thinklet);
+      verifiedPlusStatus = save;
+      return save;
 
     } catch (error) {
       console.error('Plus status verification failed:', error);
@@ -124,23 +178,37 @@
     // SECURE: Verify plus status from server (recommended)
     verifiedPlusStatus = await verifyPlusStatusFromServer();
 
-    // If server verification succeeded, show buttons for plus users
-    if (verifiedPlusStatus && statusVerified) {
-      toggleGatedButtons(true);
+    // If server verification succeeded, show gated buttons accordingly
+    if (statusVerified) {
+      const v = window.__materioPlusVerified || {};
+      toggleGatedButtons(v.save === true, v.thinklet === true);
       return;
     }
 
     // For non-plus users, check cookie preference (can be manipulated but harmless)
     const downloadVisible = getCookie('downloadVisible');
     statusVerified = true; // Allow cookie-based toggle for non-plus users
-    publishVerdict(false);
+    publishVerdict(false, false);
     toggleDownloadButton(downloadVisible === 'true');
   });
 
-  // OPTIONAL: Expose only a read-only status checker (no manipulation possible)
+  // OPTIONAL: Expose only read-only status checkers (no manipulation possible)
   Object.defineProperty(window, 'checkPlusStatus', {
     value: function () {
       return verifiedPlusStatus && statusVerified;
+    },
+    writable: false,
+    configurable: false,
+    enumerable: false
+  });
+  Object.defineProperty(window, '__materioCheckThinkletStatus', {
+    value: function () {
+      try {
+        const v = window.__materioPlusVerified;
+        return !!(v && v.done === true && v.thinklet === true && statusVerified);
+      } catch (e) {
+        return false;
+      }
     },
     writable: false,
     configurable: false,
