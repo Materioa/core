@@ -174,8 +174,11 @@
         }
     }
 
+    // Returns the saved annotation count, or -1 on failure. Re-reads the
+    // sidecar after writing so a silent store failure can never report
+    // success ("saved" must mean "readable back on next open").
     async function flushAnnotSave() {
-        if (!pdfHash) return false;
+        if (!pdfHash) return -1;
         const s = get(pdfModalStore);
         try {
             const ok = await savePdfAnnotations({
@@ -184,13 +187,16 @@
                 title: s.title || s.topic || '',
                 storage: pendingAnnotStorage
             });
-            if (ok) {
-                lastSavedSnapshot = annotSnapshot(pendingAnnotStorage);
-                annotDirty = false;
-            }
-            return ok;
+            if (!ok) return -1;
+            const reread = await getPdfAnnotations(pdfHash);
+            const count = reread && reread.storage ? Object.keys(reread.storage).length : 0;
+            const want = pendingAnnotStorage ? Object.keys(pendingAnnotStorage).length : 0;
+            if (!reread || count !== want) return -1;
+            lastSavedSnapshot = annotSnapshot(pendingAnnotStorage);
+            annotDirty = false;
+            return count;
         } catch {
-            return false;
+            return -1;
         }
     }
 
@@ -205,9 +211,9 @@
             }
             return;
         }
-        const ok = await flushAnnotSave();
+        const count = await flushAnnotSave();
         if (window.materioAlert) {
-            if (ok) window.materioAlert('Annotations saved for this PDF. They will reappear next time you open it.', { type: 'success', title: 'Annotations Saved' });
+            if (count >= 0) window.materioAlert(`Annotations saved for this PDF (${count}). They will reappear next time you open it.`, { type: 'success', title: 'Annotations Saved' });
             else window.materioAlert('Could not save annotations. Please try again.', { type: 'danger', title: 'Save Failed' });
         }
     }

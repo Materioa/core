@@ -266,11 +266,19 @@
     // AnnotationEditorLayer. Entries that are not editor data, or target
     // pages that never become available, are skipped — never retried
     // forever, so one bad entry can't block the rebase.
+    //
+    // The viewer routinely loads a document TWICE per open (the initial
+    // ?file= load, then the parent's loadFile closes + reopens it), so the
+    // loop is pinned to the document it started on: if the document swaps
+    // mid-restore it aborts immediately and leaves `pending` intact for the
+    // new document's onDocReady. Without this, entries land in the doomed
+    // document while appliedIds claims them done — nothing ever displays.
     async function applyPending(attempt) {
         if (!pending) return;
         var v = viewer();
+        var myDoc = pdfDoc();
         var st = storage();
-        if (!v || !pdfDoc() || !st) {
+        if (!v || !myDoc || !st) {
             scheduleRestore((attempt || 0) + 1);
             return;
         }
@@ -291,6 +299,8 @@
         var remaining = [];
         try {
             for (var i = 0; i < keys.length; i++) {
+                if (pdfDoc() !== myDoc) return; // document swapped: abort,
+                // keep pending + appliedIds for the new document's pass.
                 var key = keys[i];
                 if (appliedIds[key]) continue;
                 var data = pending[key];
@@ -452,6 +462,19 @@
                         a.eventBus.__materioSidecar = true;
                         try {
                             a.eventBus.on('documentloaded', onDocReady);
+                        } catch (e) { /* ignore */ }
+                    }
+                    // Pages render lazily: resume a pending restore whenever
+                    // the user navigates, so annotations on later pages are
+                    // restored once their layer exists.
+                    if (a && a.eventBus && !a.eventBus.__materioSidecarPages) {
+                        a.eventBus.__materioSidecarPages = true;
+                        try {
+                            a.eventBus.on('pagechanging', function () {
+                                if (pending && !applying) {
+                                    try { applyPending(0); } catch (e) { /* ignore */ }
+                                }
+                            });
                         } catch (e) { /* ignore */ }
                     }
                 } catch (e) { /* ignore */ }
