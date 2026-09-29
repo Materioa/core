@@ -92,15 +92,25 @@
 				const invoke = (window as any).__TAURI__?.core?.invoke || (window as any).__TAURI__?.invoke;
 				if (typeof invoke === 'function') {
 					let downloadUrl = null;
+					let expectedVersion = '';
 					try {
-						const res = await fetch(toApiUrl('/api/releases/latest'));
+						// Cache-busted: installing from a stale cached
+						// "latest" response would DOWNGRADE the app.
+						const res = await fetch(toApiUrl(`/api/releases/latest?t=${Date.now()}`));
 						if (res.ok) {
 							const data = await res.json();
+							expectedVersion = String(data.windows?.version || data.version || '').replace(/^v/, '');
 							downloadUrl = data.windows?.downloadUrl || data.windows?.standaloneUrl || null;
 						}
 					} catch {}
+					// Never install a versioned asset that doesn't match the
+					// release just resolved above.
+					if (downloadUrl && expectedVersion &&
+						!downloadUrl.includes(expectedVersion) && !downloadUrl.includes('v' + expectedVersion)) {
+						throw new Error(`Update download mismatch: expected ${expectedVersion}, got ${downloadUrl}`);
+					}
 
-					await invoke('install_update_and_restart', { downloadUrl });
+					await invoke('install_update_and_restart', { downloadUrl, expectedVersion });
 					return;
 				}
 			}
@@ -109,6 +119,15 @@
 			window.location.href = '/downloads';
 		} catch (err) {
 			console.error('Failed to install update:', err);
+			try {
+				const msg = String((err as any)?.message || err || '');
+				if (msg.toLowerCase().includes('mismatch') || msg.toLowerCase().includes('invalid')) {
+					(window as any).materioAlert?.(
+						msg + ' — please install from the downloads page instead.',
+						{ type: 'danger', title: 'Update Blocked' }
+					);
+				}
+			} catch {}
 			window.location.href = '/downloads';
 		} finally {
 			isInstalling = false;

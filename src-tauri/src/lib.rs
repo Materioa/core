@@ -170,7 +170,11 @@ fn get_mcp_status(state: State<'_, McpServerState>) -> Result<bool, String> {
 }
 
 #[tauri::command]
-async fn install_update_and_restart(app: AppHandle, download_url: Option<String>) -> Result<(), String> {
+async fn install_update_and_restart(
+    app: AppHandle,
+    download_url: Option<String>,
+    expected_version: Option<String>,
+) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         use std::process::Command;
@@ -179,6 +183,24 @@ async fn install_update_and_restart(app: AppHandle, download_url: Option<String>
         let url = download_url.unwrap_or_else(|| {
             "https://getmaterio.app/api/download/windows".to_string()
         });
+
+        // Guard against stale/wrong payloads (a cached "latest" response
+        // would otherwise silently DOWNGRADE the app): the download URL
+        // must name the expected release.
+        if let Some(expected) = expected_version
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
+            let norm = expected.trim_start_matches(['v', 'V']);
+            let with_v = format!("v{}", norm);
+            if !(url.contains(norm) || url.contains(&with_v)) {
+                return Err(format!(
+                    "Update URL does not match expected version {}: {}",
+                    expected, url
+                ));
+            }
+        }
 
         let current_exe = std::env::current_exe().map_err(|e| e.to_string())?;
         let current_exe_str = current_exe.to_string_lossy().to_string();
@@ -189,6 +211,10 @@ async fn install_update_and_restart(app: AppHandle, download_url: Option<String>
         let target_installer_str = target_installer.to_string_lossy().to_string();
         let updater_bat = temp_dir.join("materio-update-runner.bat");
         let updater_bat_str = updater_bat.to_string_lossy().to_string();
+
+        // Drop any leftover installer from a previous run so a failed
+        // download can never install a stale binary (downgrade).
+        let _ = std::fs::remove_file(&target_installer);
 
         log::info!("Downloading update from: {} to: {}", url, target_installer_str);
 
@@ -224,6 +250,26 @@ async fn install_update_and_restart(app: AppHandle, download_url: Option<String>
 
         if !download_ok {
             return Err("Failed to download update installer".to_string());
+        }
+
+        // Sanity: the real NSIS setup is ~80MB. Anything drastically
+        // smaller is an error page / truncated file — installing it would
+        // silently fail and leave (or revert) the app version.
+        const MIN_INSTALLER_BYTES: u64 = 20_000_000;
+        match std::fs::metadata(&target_installer) {
+            Ok(meta) if meta.len() >= MIN_INSTALLER_BYTES => {
+                log::info!("Update installer verified: {} bytes", meta.len());
+            }
+            other => {
+                let _ = std::fs::remove_file(&target_installer);
+                return Err(format!(
+                    "Downloaded installer looks invalid ({}).",
+                    match other {
+                        Ok(meta) => format!("only {} bytes", meta.len()),
+                        Err(e) => format!("unreadable: {}", e),
+                    }
+                ));
+            }
         }
 
         log::info!("Update downloaded. Writing updater script and exiting app for update...");
