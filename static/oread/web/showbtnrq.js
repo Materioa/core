@@ -24,6 +24,31 @@
     return null;
   }
 
+  // Publish the verification verdict so sibling scripts (thinklet.js)
+  // can reuse it instead of racing a second profile fetch.
+  function publishVerdict(plus) {
+    try {
+      window.__materioPlusVerified = { done: true, plus: plus === true };
+    } catch (e) { /* ignore */ }
+  }
+
+  // Private function to toggle Plus-gated button visibility (save buttons
+  // + Thinklet AI button). Unhiding is safe: the Thinklet panel itself
+  // stays gated on its own verifiedAccess check before opening.
+  function toggleGatedButtons(show) {
+    // Only allow if status has been verified through proper channels
+    if (!statusVerified) {
+      console.warn('Unauthorized access attempt detected');
+      return;
+    }
+
+    toggleDownloadButton(show);
+    if (show && verifiedPlusStatus) {
+      document.getElementById('thinkletButton')?.removeAttribute('hidden');
+      document.getElementById('thinkletSeparator')?.removeAttribute('hidden');
+    }
+  }
+
   // Private function to toggle download button visibility
   function toggleDownloadButton(show) {
     // Only allow if status has been verified through proper channels
@@ -52,10 +77,11 @@
   // Server-side verification (REQUIRED for production)
   async function verifyPlusStatusFromServer() {
     try {
-      // Get auth token from localStorage
-      const authToken = localStorage.getItem('materio_auth_token');
+      // Get auth token from localStorage (both keys the app writes)
+      const authToken = localStorage.getItem('materio_auth_token') || localStorage.getItem('token');
       if (!authToken) {
         // Not logged in, skip server verification
+        publishVerdict(false);
         return false;
       }
 
@@ -81,11 +107,14 @@
       const data = await response.json();
       statusVerified = true;
       // Check for Plus users OR Super users (admin privileges)
-      return data.user?.isPlusUser === true || data.user?.hasAdminPrivileges === true;
+      const plus = data.user?.isPlusUser === true || data.user?.hasAdminPrivileges === true;
+      publishVerdict(plus);
+      return plus;
 
     } catch (error) {
       console.error('Plus status verification failed:', error);
       statusVerified = false;
+      publishVerdict(false);
       return false;
     }
   }
@@ -95,15 +124,16 @@
     // SECURE: Verify plus status from server (recommended)
     verifiedPlusStatus = await verifyPlusStatusFromServer();
 
-    // If server verification succeeded, show button for plus users
+    // If server verification succeeded, show buttons for plus users
     if (verifiedPlusStatus && statusVerified) {
-      toggleDownloadButton(true);
+      toggleGatedButtons(true);
       return;
     }
 
     // For non-plus users, check cookie preference (can be manipulated but harmless)
     const downloadVisible = getCookie('downloadVisible');
     statusVerified = true; // Allow cookie-based toggle for non-plus users
+    publishVerdict(false);
     toggleDownloadButton(downloadVisible === 'true');
   });
 

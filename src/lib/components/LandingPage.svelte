@@ -41,9 +41,11 @@
 	let stickyGoHover = $state(false);
 	let heroGoHover = $state(false);
 	let heroCardGoHover = $state(false);
+	let exploreGoHover = $state(false);
 	let stickySkipDismissed = $state(false);
 	let heroSkipDismissed = $state(false);
 	let heroCardSkipDismissed = $state(false);
+	let exploreSkipDismissed = $state(false);
 	let mobileSkipDismissed = $state(false);
 
 	function handleGoToApp() {
@@ -1326,15 +1328,32 @@
 					>
 						Get Started
 					</button>
-					<button
-						onclick={handleGoToApp}
-						use:smoothCorners={{
-							corners: { radius: 14, smoothing: 0.8 },
-						}}
-						class="inline-flex items-center justify-center px-7 py-3 text-sm font-semibold tracking-wide text-neutral-800 transition-all active:scale-[0.98] focus:outline-none btn-light-hero"
-					>
-						Explore
-					</button>
+					<!-- svelte-ignore a11y_mouse_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div class="relative inline-flex" onmouseenter={() => exploreGoHover = true} onmouseleave={() => exploreGoHover = false}>
+						<button
+							onclick={handleGoToApp}
+							use:smoothCorners={{
+								corners: { radius: 14, smoothing: 0.8 },
+							}}
+							class="inline-flex items-center justify-center px-7 py-3 text-sm font-semibold tracking-wide text-neutral-800 transition-all active:scale-[0.98] focus:outline-none btn-light-hero"
+						>
+							Explore App
+						</button>
+						{#if exploreGoHover && !exploreSkipDismissed}
+							<div class="skip-tip skip-tip-c absolute top-full left-1/2 mt-3 w-[280px] bg-white border border-neutral-200 rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] px-4 py-3 z-50 text-left" transition:fade={{ duration: 150 }}>
+								<div class="flex items-start justify-between gap-2">
+									<p class="skip-tip-q text-[13px] font-medium text-neutral-700 leading-snug">Skip this page next time?</p>
+									<button onclick={() => exploreSkipDismissed = true} class="skip-tip-x shrink-0 -mr-1 -mt-0.5 p-1 rounded-full hover:bg-neutral-100 text-neutral-400 hover:text-neutral-600 transition-colors" aria-label="Dismiss">
+										<HugeiconsIcon icon={Cancel01Icon} size={14} />
+									</button>
+								</div>
+								<button onclick={handleAlwaysOpen} class="skip-tip-go mt-1 text-[13px] font-semibold text-[#ff5400] hover:text-[#e04a00] inline-flex items-center gap-1 transition-colors">
+									Always open Materio <span aria-hidden="true">→</span>
+								</button>
+							</div>
+						{/if}
+					</div>
 				{/if}
 			</div>
 		</div>

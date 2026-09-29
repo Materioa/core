@@ -100,15 +100,52 @@
         }
     }
 
-    // Plain-JSON snapshot of the viewer's EDITOR annotations.
-    //
-    // Deliberately NOT built on `annotationStorage.serializable`: that
-    // getter is all-or-nothing — one editor whose serialize() throws (e.g.
-    // a drawing whose outlines aren't built yet) kills the WHOLE snapshot,
-    // and the getAll() fallback can't recover live editor instances. So
-    // each entry is serialized individually inside its own try/catch: one
-    // bad editor is skipped, the rest survive. Image bitmaps
-    // (stamp/signature photos) still can't be persisted and are skipped.
+    // JSON-safe deep copy that PRESERVES typed arrays (Float32Array quad
+    // points, ink paths, …). Plain JSON.stringify turns a Float32Array into
+    // {"0":…} — no .length, no indexing — which silently corrupts every
+    // highlight snapshot at capture time and makes restore build nothing.
+    // DOM nodes, live editors, bitmaps and functions are dropped instead.
+    function jsonSafe(v) {
+        if (v === null || v === undefined) return v;
+        var t = typeof v;
+        if (t === 'number' || t === 'string' || t === 'boolean') return v;
+        if (t !== 'object') return undefined;
+        try {
+            if (typeof Node !== 'undefined' && v instanceof Node) return undefined;
+            if (typeof ImageBitmap !== 'undefined' && v instanceof ImageBitmap) return undefined;
+        } catch (e) { /* ignore */ }
+        if (v instanceof Float32Array || v instanceof Float64Array ||
+            v instanceof Uint8Array || v instanceof Uint8ClampedArray ||
+            v instanceof Int32Array || v instanceof Uint32Array ||
+            v instanceof Int16Array || v instanceof Uint16Array) {
+            return Array.from(v);
+        }
+        if (typeof BigInt64Array !== 'undefined' && (v instanceof BigInt64Array || v instanceof BigUint64Array)) {
+            return Array.from(v, function (n) { return Number(n); });
+        }
+        if (Array.isArray(v)) {
+            var a = [];
+            for (var i = 0; i < v.length; i++) {
+                var c = jsonSafe(v[i]);
+                if (c !== undefined) a.push(c);
+            }
+            return a;
+        }
+        // Live editor that slipped through (has DOM refs / serialize): drop.
+        if (v.div || v.parent || v._uiManager) return undefined;
+        var o = {};
+        for (var k in v) {
+            if (!Object.prototype.hasOwnProperty.call(v, k)) continue;
+            var cv = jsonSafe(v[k]);
+            if (cv !== undefined) o[k] = cv;
+        }
+        return o;
+    }
+    // Plain-JSON snapshot of the viewer's EDITOR annotations. Each live
+    // editor is serialized individually inside its own try/catch (one bad
+    // editor can't kill the whole snapshot), then passed through jsonSafe
+    // so typed arrays survive. Image bitmaps (stamp/signature photos)
+    // still can't be persisted and are skipped.
     function snapshotPlain() {
         var st = storage();
         if (!st) return null;
@@ -129,7 +166,7 @@
                     var s = v.serialize(false);
                     if (!s || typeof s !== 'object') continue;
                     if (s.bitmap) continue;
-                    var copy = JSON.parse(JSON.stringify(s));
+                    var copy = jsonSafe(s);
                     if (copy && typeof copy === 'object' && isEditorData(copy)) {
                         out[k] = copy;
                     }
@@ -138,7 +175,8 @@
                 }
             } else if (isEditorData(v)) {
                 try {
-                    out[k] = JSON.parse(JSON.stringify(v));
+                    var pv = jsonSafe(v);
+                    if (pv && typeof pv === 'object') out[k] = pv;
                 } catch (e) {
                     /* skip */
                 }
@@ -324,6 +362,21 @@
                     appliedIds[key] = true; // unmappable: skip, never retry
                     continue;
                 }
+                // Freehand highlights serialize their geometry as `outlines`
+                // only (no quadPoints/inkLists), but the layer rebuilds
+                // solely from quadPoints or inkLists. Feed the outlines back
+                // through the inkLists path (same coordinate shape: flat
+                // point loops) so freehand strokes restore instead of
+                // returning a bare, invisible editor.
+                var entry = data;
+                if (!data.quadPoints && !data.inkLists &&
+                    Array.isArray(data.outlines) && data.outlines.length) {
+                    entry = {};
+                    for (var dk in data) {
+                        if (Object.prototype.hasOwnProperty.call(data, dk)) entry[dk] = data[dk];
+                    }
+                    entry.inkLists = data.outlines;
+                }
                 var layer = null;
                 try {
                     var pageView = v.getPageView ? v.getPageView(pageIndex) : null;
@@ -337,17 +390,18 @@
                     continue;
                 }
                 try {
-                    var editor = await layer.deserialize(data);
+                    var editor = await layer.deserialize(entry);
                     if (editor && typeof layer.addOrRebuild === 'function') {
                         layer.addOrRebuild(editor);
                         appliedIds[key] = true;
                     } else if (editor) {
                         appliedIds[key] = true;
                     } else {
-                        appliedIds[key] = true; // undeserializable: skip
+                        appliedIds[key] = true; // unknown type: skip, never retry
                     }
                 } catch (e) {
-                    appliedIds[key] = true; // undeserializable: skip
+                    remaining.push(key); // possibly transient (layer not
+                    // ready): retry rather than dropping the annotation
                 }
             }
         } finally {

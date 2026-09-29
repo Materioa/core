@@ -63,6 +63,51 @@
     return Date.now() < THINKLET_RELEASE_OFFER_END;
   }
 
+  function profileUrl() {
+    // Inside native shells there is no same-origin backend (tauri://,
+    // capacitor://), so resolve the absolute production API like
+    // showbtnrq.js does instead of a relative path that 404s.
+    try {
+      const h = window.location.hostname || '';
+      const p = window.location.protocol || '';
+      const isNative = h === 'tauri.localhost' || h === 'capacitor.localhost' ||
+        p === 'tauri:' || p === 'capacitor:' ||
+        (h === 'localhost' && window.location.port !== '5173');
+      if (isNative) return 'https://getmaterio.app/api/v2/profile';
+    } catch (e) { /* ignore */ }
+    return '/api/v2/profile';
+  }
+
+  // Wait for showbtnrq.js's verdict (it verifies first and publishes
+  // window.__materioPlusVerified) instead of racing a duplicate fetch.
+  // Returns true/false when known, null on timeout (caller falls back).
+  function awaitPlusVerdict(timeoutMs) {
+    return new Promise((resolve) => {
+      try {
+        const v = window.__materioPlusVerified;
+        if (v && v.done === true) {
+          resolve(v.plus === true);
+          return;
+        }
+      } catch (e) { /* ignore */ }
+      const started = Date.now();
+      const timer = setInterval(() => {
+        try {
+          const v = window.__materioPlusVerified;
+          if (v && v.done === true) {
+            clearInterval(timer);
+            resolve(v.plus === true);
+            return;
+          }
+        } catch (e) { /* ignore */ }
+        if (Date.now() - started > (timeoutMs || 5000)) {
+          clearInterval(timer);
+          resolve(null);
+        }
+      }, 150);
+    });
+  }
+
   async function verifyThinkletAccess() {
     if (isThinkletReleaseOfferActive()) {
       return true;
@@ -72,13 +117,18 @@
       return true;
     }
 
+    const verdict = await awaitPlusVerdict(5000);
+    if (verdict === true) {
+      return true;
+    }
+
     const authToken = getAuthToken();
     if (!authToken) {
       return false;
     }
 
     try {
-      const response = await fetch('/api/v2/profile', {
+      const response = await fetch(profileUrl(), {
         method: 'GET',
         credentials: 'include',
         headers: {
