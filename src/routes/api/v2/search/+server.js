@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { env } from '$env/dynamic/private';
 import { corsHeaders } from '$lib/server/cors-origins.js';
+import { cachedResponse, isCacheableRequest } from '$lib/server/edge-cache.js';
 
 export const prerender = false;
 
@@ -1639,7 +1640,7 @@ function mergeAIRankings(algorithmicResults, aiRankings) {
   return mergedResults;
 }
 
-export async function GET({ url }) {
+export async function GET({ url, request }) {
   const query = url.searchParams.get('q') || url.searchParams.get('query');
   const useAI = url.searchParams.get('useAI') === 'true';
   const aiMode = url.searchParams.get('aiMode') || 'hybrid';
@@ -1672,6 +1673,9 @@ export async function GET({ url }) {
     }
   }
 
+  // Heavy per-keystroke work (full-corpus BM25/Fuse, sometimes AI relays)
+  // is served from the edge on repeats; the key is the full query URL.
+  const produceSearch = async () => {
   try {
     if (isDiscoveryQuery(query)) {
       const resourceLib = await fetchResourceLibrary();
@@ -1821,6 +1825,11 @@ export async function GET({ url }) {
     console.error('Search Error:', error);
     return json({ success: false, error: error.message }, { status: 500 });
   }
+  };
+  if (request && isCacheableRequest(request, url)) {
+    return cachedResponse(request, 60, produceSearch);
+  }
+  return produceSearch();
 }
 
 export async function POST({ request }) {

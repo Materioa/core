@@ -98,11 +98,18 @@
   });
 
   function closeModal() {
+    // Move focus out first: the overlay flips to aria-hidden when closed,
+    // and a focused descendant under aria-hidden triggers a warning.
+    try {
+      const root = document.getElementById('searchResultsModal');
+      const active = document.activeElement;
+      if (root && active && root.contains(active)) active.blur();
+    } catch {}
     searchModalStore.update(s => ({ ...s, isOpen: false }));
   }
 
   function selectResult(item) {
-    searchModalStore.update(s => ({ ...s, isOpen: false }));
+    closeModal();
     if (typeof window !== 'undefined' && typeof window.selectSearchResult === 'function') {
       window.selectSearchResult(String(item.semester), item.subject, item.category, item.topic);
     } else {
@@ -121,7 +128,7 @@
 
   function openPdf(event, item) {
     event.stopPropagation();
-    searchModalStore.update(s => ({ ...s, isOpen: false }));
+    closeModal();
     openPdfDirect(item);
   }
 

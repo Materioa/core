@@ -11,6 +11,7 @@ import { env } from '$env/dynamic/private';
 import { supabase, supabaseAdmin, verifyToken } from '$lib/server/supabase.js';
 import { corsHeaders, isAllowedOrigin } from '$lib/server/cors-origins.js';
 import { getFormsCollection, getFormConfigsCollection, getMongoDb, resetMongoDb } from '$lib/server/mongodb.js';
+import { cachedResponse, isCacheableRequest } from '$lib/server/edge-cache.js';
 import { sendAlertEmail, ALERT_EMAIL } from '$lib/server/mailer.js';
 import {
   isWebPushConfigured,
@@ -2717,6 +2718,25 @@ export function resolveFeatureAction(url, params) {
 
 export async function handleFeaturesRequest({ request, url, params }) {
   const feature = resolveFeatureAction(url, params);
+
+  // Hot public reads go through the edge cache first: on a hit neither
+  // Mongo nor handler code runs, which keeps Worker CPU near zero.
+  // Personalized/authed calls (userId, Authorization, admin all=true)
+  // always run live.
+  if (request?.method === 'GET' && isCacheableRequest(request, url)) {
+    if (feature === 'releases') {
+      return cachedResponse(request, 300, () => handleReleasesFeature(request, url));
+    }
+    if (feature === 'examdata') {
+      return cachedResponse(request, 300, () => handleExamdataFeature(request, url));
+    }
+    if (feature === 'promotions' && url.searchParams.get('all') !== 'true') {
+      return cachedResponse(request, 120, () => handlePromotionsFeature(request, url));
+    }
+    if (feature === 'forms') {
+      return cachedResponse(request, 120, () => handleForms(request, url));
+    }
+  }
 
   if (feature === 'analytics-views' || feature === 'views') {
     return handleAnalyticsViews(url);

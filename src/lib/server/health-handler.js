@@ -5,6 +5,7 @@ import { json } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import { supabase } from '$lib/server/supabase.js';
 import { getMongoDb } from './mongodb.js';
+import { cachedResponse, isCacheableRequest } from './edge-cache.js';
 import { logError, getErrorsLastHour } from './error-tracker.js';
 import { sendIncidentEmail, sendAlertEmail, ALERT_EMAIL } from './mailer.js';
 import { getBugReportTemplate, getAlertTemplate, escapeHtml } from './email-templates.js';
@@ -684,7 +685,7 @@ function resolveHealthAction(url, params) {
   return '';
 }
 
-export async function handleHealthGet({ url, params }) {
+export async function handleHealthGet({ request, url, params }) {
   const action = resolveHealthAction(url, params);
 
   if (action === 'test-incident-email') {
@@ -710,7 +711,9 @@ export async function handleHealthGet({ url, params }) {
   try {
     const db = await getMongoDb();
     const releasesCollection = db.collection('releases');
-    const latestRelease = await releasesCollection.find({}).toArray();
+    const latestRelease = await releasesCollection
+      .find({}, { projection: { version: 1, build: 1 } })
+      .toArray();
     if (latestRelease && latestRelease.length > 0) {
       const parseBuildDate = (dateStr) => {
         if (!dateStr) return new Date(0);
@@ -809,6 +812,13 @@ export async function handleHealthGet({ url, params }) {
     dependencies
   };
 
+  // Polled constantly (with ?t= busters) — serve repeats from the edge.
+  // Only healthy (200) payloads are stored; degraded 503s always run live.
+  if (request && isCacheableRequest(request, url)) {
+    return cachedResponse(request, 30, async () =>
+      json(response, { status: healthy ? 200 : 503 })
+    );
+  }
   return json(response, { status: healthy ? 200 : 503 });
 }
 

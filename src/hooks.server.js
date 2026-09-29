@@ -138,7 +138,11 @@ export async function handle({ event, resolve }) {
 			response.headers.set('Vary', 'Origin');
 		} catch {}
 		if (pathname.startsWith('/api/')) {
-			response.headers.set('Cache-Control', 'no-store');
+			// Routes that opt into edge caching (public GETs) set their own
+			// Cache-Control — keep it so the CDN can serve repeats.
+			if (!response.headers.has('Cache-Control')) {
+				response.headers.set('Cache-Control', 'no-store');
+			}
 		}
 	}
 

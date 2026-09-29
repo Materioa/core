@@ -1,65 +1,59 @@
 import { MongoClient } from 'mongodb';
-import { AsyncLocalStorage } from 'node:async_hooks';
 import { env } from '$env/dynamic/private';
 
-const requestConnections = new AsyncLocalStorage();
-const sharedConnection = createConnectionState();
+// One client per isolate, reused across requests. On Cloudflare Workers
+// (10ms CPU budget on free tier) opening a fresh TLS connection per
+// request blows the limit and every API answers 503 — so connections are
+// NEVER closed per request. resetMongoDb() stays for error recovery.
 
-function createConnectionState() {
-	return { client: null, db: null, connecting: null, clients: new Set() };
-}
+let cachedClient = null;
+let cachedDb = null;
+let connecting = null;
 
 export async function withMongoRequest(callback) {
-	const state = createConnectionState();
-	return requestConnections.run(state, async () => {
-		try {
-			return await callback();
-		} finally {
-			await Promise.allSettled([...state.clients].map(client => client.close()));
-		}
-	});
+	// Kept for call-site compatibility (hooks.server.js). Previously this
+	// closed every client after each request; now it just runs the callback
+	// so the shared connection below survives.
+	return callback();
 }
 
 export async function getMongoDb() {
-	const state = requestConnections.getStore() || sharedConnection;
-	if (state.db) return state.db;
-	if (state.connecting) return state.connecting;
+	if (cachedDb) return cachedDb;
+	if (connecting) return connecting;
 
 	const uri = env.MONGODB_URI || process.env.MONGODB_URI;
 	if (!uri) throw new Error('MONGODB_URI is not configured');
 
-	const client = new MongoClient(uri, {
-		serverSelectionTimeoutMS: 5000,
-		connectTimeoutMS: 5000,
-		maxPoolSize: 5
-	});
-	state.client = client;
-	state.clients.add(client);
-	state.connecting = (async () => {
-		try {
-			await client.connect();
-			state.db = client.db('materio');
-			return state.db;
-		} catch (error) {
-			await client.close().catch(() => {});
-			state.clients.delete(client);
-			state.client = null;
-			throw error;
-		} finally {
-			state.connecting = null;
-		}
+	connecting = (async () => {
+		const client = new MongoClient(uri, {
+			serverSelectionTimeoutMS: 5000,
+			connectTimeoutMS: 5000,
+			maxPoolSize: 3,
+			minPoolSize: 1
+		});
+		await client.connect();
+		cachedClient = client;
+		cachedDb = client.db('materio');
+		return cachedDb;
 	})();
-	return state.connecting;
+
+	try {
+		return await connecting;
+	} catch (error) {
+		connecting = null;
+		throw error;
+	}
 }
 
 export function resetMongoDb() {
-	const state = requestConnections.getStore() || sharedConnection;
-	const client = state.client;
-	state.client = null;
-	state.db = null;
-	state.connecting = null;
+	// Error recovery only: drops the shared client so the next request
+	// reconnects fresh. Never call this on the happy path.
+	const client = cachedClient;
+	cachedClient = null;
+	cachedDb = null;
+	connecting = null;
 	if (!client) return Promise.resolve();
-	return client.close().catch(() => {}).finally(() => state.clients.delete(client));
+	return client.close().catch(() => {});
 }
 
 export async function getFormsCollection() {
