@@ -1,19 +1,27 @@
 // Materio PDF sidecar bridge for the oread (PDF.js) viewer.
-// Persists the viewer’s OWN annotations (text, highlight, ink/draw, …)
+// Persists the viewer’s OWN editor annotations (text, highlight, ink/draw)
 // without touching the PDF file itself.
 //
 // How it works:
-// - PDF.js keeps every annotation edit in pdfDocument.annotationStorage,
+// - PDF.js keeps every editor annotation in pdfDocument.annotationStorage,
 //   but the live values are AnnotationEditor *instances* (not cloneable),
 //   and `onSetModified` fires only once per document. So this bridge:
-//     1. snapshots via `annotationStorage.serializable` (plain JSON per
-//        editor) instead of `getAll()` (live class instances that fail
-//        structured-clone across postMessage);
-//     2. detects edits by wrapping setValue/remove + all storage hooks +
+//     1. snapshots via `annotationStorage.serializable` (each editor's
+//        serialize() = plain JSON) instead of `getAll()` (live class
+//        instances that fail structured-clone across postMessage);
+//     2. snapshots and restores EDITOR data only (entries carrying
+//        annotationType/annotationEditorType). Plain form-field values are
+//        excluded so untouched PDFs never look "dirty";
+//     3. detects edits by wrapping setValue/remove + all storage hooks +
 //        a polling fallback (ink sessions mutate editors in place);
-//     3. restores by deserializing each saved entry through its page's
+//     4. restores by deserializing each saved entry through its page's
 //        AnnotationEditorLayer (plain setValue would store data but never
-//        render anything).
+//        render anything). Entries that are not editor data, or point at
+//        pages that never become available, are SKIPPED — one bad entry
+//        must never poison the whole restore or the clean rebase;
+//     5. dedupes repeated inits for the same document (the parent reposts
+//        init as insurance against a lost first post; re-applying would
+//        duplicate every editor and flag phantom changes).
 // - The parent stores the snapshot locally (IndexedDB sidecar keyed by the
 //   SHA-256 of the PDF bytes), so annotations reappear on next open.
 //
@@ -25,8 +33,9 @@
 //   { type:'materioAnnotReady' }
 //   { type:'materioAnnotChanged', annotations:{ storage:{...} } }
 //   { type:'materioAnnotSynced', annotations:{ storage:{...} } }
-//     (sent right after a restore with the new canonical snapshot so the
-//     parent can rebase its clean baseline instead of flagging dirty)
+//     (sent after every restore — including empty/partial ones — with the
+//     canonical snapshot so the parent rebases its clean baseline instead
+//     of flagging dirty)
 //   { type:'materioAnnotSaveRequest' } (Ctrl/Cmd+S pressed inside the viewer)
 
 (function () {
@@ -42,6 +51,8 @@
     var hookedDoc = null;
     var lastEmitted = '';
     var appliedIds = {}; // oldId -> true for the current document
+    var lastInitStr = null; // dedupe key for repeated inits of one document
+    var initApplied = false;
     var restoreTimer = null;
     var pollTimer = null;
 
@@ -57,6 +68,19 @@
     function storage() {
         var d = pdfDoc();
         return (d && d.annotationStorage) || null;
+    }
+
+    function viewer() {
+        var a = app();
+        return (a && a.pdfViewer) || null;
+    }
+
+    // Only real editor annotations are sidecar material. Anything else
+    // (form-field values, scripting details, …) is ignored so an untouched
+    // PDF never reports changes and stale junk can never poison a restore.
+    function isEditorData(v) {
+        return !!v && typeof v === 'object' &&
+            (v.annotationType != null || v.annotationEditorType != null);
     }
 
     function stableStringify(obj) {
@@ -76,7 +100,7 @@
         }
     }
 
-    // Plain-JSON snapshot of the viewer's editor annotations. Uses the
+    // Plain-JSON snapshot of the viewer's EDITOR annotations. Uses the
     // `serializable` getter (each editor's serialize()) so the result is
     // postMessage/IndexedDB-safe. Entries whose image bitmap can't be
     // persisted (stamp/signature photos) are skipped rather than failing
@@ -93,15 +117,13 @@
             }
             if (s && s.map && typeof s.map.forEach === 'function' && s.map.size > 0) {
                 var out = {};
-                var ok = false;
                 s.map.forEach(function (val, key) {
-                    if (!val || typeof val !== 'object') return;
+                    if (!isEditorData(val)) return;
                     if (val.bitmap) return; // can't persist ImageBitmap reliably; skip
                     try {
                         var copy = JSON.parse(JSON.stringify(val));
                         if (copy && typeof copy === 'object') {
                             out[key] = copy;
-                            ok = true;
                         }
                     } catch (e) {
                         /* skip uncloneable entry */
@@ -109,8 +131,8 @@
                 });
                 return out;
             }
-            // No serializable editors (or empty) — fall back to getAll for
-            // plain form-field values, dropping live editor instances.
+            // No serializable editors — fall back to getAll, keeping editor
+            // data only and dropping live editor instances.
             try {
                 var all = st.getAll();
                 if (!all) return {};
@@ -119,6 +141,7 @@
                     if (!Object.prototype.hasOwnProperty.call(all, k)) continue;
                     var v = all[k];
                     if (v && typeof v === 'object' && (v.div || v.parent || v._uiManager)) continue;
+                    if (!isEditorData(v)) continue;
                     try {
                         plain[k] = JSON.parse(JSON.stringify(v));
                     } catch (e) {
@@ -159,6 +182,17 @@
         }, SAVE_DEBOUNCE_MS);
     }
 
+    // Canonical post-restore snapshot. Always sent after a restore attempt
+    // (full, partial or empty) so the parent rebases clean — a restore must
+    // never leave the document looking dirty.
+    function emitSynced() {
+        try {
+            var snap = snapshotPlain() || {};
+            lastEmitted = stableStringify(snap);
+            window.parent.postMessage({ type: 'materioAnnotSynced', annotations: { storage: snap } }, '*');
+        } catch (e) { /* ignore */ }
+    }
+
     function hookStorage() {
         var st = storage();
         if (!st || st.__materioSidecar) return;
@@ -169,6 +203,8 @@
         }
         // Wrap mutators: onSetModified fires only on the FIRST edit per
         // document, so every subsequent edit would otherwise be missed.
+        // (The snapshot-equality guard in emitChangedNow/poll keeps
+        // no-op writes from ever reaching the parent.)
         try {
             var origSet = st.setValue.bind(st);
             st.setValue = function (k, v) {
@@ -216,13 +252,20 @@
         }, 2000);
     }
 
-    function viewer() {
-        var a = app();
-        return (a && a.pdfViewer) || null;
+    function pageCount() {
+        try {
+            var v = viewer();
+            if (v && typeof v.pagesCount === 'number') return v.pagesCount;
+            var d = pdfDoc();
+            if (d && typeof d.numPages === 'number') return d.numPages;
+        } catch (e) { /* ignore */ }
+        return -1;
     }
 
     // Restore saved entries by creating real editors through each page's
-    // AnnotationEditorLayer. Retries until pages are rendered.
+    // AnnotationEditorLayer. Entries that are not editor data, or target
+    // pages that never become available, are skipped — never retried
+    // forever, so one bad entry can't block the rebase.
     async function applyPending(attempt) {
         if (!pending) return;
         var v = viewer();
@@ -234,8 +277,16 @@
         var keys = Object.keys(pending);
         if (!keys.length) {
             pending = null;
+            initApplied = true;
+            if (restoreTimer) {
+                clearTimeout(restoreTimer);
+                restoreTimer = null;
+            }
+            hookStorage();
+            emitSynced();
             return;
         }
+        var pages = pageCount();
         applying = true;
         var remaining = [];
         try {
@@ -243,11 +294,16 @@
                 var key = keys[i];
                 if (appliedIds[key]) continue;
                 var data = pending[key];
-                if (!data || typeof data !== 'object') {
-                    appliedIds[key] = true;
+                if (!isEditorData(data)) {
+                    appliedIds[key] = true; // stale junk: skip, never retry
                     continue;
                 }
-                var pageIndex = (data.pageIndex != null) ? data.pageIndex : 0;
+                var pageIndex = data.pageIndex;
+                if (typeof pageIndex !== 'number' || !(pageIndex >= 0) ||
+                    (pages > 0 && pageIndex >= pages)) {
+                    appliedIds[key] = true; // unmappable: skip, never retry
+                    continue;
+                }
                 var layer = null;
                 try {
                     var pageView = v.getPageView ? v.getPageView(pageIndex) : null;
@@ -257,7 +313,7 @@
                     layer = null;
                 }
                 if (!layer || typeof layer.deserialize !== 'function') {
-                    remaining.push(key);
+                    remaining.push(key); // page not rendered yet: retry
                     continue;
                 }
                 try {
@@ -268,10 +324,10 @@
                     } else if (editor) {
                         appliedIds[key] = true;
                     } else {
-                        remaining.push(key);
+                        appliedIds[key] = true; // undeserializable: skip
                     }
                 } catch (e) {
-                    remaining.push(key);
+                    appliedIds[key] = true; // undeserializable: skip
                 }
             }
         } finally {
@@ -279,26 +335,36 @@
         }
         if (!remaining.length) {
             pending = null;
+            initApplied = true;
             if (restoreTimer) {
                 clearTimeout(restoreTimer);
                 restoreTimer = null;
             }
             hookStorage();
-            // Rebase: report the canonical post-restore snapshot (fresh ids)
-            // so the parent treats restored annotations as clean.
-            try {
-                var snap = snapshotPlain() || {};
-                lastEmitted = stableStringify(snap);
-                window.parent.postMessage({ type: 'materioAnnotSynced', annotations: { storage: snap } }, '*');
-            } catch (e) { /* ignore */ }
+            emitSynced();
         } else {
-            scheduleRestore((attempt || 0) + 1);
+            scheduleRestore((attempt || 0) + 1, remaining);
         }
     }
 
-    function scheduleRestore(attempt) {
+    function scheduleRestore(attempt, remaining) {
         if (!pending) return;
-        if ((attempt || 0) > RESTORE_MAX_ATTEMPTS) return;
+        if ((attempt || 0) > RESTORE_MAX_ATTEMPTS) {
+            // Pages never became available: restore what we could and rebase
+            // anyway. A stuck pending restore must never leave phantom dirt.
+            try {
+                if (remaining) {
+                    for (var i = 0; i < remaining.length; i++) {
+                        appliedIds[remaining[i]] = true;
+                    }
+                }
+            } catch (e) { /* ignore */ }
+            pending = null;
+            initApplied = true;
+            hookStorage();
+            emitSynced();
+            return;
+        }
         if (restoreTimer) clearTimeout(restoreTimer);
         restoreTimer = setTimeout(function () {
             restoreTimer = null;
@@ -329,6 +395,16 @@
         if (!data || typeof data.type !== 'string') return;
         if (data.type === 'materioAnnotInit') {
             var map = (data.annotations && data.annotations.storage) || {};
+            var str = stableStringify(map);
+            if (str === lastInitStr && initApplied) {
+                // Repeat post of an already-applied init (parent retries as
+                // insurance): do NOT re-apply (that would duplicate every
+                // editor) — just rebase the parent clean again.
+                emitSynced();
+                return;
+            }
+            lastInitStr = str;
+            initApplied = false;
             appliedIds = {};
             if (pdfDoc()) {
                 pending = map;
@@ -366,6 +442,9 @@
         var d = pdfDoc();
         if (d !== hookedDoc) {
             hookedDoc = d;
+            lastInitStr = null;
+            initApplied = false;
+            appliedIds = {};
             if (d) {
                 try {
                     var a = app();
@@ -377,8 +456,6 @@
                     }
                 } catch (e) { /* ignore */ }
                 onDocReady();
-            } else {
-                appliedIds = {};
             }
         }
     }, 500);
