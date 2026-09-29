@@ -59,7 +59,8 @@
         const title = promoData.title || 'Promotion';
         const trackingId = promoData.trackingId || promoData.gaId || promoData.gtmId || '';
         const trackViews = promoData.trackViews ?? true;
-        const root = modalElement || modalOverlay || (browser ? document.body : null);
+        const root = modalElement || (typeof document !== 'undefined' ? document.querySelector('#promoModal .promo-modal') : null) || (browser ? document.body : null);
+        const overlay = modalOverlay || (root?.closest?.('.promo-modal-overlay') ?? null) || (browser ? document.body : null);
         if (stage === 'open') {
             trackModalView({ id, title, kind: 'promotion', trackingId, trackViews });
         } else if (stage === 'close' || stage === 'cta_click' || stage === 'remind_later') {
@@ -74,7 +75,7 @@
         }
         if (stage !== 'open' || !code || !enabled) return;
         const cleanup = runMagicJs(code, {
-            root, data: promoData, id, title, kind: 'promotion', stage,
+            root, overlay, data: promoData, id, title, kind: 'promotion', stage,
             trackingId,
             close: () => closePromoModal()
         }, { enabled: true });

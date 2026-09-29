@@ -26,7 +26,8 @@
         const title = formConfig.title || formType;
         const trackingId = formConfig.trackingId || formConfig.gaId || formConfig.gtmId || '';
         const trackViews = formConfig.trackViews ?? true;
-        const root = (typeof document !== 'undefined' && document.getElementById('dynamicFormModal')) || (typeof document !== 'undefined' ? document.body : null);
+        const overlay = (typeof document !== 'undefined' && document.getElementById('dynamicFormModal')) || (typeof document !== 'undefined' ? document.body : null);
+        const root = overlay?.querySelector?.('.promo-modal') || overlay;
         const code = formConfig.magicJs || formConfig.magic?.js || '';
         const enabled = formConfig.magicEnabled ?? formConfig.magic?.enabled ?? !!String(code).trim();
         if (stage === 'open') {
@@ -40,7 +41,8 @@
                 if (!el) return; // closed before first paint — nothing to enhance
                 try { if (typeof magicCleanup === 'function') magicCleanup(); } catch {}
                 magicCleanup = runMagicJs(code, {
-                    root: el,
+                    root: el.querySelector?.('.promo-modal') || el,
+                    overlay: el,
                     data: cfg, id, title, kind: 'popup', stage,
                     trackingId, formData: fd,
                     close: () => closeModal()
@@ -50,7 +52,7 @@
             if (trackingId) trackModalEvent({ id, title, kind: 'popup', trackingId, action: 'form_submit' });
             if (!code || !enabled) return;
             runMagicJs(code, {
-                root, data: formConfig, id, title, kind: 'popup', stage,
+                root, overlay, data: formConfig, id, title, kind: 'popup', stage,
                 trackingId, formData,
                 close: () => closeModal()
             }, { enabled: true });

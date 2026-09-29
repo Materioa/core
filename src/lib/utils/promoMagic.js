@@ -6,7 +6,17 @@
  * This module runs that snippet safely and fires `modal_view` events.
  *
  * Snippet context (`ctx`):
- * - ctx.root:     modal root element (or document.body fallback)
+ * - ctx.root:     modal card element (or document.body fallback).
+ *                  Clipped by the card's `overflow: hidden` — keep
+ *                  in-card tweaks here (notes, countdowns, styles).
+ * - ctx.overlay:  fullscreen overlay element wrapping the card
+ *                  (`.promo-modal-overlay` / `.modal-backdrop` /
+ *                  `.overlay-fullscreen`, or document.body fallback).
+ *                  Not clipped — use for confetti, falling snow,
+ *                  spotlights, or anything that should fly around the
+ *                  card or fall from the page top. Position children
+ *                  `absolute`/`fixed` with `pointer-events: none` and
+ *                  return a cleanup that removes them.
  * - ctx.data:     raw promo / form config object
  * - ctx.id:       modal id (promo title fallback / form id)
  * - ctx.kind:     'promotion' | 'popup' | 'interview'
@@ -153,6 +163,7 @@ export function runMagicJs(code, ctx = {}, opts = {}) {
 
 	const fullCtx = {
 		root: null,
+		overlay: null,
 		data: null,
 		id: 'unknown',
 		kind: 'promotion',
@@ -162,6 +173,25 @@ export function runMagicJs(code, ctx = {}, opts = {}) {
 		track: () => false,
 		...ctx
 	};
+	// Backfill overlay when callers only pass root (or vice versa), so
+	// snippets always get a usable overlay on web, Android (Capacitor
+	// webview) and Windows (Tauri webview) — all three run this bundle.
+	try {
+		if (!fullCtx.overlay && fullCtx.root && typeof fullCtx.root.closest === 'function') {
+			fullCtx.overlay =
+				fullCtx.root.closest('.promo-modal-overlay, .modal-backdrop, .overlay-fullscreen') ||
+				(fullCtx.root.classList?.contains('promo-modal-overlay') ||
+				fullCtx.root.classList?.contains('modal-backdrop') ||
+				fullCtx.root.classList?.contains('overlay-fullscreen')
+					? fullCtx.root
+					: null);
+		}
+		if (!fullCtx.overlay && typeof document !== 'undefined') fullCtx.overlay = document.body;
+		if (!fullCtx.root && fullCtx.overlay && typeof fullCtx.overlay.querySelector === 'function') {
+			fullCtx.root = fullCtx.overlay.querySelector('.promo-modal, .modal-card') || fullCtx.overlay;
+		}
+		if (!fullCtx.root && typeof document !== 'undefined') fullCtx.root = document.body;
+	} catch {}
 	// Bind ctx.track to this modal so snippets just call ctx.track('cta_click')
 	const baseTrack = fullCtx.track;
 	fullCtx.track = (name, params = {}) =>

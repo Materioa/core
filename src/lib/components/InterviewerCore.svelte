@@ -17,7 +17,8 @@
 			const title = form.title || formId;
 			const trackingId = form.trackingId || form.gaId || form.gtmId || '';
 			const trackViews = form.trackViews ?? true;
-			const root = chatContainer || (typeof document !== 'undefined' ? document.body : null);
+			const root = chatContainer || (typeof document !== 'undefined' ? document.querySelector('.interviewer-root .modal-card') : null) || (typeof document !== 'undefined' ? document.body : null);
+			const overlay = chatContainer?.closest?.('.modal-backdrop, .overlay-fullscreen, .interviewer-root') || (typeof document !== 'undefined' ? document.querySelector('.interviewer-root .modal-backdrop, .interviewer-root .overlay-fullscreen, .interviewer-root') : null) || (typeof document !== 'undefined' ? document.body : null);
 			const code = form.magicJs || form.magic?.js || '';
 			const enabled = form.magicEnabled ?? form.magic?.enabled ?? !!String(code).trim();
 			if (stage === 'load') {
@@ -27,8 +28,10 @@
 				tick().then(() => {
 					if (!snapshot) return; // navigated away before first paint
 					try { if (typeof magicCleanup === 'function') magicCleanup(); } catch {}
+					const liveRoot = chatContainer || (typeof document !== 'undefined' ? document.querySelector('.interviewer-root .modal-card') : null) || root;
+					const liveOverlay = chatContainer?.closest?.('.modal-backdrop, .overlay-fullscreen, .interviewer-root') || (typeof document !== 'undefined' ? document.querySelector('.interviewer-root .modal-backdrop, .interviewer-root .overlay-fullscreen, .interviewer-root') : null) || overlay;
 					magicCleanup = runMagicJs(code, {
-						root: chatContainer || root, data: snapshot, id, title, kind: 'interview', stage,
+						root: liveRoot, overlay: liveOverlay, data: snapshot, id, title, kind: 'interview', stage,
 						trackingId, formData: values,
 						close: () => handleClose()
 					}, { enabled: true });
@@ -37,7 +40,7 @@
 				if (trackingId) trackModalEvent({ id, title, kind: 'interview', trackingId, action: 'interview_complete' });
 				if (!code || !enabled) return;
 				runMagicJs(code, {
-					root, data: form, id, title, kind: 'interview', stage,
+					root, overlay, data: form, id, title, kind: 'interview', stage,
 					trackingId, formData: values,
 					close: () => handleClose()
 				}, { enabled: true });
