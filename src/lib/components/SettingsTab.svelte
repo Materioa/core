@@ -248,6 +248,46 @@
             const res = await fetch(toApiUrl(`/api/releases/latest?t=${Date.now()}`));
             if (res.ok) {
                 const data = await res.json();
+
+                // ── Desktop is platform-INDEPENDENT ──────────────────────
+                // A GH tag can ship an APK but no Windows asset (or the
+                // reverse). Desktop availability is decided by data.windows,
+                // so never run the desktop verdict through Android gates —
+                // that made a Windows-only release invisible to Windows and
+                // left desktop users stuck when an Android-only tag landed.
+                if (isTauri) {
+                    const winInfo = data.windows || {};
+                    if (!isManual) return;
+                    if (typeof window.__materioCheckUpdateModal !== 'function') {
+                        showToastMessage('Update check is unavailable in this build.');
+                        return;
+                    }
+                    try {
+                        // Time-boxed: the desktop checker can otherwise never
+                        // settle and the "Checking for updates…" toast sticks.
+                        const verdict = await Promise.race([
+                            Promise.resolve().then(() => window.__materioCheckUpdateModal()),
+                            new Promise((r) => setTimeout(() => r(null), 8000))
+                        ]);
+                        if (!verdict) {
+                            showToastMessage('Update check timed out. Try again shortly.');
+                        } else if (verdict.status === 'update') {
+                            showToastMessage(`Update available: v${String(verdict.remote || '').replace(/^v/, '')} (installed v${verdict.local})`);
+                        } else if (verdict.status === 'current') {
+                            const noWin = !winInfo.downloadUrl;
+                            showToastMessage(noWin
+                                ? `You have the latest Windows build (v${verdict.local}). No newer Windows download is published yet.`
+                                : `You are on the latest version (v${verdict.local})!`);
+                        } else {
+                            showToastMessage(`Could not reach update server${verdict.error ? ': ' + verdict.error : '.'}`);
+                        }
+                    } catch {
+                        showToastMessage('Could not check for updates.');
+                    }
+                    return;
+                }
+
+                // ── Android / web path ────────────────────────────────────
                 // Platform-aware: the latest GH tag may not ship an APK
                 // (e.g. a Windows-only release). Only offer an Android update
                 // when this release actually contains an APK asset — otherwise
@@ -313,22 +353,9 @@
                         } else {
                             window.open(apkUrl, '_system');
                         }
-                    } else if (isManual && isTauri && typeof window.__materioCheckUpdateModal === 'function') {
-                        // Desktop: report the verdict with versions so a miss
-                        // is instantly diagnosable (compare vs network).
-                        try {
-                            const verdict = await window.__materioCheckUpdateModal();
-                            if (verdict && verdict.status === 'update') {
-                                showToastMessage(`Update available: v${String(verdict.remote || '').replace(/^v/, '')} (installed v${verdict.local})`);
-                            } else if (verdict && verdict.status === 'current') {
-                                showToastMessage(`You are on the latest version (v${verdict.local})!`);
-                            } else if (verdict && verdict.status === 'error') {
-                                showToastMessage(`Could not reach update server${verdict.error ? ': ' + verdict.error : '.'}`);
-                            }
-                        } catch {
-                            window.__materioCheckUpdateModal();
-                        }
                     }
+                    // Desktop returns early above; it must never reach this
+                    // Android-gated block.
                 } else {
                     if (isManual) {
                         showToastMessage('You are on the latest version!');

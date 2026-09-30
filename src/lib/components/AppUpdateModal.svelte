@@ -27,7 +27,18 @@
 			if (isTauri && (window as any).__TAURI__?.updater) {
 				try {
 					const { check } = (window as any).__TAURI__.updater;
-					const update = await check();
+					// The updater plugin can be present in the JS bundle while
+					// the Rust side has no endpoint/signature configured (our
+					// release pipeline intentionally ships no updater
+					// signatures). Its check() then never settles, which left
+					// desktop users stuck on "Checking for updates…" forever:
+					// the await never resolved, so the caller's finally block
+					// never ran and the spinner never cleared. Time-box it and
+					// fall through to the API-based check below.
+					const update = await Promise.race([
+						Promise.resolve().then(() => check()),
+						new Promise((r) => setTimeout(() => r(null), 4000))
+					]);
 					if (update?.available) {
 						newVersion = update.version;
 						activeNudge = 'update';
