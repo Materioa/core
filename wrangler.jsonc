@@ -7,6 +7,11 @@
 		"enabled": true
 	},
 	"main": ".svelte-kit/cloudflare/_worker.js",
+	// Upload source maps so Cloudflare can symbolicate worker exceptions.
+	// Without these, the Exceptions column in Log Explorer only says
+	// "Worker threw exception" with no stack, which is why several 500s
+	// (notebooks @11ms, leaderboard @68ms) had no identifiable cause.
+	"upload_source_maps": true,
 	"assets": {
 		"binding": "ASSETS",
 		"directory": ".svelte-kit/cloudflare"
