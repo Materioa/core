@@ -1,13 +1,12 @@
 {
-  "enabled": true,
-  "category": "whats-new",
-  "frequency": "daily",
+  "title": "Okay, We made an app.",
+  "description": "Native apps for Windows and Android, designed for a faster and more seamless experience.",
+  "category": "Announcement",
+  "link": "https://beta.getmaterio.app/downloads",
+  "frequency": "everytime",
   "customFrequencyHours": "0",
-  "title": "Materio v5 is here",
-  "link": "/whats-new/introducing-materio-v5/",
-  "description": "Search is rebuilt from the ground up, AI Mode now searches inside your PDFs, and Thinklet, our new AI study assistant, launches today",
   "media": [
-    "https://res.cloudinary.com/dvsdsl7iw/image/upload/v1780291254/insightroom/szthf1e5qdqcyqk8idvq.webp"
+    "https://res.cloudinary.com/dvsdsl7iw/image/upload/v1789798879/insightroom/kzq60vnmugj9cdbunhoj.webp"
   ],
   "mediaFit": "scale-down",
   "showImageOnMaintenance": false,
@@ -17,27 +16,40 @@
     "type": "fade",
     "duration": 600
   },
-  "isLimitedOffer": true,
-  "startDate": "2026-06-01T00:00",
-  "endDate": "2026-06-30T00:00",
+  "isLimitedOffer": false,
+  "startDate": null,
+  "endDate": null,
   "showDateInfo": false,
-  "lastUpdated": "2026-06-01T15:09:00",
   "buttons": {
     "primary": {
-      "show": true,
-      "text": "Read Release Notes",
-      "icon": "&#8206;"
+      "text": "Download",
+      "url": "https://beta.getmaterio.app/downloads",
+      "icon": "",
+      "show": true
     },
     "secondary": {
-      "show": true,
-      "text": "Got it",
-      "icon": "&#8206;"
+      "text": "Maybe Later",
+      "url": "",
+      "icon": "",
+      "show": true
     }
   },
   "disclaimer": {
     "show": false,
-    "text": "Terms and conditions.",
+    "text": "Terms and conditions apply.",
     "linkText": "Read more",
     "linkUrl": ""
-  }
+  },
+  "enabled": true,
+  "isActive": true,
+  "buttonText": "Download",
+  "buttonLink": "https://beta.getmaterio.app/downloads",
+  "imageUrl": "https://res.cloudinary.com/dvsdsl7iw/image/upload/v1789798879/insightroom/kzq60vnmugj9cdbunhoj.webp",
+  "createdAt": "2026-09-19T06:28:04.137Z",
+  "lastUpdated": "2026-09-29T11:00:02.486Z",
+  "body": "Native apps for Windows and Android, designed for a faster and more seamless experience.",
+  "magicEnabled": true,
+  "magicJs": "if (ctx.isApp) return false;\n\nconst overlay = ctx.overlay;\n\nconst layer = document.createElement('div');\n\nlayer.style.cssText = `\n  position: absolute;\n  inset: 0;\n  overflow: hidden;\n  pointer-events: none;\n`;\n\nconst style = document.createElement('style');\n\nstyle.textContent = `\n  @keyframes magicConfettiBehind {\n    0% {\n      opacity: 0;\n      transform:\n        translate3d(0, 0, 0)\n        rotate(0deg)\n        scale(.7);\n    }\n\n    8% {\n      opacity: 1;\n    }\n\n    100% {\n      opacity: 0;\n      transform:\n        translate3d(var(--x), var(--y), 0)\n        rotate(var(--r))\n        scale(1);\n    }\n  }\n`;\n\noverlay.prepend(style);\noverlay.prepend(layer);\n\nconst colors = [\n  '#ff6b35',\n  '#ffd166',\n  '#06d6a0',\n  '#118ab2',\n  '#ef476f',\n  '#ffffff'\n];\n\nfor (let i = 0; i < 110; i++) {\n  const piece = document.createElement('div');\n\n  const size = 5 + Math.random() * 7;\n  const startX = 30 + Math.random() * 40;\n  const startY = 45 + Math.random() * 15;\n\n  const angle = Math.random() * Math.PI * 2;\n  const distance = 180 + Math.random() * 420;\n\n  piece.style.cssText = `\n    position: absolute;\n    left: ${startX}%;\n    top: ${startY}%;\n\n    width: ${size}px;\n    height: ${size * .55}px;\n\n    background: ${colors[Math.floor(Math.random() * colors.length)]};\n    border-radius: 2px;\n\n    --x: ${Math.cos(angle) * distance}px;\n    --y: ${Math.sin(angle) * distance}px;\n    --r: ${(Math.random() - .5) * 1600}deg;\n\n    opacity: 0;\n\n    animation:\n      magicConfettiBehind\n      ${2200 + Math.random() * 1400}ms\n      cubic-bezier(.18,.65,.25,1)\n      ${Math.random() * 180}ms\n      forwards;\n  `;\n\n  layer.appendChild(piece);\n}\n\nsetTimeout(() => {\n  layer.remove();\n  style.remove();\n}, 4000);",
+  "trackViews": true,
+  "trackingId": "GTM-NH4DPD7Z"
 }

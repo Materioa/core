@@ -732,6 +732,43 @@ function handleDirectNavigation(query, resourceLib) {
   return null;
 }
 
+const FUSE_KEYS = [
+  { name: 'subjectLower', weight: 0.25 },
+  { name: 'subjectAbbr', weight: 0.35 },
+  { name: 'subjectVariations', weight: 0.2 },
+  { name: 'itemLower', weight: 0.25 },
+  { name: 'itemAbbr', weight: 0.2 },
+  { name: 'itemVariations', weight: 0.15 },
+  { name: 'categoryLower', weight: 0.1 },
+  { name: 'categoryAbbr', weight: 0.05 },
+  { name: 'searchText', weight: 0.1 }
+];
+
+// Per-isolate prebuilt search data. Building the flat index, the BM25
+// corpus and the Fuse index costs far more CPU than answering a query —
+// doing it on every keystroke is what blew the 10ms Worker budget into
+// 503s. fetchResourceLibrary() already returns the same object reference
+// while its 5-min cache is fresh, so identity comparison rebuilds only
+// when the library actually changes (at most once per 5 min per isolate).
+let searchDataCache = { lib: null, index: [], corpus: null, fuseIndex: null };
+
+async function getSearchData() {
+  const lib = await fetchResourceLibrary();
+  if (!lib || Object.keys(lib).length === 0) {
+    return { lib: null, index: [], corpus: null, fuseIndex: null };
+  }
+  if (searchDataCache.lib !== lib) {
+    const index = buildSearchIndex(lib);
+    searchDataCache = {
+      lib,
+      index,
+      corpus: buildBm25Corpus(index),
+      fuseIndex: index.length > 0 ? Fuse.createIndex(FUSE_KEYS, index) : null
+    };
+  }
+  return searchDataCache;
+}
+
 async function searchResources(query, threshold = 0.4, limit = 20) {
   try {
     const resourceLib = await fetchResourceLibrary();
@@ -741,7 +778,7 @@ async function searchResources(query, threshold = 0.4, limit = 20) {
     }
 
     const directResult = handleDirectNavigation(query, resourceLib);
-    const searchIndex = buildSearchIndex(resourceLib);
+    const { index: searchIndex, corpus, fuseIndex } = await getSearchData();
     if (searchIndex.length === 0) {
       return directResult ? [directResult] : [];
     }
@@ -750,7 +787,6 @@ async function searchResources(query, threshold = 0.4, limit = 20) {
     const { expandedTokens, expandedSubject, expandedCategory } =
       expandQueryWithAbbr(rawTokens);
 
-    const corpus = buildBm25Corpus(searchIndex);
     const bm25Results = searchBm25(
       expandedTokens,
       corpus,
@@ -762,19 +798,9 @@ async function searchResources(query, threshold = 0.4, limit = 20) {
     const bm25Confident = bm25Results.length > 0 && bm25Results[0].score >= 60;
 
     let fuseResults = [];
-    if (!bm25Confident) {
+    if (!bm25Confident && fuseIndex) {
       const fuseOptions = {
-        keys: [
-          { name: 'subjectLower', weight: 0.25 },
-          { name: 'subjectAbbr', weight: 0.35 },
-          { name: 'subjectVariations', weight: 0.2 },
-          { name: 'itemLower', weight: 0.25 },
-          { name: 'itemAbbr', weight: 0.2 },
-          { name: 'itemVariations', weight: 0.15 },
-          { name: 'categoryLower', weight: 0.1 },
-          { name: 'categoryAbbr', weight: 0.05 },
-          { name: 'searchText', weight: 0.1 }
-        ],
+        keys: FUSE_KEYS,
         threshold: threshold || 0.5,
         distance: 100,
         minMatchCharLength: 2,
@@ -785,7 +811,9 @@ async function searchResources(query, threshold = 0.4, limit = 20) {
         findAllMatches: true
       };
 
-      const fuse = new Fuse(searchIndex, fuseOptions);
+      // Reuse the prebuilt Fuse index: per-request cost is only the query,
+      // while a caller-supplied `threshold` still applies.
+      const fuse = new Fuse(searchIndex, fuseOptions, fuseIndex);
       const raw = fuse.search(query);
 
       fuseResults = raw.map((result) => {
@@ -1640,6 +1668,39 @@ function mergeAIRankings(algorithmicResults, aiRankings) {
   return mergedResults;
 }
 
+// ---- Lightweight per-isolate search rate limit --------------------------------
+// Each keystroke used to run the full BM25/Fuse pipeline; a fast typist fans
+// out into overlapping heavy requests that blow the Worker CPU budget and
+// the platform answers 503. Coarse in-memory throttling turns the flood
+// into early 429s instead of 503s. (Per-isolate is enough: it only needs to
+// shed the burst from a single user typing.)
+const searchRateBuckets = new Map();
+const SEARCH_RATE_LIMIT = 20; // requests
+const SEARCH_RATE_WINDOW_MS = 60 * 1000;
+
+function searchRateLimited(ip) {
+  const now = Date.now();
+  const key = `search:${ip || 'unknown'}`;
+  const bucket = searchRateBuckets.get(key);
+  if (!bucket || now - bucket.windowStart >= SEARCH_RATE_WINDOW_MS) {
+    searchRateBuckets.set(key, { count: 1, windowStart: now });
+    return false;
+  }
+  bucket.count += 1;
+  if (bucket.count > SEARCH_RATE_LIMIT) return true;
+  return false;
+}
+
+function getSearchClientIp(request) {
+  try {
+    const fwd = request?.headers?.get?.('x-forwarded-for');
+    if (fwd) return fwd.split(',')[0].trim().slice(0, 64);
+    return request?.headers?.get?.('x-real-ip') || 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
 export async function GET({ url, request }) {
   const query = url.searchParams.get('q') || url.searchParams.get('query');
   const useAI = url.searchParams.get('useAI') === 'true';
@@ -1651,6 +1712,27 @@ export async function GET({ url, request }) {
     return json(
       { success: false, error: 'Query parameter "q" or "query" is required' },
       { status: 400 }
+    );
+  }
+
+  // Fast-reject prefixes: per-keystroke fragments ("a", "as") never match
+  // anything useful but each one runs the full pipeline. Answer instantly
+  // without touching the CDN/LLM/MCP so typing bursts stay cheap.
+  if (query.trim().length < 2) {
+    return json({
+      success: true,
+      query,
+      results: [],
+      count: 0,
+      method: 'too_short',
+      aiUsed: false
+    });
+  }
+
+  if (searchRateLimited(getSearchClientIp(request))) {
+    return json(
+      { success: false, error: 'Too many search requests. Please slow down.' },
+      { status: 429, headers: { 'Retry-After': '10' } }
     );
   }
 

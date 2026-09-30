@@ -10616,7 +10616,10 @@ body.dark-mode .ai-connectors-banner {
     color: var(--color-text-secondary);
 }
 
-/* Premium Focus States matching element shapes with orange accent */
+/* Focus rings: accent-colored, shape-adaptive.
+   `outline` follows each element's own border-radius natively (pill stays
+   pill, rounded buttons stay rounded), so no per-shape overrides here.
+   Halo uses color-mix with an orange rgba fallback for older browsers. */
 button:focus-visible,
 a:not(.navbar a):not(.changelog-btn):focus-visible,
 [role="button"]:focus-visible,
@@ -10627,20 +10630,23 @@ a:not(.navbar a):not(.changelog-btn):focus-visible,
 .clear-search-btn:focus-visible,
 .view-more-btn:focus-visible,
 .blog-fold-chevron:focus-visible {
-    outline: 2px solid #ff8200 !important;
+    outline: 2px solid var(--color-primary) !important;
     outline-offset: 3px !important;
     box-shadow: 0 0 0 4px rgba(255, 130, 0, 0.15) !important;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary) 18%, transparent) !important;
 }
 
-/* Custom focus ring directly around navbar icons to match their shapes */
+/* Navbar icons: the anchor is full-width so the ring goes on the glyph.
+   10px radius hugs typical rounded icon tiles instead of a fixed box. */
 .navbar a:focus-visible i,
 .navbar a:focus-visible svg,
 .changelog-btn:focus-visible i,
 .changelog-btn:focus-visible svg {
-    outline: 2px solid #ff8200 !important;
-    outline-offset: 4px !important;
-    border-radius: 6px !important;
+    outline: 2px solid var(--color-primary) !important;
+    outline-offset: 3px !important;
+    border-radius: 10px !important;
     box-shadow: 0 0 0 4px rgba(255, 130, 0, 0.15) !important;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary) 18%, transparent) !important;
 }
 
 .navbar a:focus-visible,
@@ -10653,16 +10659,19 @@ a:not(.navbar a):not(.changelog-btn):focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-    border-color: #ff8200 !important;
+    border-color: var(--color-primary) !important;
     box-shadow: 0 0 0 3px rgba(255, 130, 0, 0.25) !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 28%, transparent) !important;
     outline: none !important;
 }
 
-/* Toggle switches focus ring */
+/* Toggle switches: ring the visible pill itself with box-shadow, which
+   follows its 100px radius exactly (a true pill hug). `outline` here drew
+   a boxy rect because the focusable input is 0x0. */
 .switch input:focus-visible+.slider {
-    outline: 2px solid #ff8200 !important;
-    outline-offset: 3px !important;
-    box-shadow: 0 0 0 4px rgba(255, 130, 0, 0.15) !important;
+    outline: none !important;
+    box-shadow: 0 0 0 2px var(--color-primary), 0 0 0 5px rgba(255, 130, 0, 0.15) !important;
+    box-shadow: 0 0 0 2px var(--color-primary), 0 0 0 5px color-mix(in srgb, var(--color-primary) 18%, transparent) !important;
 }
 
 /* Override browser autofill ugly backgrounds and text colors */

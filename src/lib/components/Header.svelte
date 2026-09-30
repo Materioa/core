@@ -1,3 +1,9 @@
+<script context="module">
+  // Health pings exactly once per full page load, no matter how often the
+  // header remounts during SPA navigation. No intervals, no re-polling.
+  let healthPingDone = false;
+</script>
+
 <script>
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
@@ -102,6 +108,8 @@
   });
 
   async function checkHealth() {
+    if (healthPingDone) return;
+    healthPingDone = true;
     try {
       const response = await fetch(`/api/v2/health?t=${Date.now()}`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);

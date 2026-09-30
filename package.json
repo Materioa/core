@@ -9,6 +9,7 @@
     "build:static": "node scripts/build-static.mjs",
     "preview": "vite preview",
     "env:push": "node scripts/push-env.mjs",
+    "sync:snapshots": "node scripts/sync-mongo-snapshot.mjs",
     "deploy": "npm run build && wrangler deploy && npm run env:push",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
@@ -38,7 +39,9 @@
     "wrangler": "^4.132.0"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.1",
     "@capacitor/core": "^8.5.2",
+    "@capacitor/device": "^8.0.3",
     "@google-analytics/data": "^4.12.1",
     "@hugeicons/core-free-icons": "^4.2.3",
     "@hugeicons/svelte": "^1.1.4",

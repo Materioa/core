@@ -1606,11 +1606,32 @@ async function handlePosts(url) {
 // 13. Promotions Feature (Full CRUD)
 // ==========================================
 async function handlePromotionsFeature(request, url) {
+  // Public GETs must never 500: Mongo may be unconfigured/slow on the
+  // edge, so fall back to the bundled static file instead of erroring.
+  let db = null;
   try {
-    const db = await getMongoDb();
-    const promoCollection = db.collection('promotions');
+    db = await getMongoDb();
+  } catch (err) {
+    console.warn('Promotions Mongo unavailable, using local fallback:', err.message);
+  }
+  const serveLocalPromo = () => {
+    const promoFile = getLocalDataFile('promo.json');
+    if (promoFile && promoFile.enabled) return json(promoFile);
+    return json({ enabled: false, message: 'No active promotions' });
+  };
+  try {
     const method = request.method;
     const getAll = url.searchParams.get('all') === 'true';
+
+    if (!db) {
+      if (method === 'GET' && !getAll) return serveLocalPromo();
+      if (method === 'GET' && getAll) {
+        const promoFile = getLocalDataFile('promo.json');
+        return json(promoFile ? [promoFile] : []);
+      }
+      return json({ error: 'Database temporarily unavailable', details: 'MongoDB not reachable' }, { status: 503 });
+    }
+    const promoCollection = db.collection('promotions');
 
     switch (method) {
       case 'GET': {
@@ -1638,16 +1659,19 @@ async function handlePromotionsFeature(request, url) {
         }
 
         const now = new Date();
-        let promos = await promoCollection
-          .find({ enabled: true })
-          .sort({ lastUpdated: -1, _id: -1 })
-          .toArray();
+        let promos = [];
+        try {
+          promos = await promoCollection
+            .find({ enabled: true })
+            .sort({ lastUpdated: -1, _id: -1 })
+            .toArray();
+        } catch (err) {
+          console.warn('Promotions Mongo read failed, using local fallback:', err.message);
+          return serveLocalPromo();
+        }
 
         if (promos.length === 0) {
-          const promoFile = getLocalDataFile('promo.json');
-          if (promoFile && promoFile.enabled) {
-            promos = [promoFile];
-          }
+          return serveLocalPromo();
         }
 
         const activePromo = promos.find(promo => {
@@ -1749,7 +1773,8 @@ async function handlePromotionsFeature(request, url) {
     }
   } catch (error) {
     console.error('Promotions Feature Error:', error);
-    return json({ error: 'Internal server error', details: error.message }, { status: 500 });
+    if (request.method === 'GET') return serveLocalPromo();
+    return json({ error: 'Database temporarily unavailable', details: error.message }, { status: 503 });
   }
 }
 
@@ -1757,19 +1782,41 @@ async function handlePromotionsFeature(request, url) {
 // 14. Releases Feature (Full CRUD)
 // ==========================================
 async function handleReleasesFeature(request, url) {
+  const serveLocalReleases = () => {
+    const fallback = getLocalDataFile('releases.json');
+    const releases = Array.isArray(fallback)
+      ? fallback
+      : Array.isArray(fallback?.releases)
+        ? fallback.releases
+        : [];
+    return json(releases);
+  };
+  let db = null;
   try {
-    const db = await getMongoDb();
+    db = await getMongoDb();
+  } catch (err) {
+    console.warn('Releases Mongo unavailable, using local fallback:', err.message);
+  }
+  if (!db) {
+    if (request.method === 'GET') return serveLocalReleases();
+    return json({ error: 'Database temporarily unavailable', details: 'MongoDB not reachable' }, { status: 503 });
+  }
+  try {
     const releasesCollection = db.collection('releases');
     const method = request.method;
 
     switch (method) {
       case 'GET': {
-        let releases = await releasesCollection.find({}).toArray();
+        let releases = [];
+        try {
+          releases = await releasesCollection.find({}).toArray();
+        } catch (err) {
+          console.warn('Releases Mongo read failed, using local fallback:', err.message);
+          return serveLocalReleases();
+        }
 
         if (releases.length === 0) {
-          const fallback = getLocalDataFile('releases.json');
-          if (Array.isArray(fallback)) releases = fallback;
-          else if (Array.isArray(fallback?.releases)) releases = fallback.releases;
+          return serveLocalReleases();
         }
 
         releases.sort((a, b) => {
@@ -1862,7 +1909,8 @@ async function handleReleasesFeature(request, url) {
     }
   } catch (error) {
     console.error('Releases Feature Error:', error);
-    return json({ error: 'Internal server error', details: error.message }, { status: 500 });
+    // Reads already fall back to local; only admin writes reach here.
+    return json({ error: 'Database temporarily unavailable', details: error.message }, { status: 503 });
   }
 }
 
@@ -1870,37 +1918,52 @@ async function handleReleasesFeature(request, url) {
 // 15. Examdata Feature (Full CRUD)
 // ==========================================
 async function handleExamdataFeature(request, url) {
+  const serveLocalExamdata = () => {
+    const fallback = getLocalDataFile('examdata.json');
+    if (fallback) return json(fallback);
+    return json({ enabled: false, semesters: [] });
+  };
+  let db = null;
   try {
-    const db = await getMongoDb();
+    db = await getMongoDb();
+  } catch (err) {
+    console.warn('Examdata Mongo unavailable, using local fallback:', err.message);
+  }
+  if (!db) {
+    if (request.method === 'GET') return serveLocalExamdata();
+    return json({ error: 'Database temporarily unavailable', details: 'MongoDB not reachable' }, { status: 503 });
+  }
+  try {
     const examdataCollection = db.collection('examdata');
     const method = request.method;
 
     switch (method) {
       case 'GET': {
-        const data = await examdataCollection.findOne({ type: 'config' });
-        if (data) {
-          if (data.enabled === false) {
-            return json({ enabled: false, semesters: [] });
+        try {
+          const data = await examdataCollection.findOne({ type: 'config' });
+          if (data) {
+            if (data.enabled === false) {
+              return json({ enabled: false, semesters: [] });
+            }
+            if (Array.isArray(data.semesters) && data.semesters.length > 0) {
+              return json(data);
+            }
           }
-          if (Array.isArray(data.semesters) && data.semesters.length > 0) {
-            return json(data);
+
+          const anyData = await examdataCollection.findOne({});
+          if (anyData) {
+            if (anyData.enabled === false) {
+              return json({ enabled: false, semesters: [] });
+            }
+            if (Array.isArray(anyData.semesters) && anyData.semesters.length > 0) {
+              return json(anyData);
+            }
           }
+        } catch (err) {
+          console.warn('Examdata Mongo read failed, using local fallback:', err.message);
         }
 
-        const anyData = await examdataCollection.findOne({});
-        if (anyData) {
-          if (anyData.enabled === false) {
-            return json({ enabled: false, semesters: [] });
-          }
-          if (Array.isArray(anyData.semesters) && anyData.semesters.length > 0) {
-            return json(anyData);
-          }
-        }
-
-        const fallback = getLocalDataFile('examdata.json');
-        if (fallback) return json(fallback);
-
-        return json({ enabled: false, semesters: [] });
+        return serveLocalExamdata();
       }
 
       case 'POST': {
@@ -1969,7 +2032,12 @@ async function handleExamdataFeature(request, url) {
     }
   } catch (error) {
     console.error('ExamData Feature Error:', error);
-    return json({ error: 'Internal server error', details: error.message }, { status: 500 });
+    if (request.method === 'GET') {
+      const fallback = getLocalDataFile('examdata.json');
+      if (fallback) return json(fallback);
+      return json({ enabled: false, semesters: [] });
+    }
+    return json({ error: 'Database temporarily unavailable', details: error.message }, { status: 503 });
   }
 }
 
@@ -2150,6 +2218,7 @@ async function findActiveModerationRule({ anonId, fingerprint, ipAddress, action
 function isAllowedAnalyticsHost(host) {
   if (!host) return false;
   if (ANALYTICS_ALLOWED_ORIGIN_HOSTS.has(host)) return true;
+  if (host === 'localhost' || host === 'tauri.localhost' || host === 'capacitor.localhost') return true;
   return host.startsWith('localhost:') || host.startsWith('127.0.0.1:');
 }
 
@@ -2164,6 +2233,16 @@ function resolveHeaderUrlHost(value) {
 }
 
 function validateAnalyticsRequestOrigin(request) {
+  // Native shells (custom schemes) are app-bound origins no website can
+  // spoof — trust them regardless of sec-fetch-site, which webviews set to
+  // cross-site on requests to the remote backend.
+  const originRaw = toTrimmedString(request.headers.get('origin'), 512);
+  if (originRaw) {
+    try {
+      const proto = new URL(originRaw).protocol;
+      if (proto === 'capacitor:' || proto === 'tauri:') return { ok: true };
+    } catch {}
+  }
   const originHost = resolveHeaderUrlHost(request.headers.get('origin'));
   const refererHost = resolveHeaderUrlHost(request.headers.get('referer'));
   const secFetchSite = String(request.headers.get('sec-fetch-site') || '').toLowerCase();
@@ -2262,6 +2341,24 @@ function sanitizeAnalyticsPdfCounts(rawPdfCounts) {
   return { ok: true, pdfCounts: safeCounts, totalPdfOpens, uniquePdfReads };
 }
 
+function sanitizeAnalyticsDevice(rawDevice) {
+  if (!rawDevice || typeof rawDevice !== 'object' || Array.isArray(rawDevice)) return null;
+  const device = {
+    platform: toTrimmedString(rawDevice.platform, 16) || null,
+    model: toTrimmedString(rawDevice.model, 100) || null,
+    osVersion: toTrimmedString(rawDevice.osVersion, 32) || null,
+    appVersion: toTrimmedString(rawDevice.appVersion, 32) || null,
+    installId: toTrimmedString(rawDevice.installId, 128) || null
+  };
+  if (!device.platform && !device.model && !device.osVersion && !device.appVersion && !device.installId) {
+    return null;
+  }
+  if (device.installId && !/^[a-zA-Z0-9._:-]{8,128}$/.test(device.installId)) {
+    device.installId = null;
+  }
+  return device;
+}
+
 function sanitizeAnalyticsPayload(rawPayload) {
   if (!rawPayload || typeof rawPayload !== 'object' || Array.isArray(rawPayload)) {
     return { ok: false, error: 'Invalid analytics payload' };
@@ -2324,7 +2421,8 @@ function sanitizeAnalyticsPayload(rawPayload) {
       state:
         usermetaDiff.state && typeof usermetaDiff.state === 'object' && !Array.isArray(usermetaDiff.state)
           ? usermetaDiff.state
-          : null
+          : null,
+      device: sanitizeAnalyticsDevice(usermetaDiff.device)
     },
     rawUserId: toTrimmedString(rawPayload.p_user_id, 64) || null
   };

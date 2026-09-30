@@ -707,6 +707,7 @@ function resolveHealthAction(url, params) {
 }
 
 export async function handleHealthGet({ request, url, params }) {
+  try {
   const action = resolveHealthAction(url, params);
 
   if (action === 'test-incident-email') {
@@ -718,9 +719,14 @@ export async function handleHealthGet({ request, url, params }) {
   }
 
   const requestStartTime = Date.now();
-  const memoryUsage = process.memoryUsage();
-  const cpuLoad = os.loadavg();
-  const uptime = process.uptime();
+  // os/process are unavailable on some edge runtimes — degrade to
+  // placeholders instead of throwing (which SvelteKit turns into a 500).
+  let memoryUsage = { rss: 0, heapUsed: 0, heapTotal: 0, external: 0 };
+  let cpuLoad = [0, 0, 0];
+  let uptime = 0;
+  try { memoryUsage = process.memoryUsage(); } catch {}
+  try { cpuLoad = os.loadavg(); } catch {}
+  try { uptime = process.uptime(); } catch {}
 
   // Belt and braces: even if a dependency check wedges, health answers
   // within seconds instead of hanging the worker.
@@ -740,7 +746,15 @@ export async function handleHealthGet({ request, url, params }) {
 
   let version = VERSION;
   try {
-    const db = await getMongoDb();
+    // Bounded: a cold connect keeps warming the pool in the background for
+    // the next request, but health never waits on it (an unbounded wait
+    // here is what stretched health past 8s into crash territory).
+    const db = await Promise.race([
+      getMongoDb(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('mongo version lookup timed out')), 3000)
+      )
+    ]);
     const releasesCollection = db.collection('releases');
     const latestRelease = await releasesCollection
       .find({}, { projection: { version: 1, build: 1 } })
@@ -760,14 +774,25 @@ export async function handleHealthGet({ request, url, params }) {
     }
   } catch {}
 
+  let nodeVersion = 'unknown';
+  let platform = 'unknown';
+  let totalMem = 0;
+  let freeMem = 0;
+  let cpuCount = 0;
+  try { nodeVersion = process.version || 'unknown'; } catch {}
+  try { platform = os.platform(); } catch {}
+  try { totalMem = os.totalmem(); } catch {}
+  try { freeMem = os.freemem(); } catch {}
+  try { cpuCount = os.cpus().length; } catch {}
+
   const build = {
     version: version,
     enviroment: BUILD_COMMIT,
     builtAt: BUILD_TIME,
     buildId: BUILD_ID,
     region: REGION,
-    nodeVersion: process.version,
-    platform: os.platform()
+    nodeVersion,
+    platform
   };
 
   const system = {
@@ -779,9 +804,9 @@ export async function handleHealthGet({ request, url, params }) {
       heapTotal: memoryUsage.heapTotal,
       external: memoryUsage.external
     },
-    totalMem: os.totalmem(),
-    freeMem: os.freemem(),
-    cpus: os.cpus().length
+    totalMem,
+    freeMem,
+    cpus: cpuCount
   };
 
   const dependencies = {
@@ -843,14 +868,28 @@ export async function handleHealthGet({ request, url, params }) {
     dependencies
   };
 
+  // Health is a status signal, not an error: always answer 200 so polling
+  // clients (and the console) don't log failures for "degraded". The
+  // `status` field carries ok/degraded/offline. Never throw (no 500s).
   // Polled constantly (with ?t= busters) — serve repeats from the edge.
-  // Only healthy (200) payloads are stored; degraded 503s always run live.
   if (request && isCacheableRequest(request, url)) {
     return cachedResponse(request, 30, async () =>
-      json(response, { status: healthy ? 200 : 503 })
+      json(response, { status: 200 })
     );
   }
-  return json(response, { status: healthy ? 200 : 503 });
+  return json(response, { status: 200 });
+  } catch (err) {
+    console.error('Health handler fatal (never 500):', err?.message || err);
+    return json(
+      {
+        status: 'degraded',
+        message: 'Health check temporarily unavailable',
+        timestamp: new Date().toISOString(),
+        service: 'materio-core'
+      },
+      { status: 200 }
+    );
+  }
 }
 
 export async function handleHealthPost({ request, url, params }) {

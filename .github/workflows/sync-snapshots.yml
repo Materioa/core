@@ -1,0 +1,55 @@
+# Keeps the MongoDB fallback snapshots fresh.
+#
+# The public read APIs (promotions / releases / examdata) fall back to
+# static/assets/data/*.json when Mongo is unreachable from the edge. Without
+# this job those files go stale and the fallback serves wrong data (dead
+# promos, past exams). Runs daily; commits only when content actually changed.
+#
+# Required repo secret: MONGODB_URI (read-only DB user is enough).
+
+name: Sync Mongo Snapshots
+
+on:
+  schedule:
+    # Daily 02:00 UTC (~07:30 IST)
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    name: Dump Mongo collections to static JSON
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install mongodb driver only
+        shell: bash
+        run: npm install --no-save --no-audit --no-fund mongodb
+
+      - name: Run snapshot sync
+        shell: bash
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: node scripts/sync-mongo-snapshot.mjs
+
+      - name: Commit if changed
+        shell: bash
+        run: |
+          if git diff --quiet -- static/assets/data/promo.json static/assets/data/releases.json static/assets/data/examdata.json; then
+            echo "Snapshots already fresh, nothing to commit."
+            exit 0
+          fi
+          git config user.name "materio-snapshot-bot"
+          git config user.email "snapshot-bot@getmaterio.app"
+          git add static/assets/data/promo.json static/assets/data/releases.json static/assets/data/examdata.json
+          git commit -m "chore: refresh Mongo fallback snapshots [skip ci]"
+          git push

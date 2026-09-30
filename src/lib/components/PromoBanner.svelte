@@ -1,7 +1,7 @@
 <script>
     import { onMount, onDestroy } from 'svelte';
     import { browser } from '$app/environment';
-    import HugeIcon from './HugeIcon.svelte';
+import HugeIcon from './HugeIcon.svelte';
     import { trackModalView, trackModalEvent, runMagicJs } from '$lib/utils/promoMagic.js';
 
     let promoData = null;

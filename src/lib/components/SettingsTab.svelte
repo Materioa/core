@@ -120,20 +120,6 @@
         } finally {
             loadingReleases = false;
         }
-
-        // Live build ID and health info from health API like parent Materio
-        try {
-            const hRes = await fetch(toApiUrl('/api/v2/health?t=' + Date.now()));
-            if (hRes.ok) {
-                const hData = await hRes.json();
-                const id = hData.build?.buildId || hData.buildId;
-                if (id && id !== 'unknown' && id !== 'dev-local') {
-                    liveBuildId = id;
-                }
-            }
-        } catch (err) {
-            console.warn('Health check fetch failed:', err);
-        }
     }
 
     onMount(async () => {

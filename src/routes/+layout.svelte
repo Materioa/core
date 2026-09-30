@@ -146,6 +146,13 @@
 
   onMount(() => {
     try { installExternalLinkHandler(); } catch {}
+    try {
+      // Client analytics (PDF views, reading time, engagement) -> Supabase
+      // via /api/v2/features?action=analytics. Initialized once per load.
+      import('$lib/utils/analytics.js').then((m) => {
+        try { m.initAnalytics(); } catch {}
+      }).catch(() => {});
+    } catch {}
     let prevModal = null;
     let updatingFromHash = false;
 

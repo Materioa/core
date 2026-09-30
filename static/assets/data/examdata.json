@@ -1,105 +1,246 @@
 {
-    "enabled": true,
-    "viewRotationInterval": 15000,
-    "showBeforeDays": 9,
-    "showBeforeDaysViva": 3,
-    "semesters": [
+  "defaultCoverImage": "https://res.cloudinary.com/dvsdsl7iw/image/upload/v1786516645/insightroom/t2oyseoqbwyj6wed4hw0.webp",
+  "enabled": true,
+  "lastUpdated": "2026-09-22T13:33:21.005Z",
+  "seatingDataUrl": "https://popaoujsfvznlqltszfr.supabase.co/storage/v1/object/public/profile-pictures/seating/seating_data_1786935810046.csv",
+  "semesters": [
+    {
+      "defaultCoverImage": "https://res.cloudinary.com/dvsdsl7iw/image/upload/v1786516645/insightroom/t2oyseoqbwyj6wed4hw0.webp",
+      "examPeriod": {
+        "endDate": "2026-08-22T07:00:00.000Z",
+        "name": "Mid Semester",
+        "shortName": "Mid Sem",
+        "startDate": "2026-08-17T07:00:00.000Z"
+      },
+      "exams": [
         {
-            "semester": 7,
-            "examPeriod": {
-                "name": "Mid Semester",
-                "shortName": "Mid Sem",
-                "startDate": "2026-08-17T12:30:00",
-                "endDate": "2026-08-20T14:30:00"
-            },
-            "exams": [
-                {
-                    "id": 1,
-                    "subject": "Information and Network Security",
-                    "aliases": [
-                        "INS",
-                        "Information and Network Security"
-                    ],
-                    "code": "303105375",
-                    "date": "2026-08-17",
-                    "time": "12:30",
-                    "duration": "1.5 hours",
-                    "syllabus": [
-                        "Unit 1",
-                        "Unit 2",
-                        "Unit 3"
-                    ]
-                },
-                {
-                    "id": 2,
-                    "subject": "Data Science",
-                    "aliases": [
-                        "DS"
-                    ],
-                    "code": "303105391",
-                    "date": "2026-08-18",
-                    "time": "12:30",
-                    "duration": "1.5 hours",
-                    "syllabus": [
-                        "Unit 1",
-                        "Unit 2",
-                        "Unit 3"
-                    ]
-                },
-                {
-                    "id": 3,
-                    "subject": "Cybersecurity",
-                    "aliases": [
-                        "CS",
-                        "Cybersecurity",
-                        "Cyber Security"
-                    ],
-                    "code": "303105341",
-                    "date": "2026-08-19",
-                    "time": "12:30",
-                    "duration": "1.5 hours",
-                    "syllabus": [
-                        "Unit 1",
-                        "Unit 2",
-                        "Unit 3"
-                    ]
-                },
-                {
-                    "id": 4,
-                    "subject": "Big Data Analytics",
-                    "global": true,
-                    "aliases": [
-                        "BDA",
-                        "Big Data",
-                        "Big Data Analytics"
-                    ],
-                    "code": "303105361",
-                    "date": "2026-08-20",
-                    "time": "12:30",
-                    "duration": "1.5 hours",
-                    "syllabus": [
-                        "Unit 1",
-                        "Unit 2"
-                    ]
-                },
-                {
-                    "id": 5,
-                    "subject": "High Performance Computing",
-                    "global": true,
-                    "aliases": [
-                        "HPC"
-                    ],
-                    "code": "303105355",
-                    "date": "2026-08-20",
-                    "time": "12:30",
-                    "duration": "1.5 hours",
-                    "syllabus": [
-                        "Unit 1",
-                        "Unit 2",
-                        "Unit 3"
-                    ]
-                }
-            ]
+          "aliases": [
+            "INS",
+            "Information and Network Security"
+          ],
+          "code": "303105375",
+          "date": "2026-08-17",
+          "duration": "1.5 hours",
+          "global": false,
+          "id": 1,
+          "image": null,
+          "subject": "Information and Network Security",
+          "syllabus": [
+            "Unit 1: Introduction: Computer Security Concept, The OSI Security Architecture, Security Attacks, Security Services, Security Mechanism, A Model for Network Security",
+            "Unit 2: Classical Encryption Techniques: Symmetric Cipher Model, Cryptanalysis, Cryptanalysis Attacks, Substitution Techniques: Caesar Cipher, Monoalphabetic Cipher, Hill Cipher, Play fair Cipher, Polyalphabetic Cipher, OTP, Transposition Techniques, Steganography.",
+            "Unit 3: Block Ciphers and the Data Encryption Standard: Stream ciphers and block ciphers, Block Cipher Principles, Confusion & Diffusion, Data Encryption Standard (DES), Differential and Linear Cryptanalysis, Avalanche Effect, strength of DES, Design principles of block cipher. Multiple Encryption and Triple DES: Multiple encryption and triple DES, Electronic Code Book, Cipher Block Chaining Mode, Cipher Feedback mode, Output Feedback mode, Counter mode."
+          ],
+          "time": "12:30"
+        },
+        {
+          "aliases": [
+            "DS"
+          ],
+          "code": "303105391",
+          "date": "2026-08-22",
+          "duration": "1.5 hours",
+          "global": false,
+          "id": 2,
+          "image": null,
+          "subject": "Data Science",
+          "syllabus": [
+            "Unit 1: Introduction: Data Science: Introduction to Data Science – Digital Universe – Sources of Data – Information Commons – Data Science Project Life Cycle: OSEMN Framework.",
+            "Unit 2: Data Preprocessing: Introduction to Data Preprocessing – Reading, Selecting, Filtering Data – Filtering Missing Values – Manipulating, Sorting, Grouping, Rearranging, Ranking Data.",
+            "Unit 3: Concept Learning: Formulation of Hypothesis – Probabilistic Approximately Correct Learning – VC Dimension – Hypothesis elimination – Candidate Elimination Algorithm."
+          ],
+          "time": "12:30"
+        },
+        {
+          "aliases": [
+            "CS",
+            "Cybersecurity",
+            "Cyber Security"
+          ],
+          "code": "303105341",
+          "date": "2026-08-19",
+          "duration": "1.5 hours",
+          "global": false,
+          "id": 3,
+          "image": null,
+          "subject": "Cyber Security",
+          "syllabus": [
+            "Unit 1: Information Security: Introduction to information system, Types of information Systems, Development of Information Systems, Introduction to Information Security, Need for Information Security, Threats to Information Systems, Information Assurance, Cyber Security and Security Risk Analysis.",
+            "Unit 2: Systems Vulnerability Scanning: Overview of vulnerability scanning, Open Port/Service Identification, Banner/Version Check, Traffic Probe, Vulnerability Probe, Vulnerability Examples. Networks Vulnerability Scanning – Netcat, Understanding Port and Services tools, Network Reconnaissance – Nmap. Network Sniffers and Injection tools – Wireshark.",
+            "Unit 3: Network Defense Tools: Firewalls and Packet Filters: Firewall Basics, Packet Filter Vs Firewall, Firewall Protects a Network, Packet Characteristic to Filter, Stateless Vs Stateful Firewalls, Network Address Translation (NAT) and Port Forwarding, The basics of Virtual Private Networks, Linux Firewall, Windows Firewall, Snort: Intrusion Detection System."
+          ],
+          "time": "12:30"
+        },
+        {
+          "aliases": [
+            "BDA",
+            "Big Data",
+            "Big Data Analytics"
+          ],
+          "code": "303105361",
+          "date": "2026-08-20",
+          "duration": "1.5 hours",
+          "global": true,
+          "id": 4,
+          "subject": "Big Data Analytics",
+          "syllabus": [
+            "Unit 1: Introduction: What is in Store?, Classification of Digital Data: Structured, Semi-Structured & Unstructured, Evolution of Big Data, Definition of Big Data – Volume, Velocity, Variety, Challenges of Big Data, Why Big Data?, Traditional Business Intelligence (BI) versus Big Data, Industry examples of Big Data, What is Big Data Analytics?, Data Science.",
+            "Unit 2: NoSQL Data Management: Introduction to NoSQL, Types of NoSQL, Why NoSQL?, Advantages of NoSQL, Comparison of SQL, NoSQL and NewSQL, Aggregates, Key-value and document data models, Graph databases, Map-reduce, Partitioning and combining.",
+            "‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎ ‎"
+          ],
+          "time": "12:30"
+        },
+        {
+          "aliases": [
+            "HPC"
+          ],
+          "code": "303105355",
+          "date": "2026-08-20",
+          "duration": "1.5 hours",
+          "global": true,
+          "id": 5,
+          "image": null,
+          "subject": "High Performance Computing",
+          "syllabus": [
+            "Unit 1:",
+            "Unit 2:",
+            "Unit 3:"
+          ],
+          "time": "12:30"
         }
-    ]
+      ],
+      "seatingDataUrl": "https://popaoujsfvznlqltszfr.supabase.co/storage/v1/object/public/profile-pictures/seating/seating_data_1786935810046.csv",
+      "semester": 7
+    },
+    {
+      "defaultCoverImage": "https://res.cloudinary.com/dvsdsl7iw/image/upload/v1786516645/insightroom/t2oyseoqbwyj6wed4hw0.webp",
+      "enabled": false,
+      "examPeriod": {
+        "endDate": "2026-11-23T17:00:00",
+        "name": "End Semester",
+        "shortName": "End Sem",
+        "startDate": "2026-10-17T09:00:00"
+      },
+      "exams": [
+        {
+          "code": "303105453",
+          "date": "2026-10-17",
+          "duration": "180 mins",
+          "id": 1790062016943,
+          "subject": "Cyber Physical Systems (NPTEL)",
+          "time": "14:00",
+          "type": "theory"
+        },
+        {
+          "code": "303105375",
+          "date": "2026-10-21",
+          "duration": "150 mins",
+          "id": 1790061780918,
+          "subject": "Information and Network Security",
+          "time": "10:30",
+          "type": "theory"
+        },
+        {
+          "code": "303105453",
+          "date": "2026-10-23",
+          "duration": "150 mins",
+          "id": 1790061987250,
+          "subject": "Cyber Physical Systems",
+          "time": "10:30",
+          "type": "theory"
+        },
+        {
+          "code": "303105391",
+          "date": "2026-10-24",
+          "duration": "150 mins",
+          "id": 1790061828239,
+          "subject": "Data Science",
+          "time": "10:30",
+          "type": "theory"
+        },
+        {
+          "code": "303105341",
+          "date": "2026-10-30",
+          "duration": "150 mins",
+          "id": 1790061889928,
+          "subject": "Cybersecurity",
+          "time": "10:30",
+          "type": "theory"
+        },
+        {
+          "code": "303105361",
+          "date": "2026-11-23",
+          "duration": "150 mins",
+          "id": 1790061934662,
+          "subject": "Big Data Analytics",
+          "time": "10:30",
+          "type": "theory"
+        }
+      ],
+      "semester": 7,
+      "seatingDataUrl": ""
+    },
+    {
+      "semester": 7,
+      "examPeriod": {
+        "name": "Practical/Viva Exam",
+        "shortName": "Practical Exam",
+        "startDate": "2026-10-04T09:00:00",
+        "endDate": "2026-10-08T17:00:00"
+      },
+      "defaultCoverImage": "https://res.cloudinary.com/dvsdsl7iw/image/upload/v1786516645/insightroom/t2oyseoqbwyj6wed4hw0.webp",
+      "seatingDataUrl": "https://popaoujsfvznlqltszfr.supabase.co/storage/v1/object/public/profile-pictures/seating/seating_data_1786935810046.csv",
+      "exams": [
+        {
+          "code": "303105342",
+          "date": "2026-10-04",
+          "duration": "150 mins",
+          "id": 1790062430869,
+          "subject": "Cybersecurity Laboratory",
+          "time": "9:30",
+          "type": "practical"
+        },
+        {
+          "code": "303105362",
+          "date": "2026-10-05",
+          "duration": "150 mins",
+          "id": 1790062512132,
+          "subject": "Big Data Analytics Laboratory",
+          "time": "9:30",
+          "type": "practical"
+        },
+        {
+          "code": "303105376",
+          "date": "2026-10-06",
+          "duration": "150 mins",
+          "id": 1790062544608,
+          "subject": "Information and Network Security Laboratory",
+          "time": "9:30",
+          "type": "practical"
+        },
+        {
+          "code": "303105394",
+          "date": "2026-10-07",
+          "duration": "150 mins",
+          "id": 1790062570894,
+          "subject": "Data Science Laboratory",
+          "time": "9:30",
+          "type": "practical"
+        },
+        {
+          "code": "303105423",
+          "date": "2026-10-08",
+          "duration": "150 mins",
+          "id": 1790062603659,
+          "subject": "Project - II",
+          "time": "9:30",
+          "type": "viva"
+        }
+      ]
+    }
+  ],
+  "showBeforeDays": 9,
+  "showBeforeDaysViva": 3,
+  "status": "Completed",
+  "type": "config",
+  "viewRotationInterval": 15000
 }

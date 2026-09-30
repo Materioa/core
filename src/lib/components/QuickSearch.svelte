@@ -62,7 +62,10 @@
       input?.classList.remove('ai-mode');
       wrapper?.classList.remove('ai-mode');
     }
-    if (searchQuery.trim()) handleSearch();
+    if (searchQuery.trim()) {
+      lastSentQuery = '';
+      handleSearch();
+    }
   }
 
   function openSearchModal() {
@@ -70,20 +73,25 @@
   }
 
   let searchAbortController = null;
+  let searchDebounceTimer = null;
+  let lastSentQuery = '';
+  const SEARCH_DEBOUNCE_MS = 350;
+  const SEARCH_MIN_LENGTH = 2;
 
   async function handleSearch() {
-    if (!searchQuery.trim()) {
-      searchModalStore.set({
-        isOpen: false,
-        query: '',
-        results: [],
-        ai: null,
-        aiUsed: false,
-        isAiLoading: false,
-        isDiscovery: false
-      });
+    const trimmed = searchQuery.trim();
+    // Don't spam the backend with empty or single-char prefixes — every
+    // keystroke used to fire a full-pipeline request (asym, asymm, ...),
+    // aborting the previous one and exhausting the Worker CPU (503s).
+    if (!trimmed || trimmed.length < SEARCH_MIN_LENGTH) {
+      if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+      if (searchAbortController) searchAbortController.abort();
+      lastSentQuery = '';
+      searchModalStore.update(s => ({ ...s, isOpen: !!trimmed, query: searchQuery, results: [], isAiLoading: false }));
       return;
     }
+    if (trimmed === lastSentQuery) return;
+    lastSentQuery = trimmed;
     openSearchModal();
     searchModalStore.update(s => ({ ...s, isAiLoading: aiEnabled }));
 
@@ -104,6 +112,13 @@
       const res = await fetch(`/api/v2/search?${params.toString()}`, {
         signal: searchAbortController.signal
       });
+
+      // 429 = our own typing-burst shed: keep the last good results, don't
+      // warn or wipe the modal.
+      if (res.status === 429) {
+        searchModalStore.update(s => ({ ...s, isAiLoading: false }));
+        return;
+      }
 
       if (res.ok) {
         const data = await res.json();
@@ -156,7 +171,10 @@
 
   function handleInput(e) {
     searchQuery = e.target.value;
-    handleSearch();
+    // Debounce: wait for a typing pause before hitting the API instead of
+    // firing one heavy request per keystroke.
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => handleSearch(), SEARCH_DEBOUNCE_MS);
   }
 
   function handleFocus() {
@@ -167,6 +185,9 @@
 
   function clearSearch() {
     searchQuery = '';
+    lastSentQuery = '';
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+    if (searchAbortController) searchAbortController.abort();
     searchModalStore.set({ isOpen: false, query: '', results: [] });
     const input = document.getElementById('quickSearchInput');
     if (input) { input.value = ''; input.focus(); }

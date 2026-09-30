@@ -53,12 +53,18 @@ export function isCacheableRequest(request, url) {
  * Cache API degrades to a live response, never a hung worker. Never throws.
  */
 export async function cachedResponse(request, ttlSeconds, producer) {
-	const miss = async () => {
-		const res = await producer();
-		try {
-			if (res) res.headers.set('X-Edge-Cache', 'MISS');
-		} catch {}
-		return res;
+	// The producer (handler code) runs EXACTLY once per call. The old catch
+	// block re-invoked it, doubling the Mongo stampede on the failure path.
+	let produced = null;
+	const produceOnce = async () => {
+		if (!produced) {
+			const res = await producer();
+			try {
+				if (res) res.headers.set('X-Edge-Cache', 'MISS');
+			} catch {}
+			produced = res;
+		}
+		return produced;
 	};
 	// Time-boxed cache read: on timeout treat as a miss.
 	const safeMatch = async (key) => {
@@ -85,7 +91,7 @@ export async function cachedResponse(request, ttlSeconds, producer) {
 		} catch {}
 	};
 	try {
-		if (!hasEdgeCache()) return await miss();
+		if (!hasEdgeCache()) return await produceOnce();
 		const key = edgeCacheKey(request.url);
 		const hit = await safeMatch(key);
 		if (hit) {
@@ -95,13 +101,14 @@ export async function cachedResponse(request, ttlSeconds, producer) {
 			res.headers.set('X-Edge-Cache', 'HIT');
 			return res;
 		}
-		const res = await producer();
+		const res = await produceOnce();
 		if (res && res.ok && res.status === 200) await safePut(key, res, ttlSeconds);
-		try {
-			if (res) res.headers.set('X-Edge-Cache', 'MISS');
-		} catch {}
 		return res;
 	} catch {
-		return await producer();
+		// Only Cache-API failures land here now (a producer throw propagates
+		// from produceOnce on first call). If the producer already ran, serve
+		// its result; never invoke handler code twice.
+		if (produced) return produced;
+		throw new Error('edge cache unavailable and no response produced');
 	}
 }
