@@ -2501,17 +2501,34 @@ async function handleAnalyticsIngest(request) {
     const clientIp = getAnalyticsClientIp(request);
     const fingerprint = toTrimmedString(data.p_usermeta_diff?.session?.fp, 128);
     const token = getTokenFromHeaders(request.headers);
-    const decoded = token ? verifyToken(token) : null;
-
-    if (token && (!decoded || !decoded.id || !ANALYTICS_UUID_REGEX.test(decoded.id))) {
-      return json({ error: 'Invalid analytics auth token' }, { status: 401 });
+    // An expired/invalid session must NOT throw away the telemetry. It used to
+    // return 401 here, which meant one stale access token silently killed every
+    // flush until the client refreshed it — analytics just stopped, with only
+    // a console error to show for it. Instead we drop the *attribution* and
+    // still record the reading/engagement data as anonymous.
+    let decoded = null;
+    let tokenRejected = false;
+    if (token) {
+      decoded = verifyToken(token);
+      if (!decoded || !decoded.id || !ANALYTICS_UUID_REGEX.test(decoded.id)) {
+        decoded = null;
+        tokenRejected = true;
+      }
     }
 
-    if (data.rawUserId && decoded?.id && data.rawUserId !== decoded.id) {
+    if (!tokenRejected && data.rawUserId && decoded?.id && data.rawUserId !== decoded.id) {
       return json({ error: 'User identity mismatch in analytics payload' }, { status: 403 });
     }
 
-    data.p_user_id = decoded?.id || (data.rawUserId && ANALYTICS_UUID_REGEX.test(data.rawUserId) ? data.rawUserId : null);
+    // Only trust a client-supplied user id when there was no token at all (or
+    // the token verified). If a token was present but rejected we have no
+    // proof of identity, so we must not let rawUserId claim an account —
+    // that would be an impersonation hole.
+    data.p_user_id =
+      decoded?.id ||
+      (!tokenRejected && data.rawUserId && ANALYTICS_UUID_REGEX.test(data.rawUserId)
+        ? data.rawUserId
+        : null);
     delete data.rawUserId;
 
     // Best-effort and bounded: when the Mongo pool is sick this lookup would

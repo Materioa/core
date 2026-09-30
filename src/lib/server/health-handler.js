@@ -4,7 +4,7 @@ import path from 'path';
 import { json } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import { supabase } from '$lib/server/supabase.js';
-import { getMongoDb, withMongoTimeout } from './mongodb.js';
+import { getMongoDb } from './mongodb.js';
 import { cachedResponse, isCacheableRequest } from './edge-cache.js';
 import { logError, getErrorsLastHour } from './error-tracker.js';
 import { sendIncidentEmail, sendAlertEmail, ALERT_EMAIL } from './mailer.js';
@@ -695,6 +695,37 @@ Confidence: Medium.`,
   });
 }
 
+// Short-lived, isolate-level dependency snapshot (see call site for why).
+const DEPS_TTL_MS = 30000;
+let depsCache = null;
+let depsInFlight = null;
+
+async function getDependencyStatus() {
+  const now = Date.now();
+  if (depsCache && now - depsCache.at < DEPS_TTL_MS) return depsCache.value;
+  if (depsInFlight) return depsInFlight;
+
+  depsInFlight = (async () => {
+    const checkTimeout = (p, fallback) =>
+      Promise.race([
+        p,
+        new Promise((resolve) => setTimeout(() => resolve(fallback), 8000))
+      ]);
+    const [supabaseStatus, cdnStatus, incidentStatus] = await Promise.all([
+      checkTimeout(checkSupabase(), { status: 'error', message: 'check timed out' }),
+      checkTimeout(checkCdnAPI(), { status: 'error', message: 'check timed out' }),
+      checkTimeout(checkIncidentIO(), { hasIncident: false, incident: null })
+    ]);
+    const value = { supabase: supabaseStatus, cdn: cdnStatus, incident: incidentStatus };
+    depsCache = { at: Date.now(), value };
+    return value;
+  })().finally(() => {
+    depsInFlight = null;
+  });
+
+  return depsInFlight;
+}
+
 function resolveHealthAction(url, params) {
   const sub = params?.path || url.searchParams.get('path') || '';
   const action = url.searchParams.get('action') || '';
@@ -728,55 +759,28 @@ export async function handleHealthGet({ request, url, params }) {
   try { cpuLoad = os.loadavg(); } catch {}
   try { uptime = process.uptime(); } catch {}
 
-  // Belt and braces: even if a dependency check wedges, health answers
-  // within seconds instead of hanging the worker.
-  const checkTimeout = (p, fallback) =>
-    Promise.race([
-      p,
-      new Promise((resolve) => setTimeout(() => resolve(fallback), 8000))
-    ]);
-  const [supabaseStatus, cdnStatus, incidentStatus] = await Promise.all([
-    checkTimeout(checkSupabase(), { status: 'error', message: 'check timed out' }),
-    checkTimeout(checkCdnAPI(), { status: 'error', message: 'check timed out' }),
-    checkTimeout(checkIncidentIO(), { hasIncident: false, incident: null })
-  ]);
+  // Dependency results are reused for a short window per isolate. Health is
+  // polled constantly (every page load, plus cache-busted repeats), and each
+  // uncached run made THREE outbound fetches plus a Mongo round-trip. A
+  // burst of parallel polls therefore multiplied past Cloudflare's ceiling of
+  // 6 simultaneous outbound connections, starving fetches so they never
+  // settled ("Promise will never complete"). Dependency reachability does not
+  // change second to second, so a short TTL keeps the signal and removes the
+  // connection pressure. The in-flight promise is shared so concurrent polls
+  // still collapse onto a single round of checks.
+  const deps = await getDependencyStatus();
+  const { supabase: supabaseStatus, cdn: cdnStatus, incident: incidentStatus } = deps;
   if (supabaseStatus.status === 'error' || cdnStatus.status === 'error') {
     try { console.warn(`[health] failing deps: supabase=${supabaseStatus.status}(${supabaseStatus.latencyMs}ms:${supabaseStatus.message || ''}) cdn=${cdnStatus.status}(${cdnStatus.latencyMs}ms:${cdnStatus.message || ''})`); } catch {}
   }
 
-  let version = VERSION;
-  try {
-    // Bounded: a cold connect keeps warming the pool in the background for
-    // the next request, but health never waits on it (an unbounded wait
-    // here is what stretched health past 8s into crash territory).
-    const db = await Promise.race([
-      getMongoDb(),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('mongo version lookup timed out')), 3000)
-      )
-    ]);
-    const releasesCollection = db.collection('releases');
-    const latestRelease = await withMongoTimeout(
-      releasesCollection
-        .find({}, { projection: { version: 1, build: 1 } })
-        .toArray(),
-      3000,
-      'health releases find'
-    );
-    if (latestRelease && latestRelease.length > 0) {
-      const parseBuildDate = (dateStr) => {
-        if (!dateStr) return new Date(0);
-        const parts = dateStr.split('/');
-        if (parts.length === 3) {
-          const [day, month, year] = parts.map(Number);
-          return new Date(year, month - 1, day);
-        }
-        return new Date(dateStr);
-      };
-      latestRelease.sort((a, b) => parseBuildDate(b.build) - parseBuildDate(a.build));
-      if (latestRelease[0].version) version = latestRelease[0].version;
-    }
-  } catch {}
+  // Version comes from the bundled release snapshot, NOT a live Mongo read.
+  // That lookup was the last thing making health slow: every poll waited up
+  // to 3s for a connect+find, and a timeout there also reset the shared pool,
+  // which disrupted unrelated in-flight requests. The reported version is a
+  // build-time fact (refreshed by the snapshot cron + each deploy), so paying
+  // a database round-trip on a status endpoint bought nothing.
+  const version = VERSION;
 
   let nodeVersion = 'unknown';
   let platform = 'unknown';
