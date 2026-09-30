@@ -8,6 +8,35 @@ if (v8?.startupSnapshot) {
 	}
 }
 
+/**
+ * Catches anything that escapes a +server.js handler.
+ *
+ * Without this, SvelteKit turns an unhandled throw into a generic
+ * "Worker threw exception" 500 with no stack — which is exactly why the
+ * intermittent leaderboard/notebooks 500s had no identifiable cause all
+ * session. Logging here puts the real error + stack into `wrangler tail`.
+ *
+ * @type {import('@sveltejs/kit').HandleServerError}
+ */
+export function handleError({ error, event, status, message }) {
+	try {
+		const err = error instanceof Error ? error : new Error(String(error));
+		let url = 'unknown';
+		try {
+			url = event?.request?.url || event?.url?.toString?.() || 'unknown';
+		} catch {}
+		console.error(
+			`[handleError] ${status} ${message} :: ${err.name}: ${err.message}\n` +
+				`  url: ${url}\n` +
+				`  stack: ${err.stack || '(none)'}\n` +
+				`  cause: ${err.cause ? (err.cause.stack || err.cause.message || String(err.cause)) : '(none)'}`
+		);
+	} catch {
+		// Never let logging make things worse.
+	}
+	return { message };
+}
+
 /** @type {import('@sveltejs/kit').Handle} */
 export async function handle({ event, resolve }) {
 	// Cloudflare Workers expose vars/secrets via `platform.env`, but this

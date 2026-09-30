@@ -1371,9 +1371,19 @@ async function handleNotebooks(request, url) {
       if (!userId || userId === 'anonymous') {
         return json({ notebooks: [] });
       }
-      const notes = await collection.find({
-        $or: [{ userId }, { user_id: userId }]
-      }).sort({ updatedAt: -1 }).toArray();
+      // Bounded, like every other Mongo read in this file: an unbounded await here
+      // leaves the event with nothing pending, so the runtime cancels it with
+      // "your Worker's code had hung" — no stack, no handleError, and the
+      // whole request 500s. Capped at 200 notes to bound memory/parse cost.
+      const notes = await withMongoTimeout(
+        collection
+          .find({ $or: [{ userId }, { user_id: userId }] })
+          .sort({ updatedAt: -1 })
+          .limit(200)
+          .toArray(),
+        5000,
+        'notebooks list'
+      );
       const cleanNotebooks = notes.map(({ _id, ...n }) => ({ ...n, syncedToCloud: true }));
       return json({ notebooks: cleanNotebooks });
     }
@@ -2611,7 +2621,10 @@ async function handleAnalyticsIngest(request) {
     }
 
     const client = supabaseAdmin || supabase;
-    const { error } = await client.rpc('merge_daily_stats', data);
+    const { error } = await supabaseWithTimeout(
+      client.rpc('merge_daily_stats', data),
+      'merge_daily_stats'
+    );
 
     if (error) {
       console.error('Supabase Analytics Error:', error);
@@ -2682,6 +2695,34 @@ function getPdfTimeSecForName(pdfCountMap, targetPdfName) {
 //    that neither view nor leaderboard touches.
 const ANALYTICS_COLUMNS = 'user_id, anon_id, metrics, date';
 
+// Every Supabase await in this module must be bounded by a timer we own.
+//
+// The Worker runtime cancels any event that has zero pending work and would
+// never respond ("your Worker's code had hung and would never generate a
+// response"). An unbounded `await supabase...` satisfies that exactly: if the
+// underlying fetch never settles, nothing is pending, nothing is thrown, and
+// the request dies with no stack and no handleError hook. A raced timer keeps
+// a real pending job on the event queue, so the request always completes.
+//
+// This was the actual cause of the intermittent 500s on
+// action=leaderboard and action=notebooks (both reproduce ~2 in 3 whenever
+// they run uncached — i.e. whenever a userId param defeats isCacheableRequest
+// and the handler runs live instead of being served from cache).
+const SUPABASE_OP_TIMEOUT_MS = 4000;
+
+async function supabaseWithTimeout(promise, label) {
+	let timer;
+	const guarded = promise.finally(() => clearTimeout(timer));
+	guarded.then(
+		() => {},
+		() => {}
+	);
+	const timeout = new Promise((_, reject) => {
+		timer = setTimeout(() => reject(new Error(`${label} timed out after ${SUPABASE_OP_TIMEOUT_MS}ms`)), SUPABASE_OP_TIMEOUT_MS);
+	});
+	return Promise.race([guarded, timeout]);
+}
+
 async function forEachDailyStatsRow(onRow, { maxRows = 25000, batchSize = 1000, sinceDate = null } = {}) {
   const client = supabaseAdmin || supabase;
   let from = 0;
@@ -2696,7 +2737,7 @@ async function forEachDailyStatsRow(onRow, { maxRows = 25000, batchSize = 1000, 
         .range(from, to);
       if (sinceDate) query = query.gte('date', sinceDate);
 
-      const { data, error } = await query;
+      const { data, error } = await supabaseWithTimeout(query, 'daily stats page');
       if (error) {
         console.error('forEachDailyStatsRow error:', error.message || error);
         break;
@@ -2821,7 +2862,10 @@ async function fetchLeaderboardIdentityMap(readerIds = []) {
 
   for (let i = 0; i < userIds.length; i += chunkSize) {
     const chunk = userIds.slice(i, i + chunkSize);
-    const { data, error } = await client.from('users').select('id,display_name,username').in('id', chunk);
+    const { data, error } = await supabaseWithTimeout(
+      client.from('users').select('id,display_name,username').in('id', chunk),
+      'leaderboard identity lookup'
+    );
     if (error) throw error;
 
     for (const row of data || []) {
@@ -2848,7 +2892,10 @@ async function fetchLeaderboardIdentityMap(readerIds = []) {
 async function fetchPdfViewStatsViaRpc(pdfName) {
   try {
     const client = supabaseAdmin || supabase;
-    const { data, error } = await client.rpc('get_pdf_view_stats', { p_pdf: pdfName });
+    const { data, error } = await supabaseWithTimeout(
+      client.rpc('get_pdf_view_stats', { p_pdf: pdfName }),
+      'get_pdf_view_stats'
+    );
     if (error) {
       console.warn('get_pdf_view_stats RPC unavailable, using scan fallback:', error.message);
       return null;
@@ -3005,11 +3052,16 @@ async function handleAnalyticsLeaderboard(request, url) {
 
     let moderationNotice = null;
     try {
-      moderationNotice = await findActiveModerationRule({
-        anonId: requesterAnonId,
-        fingerprint: requesterFingerprint,
-        ipAddress: getAnalyticsClientIp(request)
-      });
+      moderationNotice = await Promise.race([
+        findActiveModerationRule({
+          anonId: requesterAnonId,
+          fingerprint: requesterFingerprint,
+          ipAddress: getAnalyticsClientIp(request)
+        }),
+        // Bounded: an unbounded Mongo await here is exactly what the runtime
+        // flags as a hung event (no pending work -> "code had hung").
+        new Promise((resolve) => setTimeout(() => resolve(null), 2500))
+      ]);
     } catch {}
 
     return json({
