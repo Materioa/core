@@ -2617,33 +2617,48 @@ function getPdfTimeSecForName(pdfCountMap, targetPdfName) {
   return seconds;
 }
 
-async function fetchDailyStatsRows(maxRows = 25000) {
+// Aggregates user_daily_stats WITHOUT materialising the table in the Worker.
+//
+// Two things matter here, both learned the hard way:
+//  * CPU, not memory, is the binding limit (free tier = 10ms/invocation).
+//    Streaming fixed the 128MB blowout, but scanning every row since April
+//    still blew the CPU ceiling -> "Error 1102 / Worker exceeded CPU time
+//    limit" on /analytics-leaderboard and /analytics-views.
+//  * So push the timeframe filter into the QUERY (`.gte('date', ...)`) rather
+//    than fetching all history and filtering in JS, and select only the four
+//    columns the aggregations actually read — `usermeta` is a large JSON blob
+//    that neither view nor leaderboard touches.
+const ANALYTICS_COLUMNS = 'user_id, anon_id, metrics, date';
+
+async function forEachDailyStatsRow(onRow, { maxRows = 25000, batchSize = 1000, sinceDate = null } = {}) {
   const client = supabaseAdmin || supabase;
-  const batchSize = 1000;
   let from = 0;
-  const allRows = [];
 
   try {
     while (from < maxRows) {
       const to = from + batchSize - 1;
-      const { data, error } = await client
+      let query = client
         .from('user_daily_stats')
-        .select('*')
+        .select(ANALYTICS_COLUMNS)
+        .order('date', { ascending: false })
         .range(from, to);
+      if (sinceDate) query = query.gte('date', sinceDate);
 
+      const { data, error } = await query;
       if (error) {
-        console.error('fetchDailyStatsRows error:', error.message || error);
+        console.error('forEachDailyStatsRow error:', error.message || error);
         break;
       }
       const rows = data || [];
-      allRows.push(...rows);
+      for (const row of rows) {
+        try { onRow(row); } catch {}
+      }
       if (rows.length < batchSize) break;
       from += batchSize;
     }
   } catch (err) {
-    console.error('fetchDailyStatsRows catch:', err.message || err);
+    console.error('forEachDailyStatsRow catch:', err.message || err);
   }
-  return allRows;
 }
 
 function toDateKey(value) {
@@ -2670,6 +2685,39 @@ function getRowDateKey(row) {
     if (key) return key;
   }
   return null;
+}
+
+// Per-row form of filterRowsByTimeframe, so the leaderboard can filter while
+// streaming instead of materialising every row first. Same date maths, same
+// semantics — just applied one row at a time.
+function makeTimeframePredicate(timeframe, requestedDateKey) {
+  if (timeframe !== 'today' && timeframe !== 'weekly') return () => true;
+  const baseDateStr = toDateKey(requestedDateKey) || new Date().toISOString().slice(0, 10);
+
+  if (timeframe === 'today') {
+    return (row) => getRowDateKey(row) === baseDateStr;
+  }
+
+  const baseDate = new Date(baseDateStr + 'T00:00:00Z');
+  if (Number.isNaN(baseDate.getTime())) return () => true;
+  return (row) => {
+    const rowDateKey = getRowDateKey(row);
+    if (!rowDateKey) return false;
+    const rowDate = new Date(rowDateKey + 'T00:00:00Z');
+    if (Number.isNaN(rowDate.getTime())) return false;
+    const diffDays = (baseDate.getTime() - rowDate.getTime()) / (1000 * 3600 * 24);
+    return diffDays >= 0 && diffDays < 7;
+  };
+}
+
+// Oldest `date` the timeframe can include, so the scan can be bounded in SQL.
+function analyticsSinceDate(timeframe, requestedDateKey) {
+  if (timeframe !== 'today' && timeframe !== 'weekly') return null;
+  const base = toDateKey(requestedDateKey) || new Date().toISOString().slice(0, 10);
+  const baseDate = new Date(base + 'T00:00:00Z');
+  if (Number.isNaN(baseDate.getTime())) return null;
+  const days = timeframe === 'today' ? 0 : 6;
+  return new Date(baseDate.getTime() - days * 86400000).toISOString().slice(0, 10);
 }
 
 function filterRowsByTimeframe(rows, timeframe, requestedDateKey) {
@@ -2734,6 +2782,37 @@ async function fetchLeaderboardIdentityMap(readerIds = []) {
   return identities;
 }
 
+// Preferred path for PDF view counts: let Postgres do the aggregation.
+//
+// Views is all-time, so unlike the leaderboard there is no date window to
+// push down — the Worker has to touch every row since April and unnest the
+// pdf_counts JSON itself. That is millions of ops against a 10ms CPU ceiling
+// and it reliably trips "Error 1102 / Worker exceeded CPU time limit". The RPC
+// does the jsonb_each sum server-side and returns one row, so the Worker does
+// no per-row work at all.
+//
+// Returns null when the function isn't installed yet, so the caller can fall
+// back to the streaming scan (slower, may still hit the ceiling).
+async function fetchPdfViewStatsViaRpc(pdfName) {
+  try {
+    const client = supabaseAdmin || supabase;
+    const { data, error } = await client.rpc('get_pdf_view_stats', { p_pdf: pdfName });
+    if (error) {
+      console.warn('get_pdf_view_stats RPC unavailable, using scan fallback:', error.message);
+      return null;
+    }
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) return null;
+    const totalReads = Number(row.total_reads || 0);
+    const uniqueReaders = Number(row.unique_readers || 0);
+    if (!Number.isFinite(totalReads) || !Number.isFinite(uniqueReaders)) return null;
+    return { totalReads, uniqueReads: uniqueReaders };
+  } catch (err) {
+    console.warn('get_pdf_view_stats RPC failed, using scan fallback:', err.message);
+    return null;
+  }
+}
+
 async function handleAnalyticsViews(url) {
   try {
     const pdfName = url.searchParams.get('pdfName') || '';
@@ -2742,18 +2821,27 @@ async function handleAnalyticsViews(url) {
       return json({ error: 'pdfName is required' }, { status: 400 });
     }
 
-    const rows = await fetchDailyStatsRows();
+    const viaRpc = await fetchPdfViewStatsViaRpc(normalizedPdfName);
+    if (viaRpc) {
+      return json({
+        pdfName: normalizedPdfName,
+        hasData: viaRpc.totalReads > 0 && viaRpc.uniqueReads > 0,
+        uniqueReads: viaRpc.uniqueReads,
+        totalReads: viaRpc.totalReads
+      });
+    }
+
     let totalReads = 0;
     const readers = new Set();
 
-    for (const row of rows) {
+    await forEachDailyStatsRow((row) => {
       const countMap = extractPdfCountMap(row.metrics);
       const reads = getPdfReadsForName(countMap, normalizedPdfName);
-      if (reads <= 0) continue;
+      if (reads <= 0) return;
       totalReads += reads;
       const readerId = String(row.user_id || row.anon_id || '').trim();
       if (readerId) readers.add(readerId);
-    }
+    });
 
     const uniqueReads = readers.size;
     const hasData = totalReads > 0 && uniqueReads > 0;
@@ -2782,12 +2870,14 @@ async function handleAnalyticsLeaderboard(request, url) {
     const timeframe = timeframeRaw === 'today' ? 'today' : 'weekly';
     const requestedDateKey = String(url.searchParams.get('date') || '').trim();
 
-    const rows = filterRowsByTimeframe(await fetchDailyStatsRows(), timeframe, requestedDateKey);
+    const inTimeframe = makeTimeframePredicate(timeframe, requestedDateKey);
     const byReader = new Map();
 
-    for (const row of rows) {
+    await forEachDailyStatsRow(
+      (row) => {
+      if (!inTimeframe(row)) return;
       const readerKey = String(row.user_id || row.anon_id || '').trim();
-      if (!readerKey) continue;
+      if (!readerKey) return;
 
       const current = byReader.get(readerKey) || {
         readerId: readerKey,
@@ -2813,7 +2903,11 @@ async function handleAnalyticsLeaderboard(request, url) {
         }
       }
       byReader.set(readerKey, current);
-    }
+      },
+      // Push the 7-day (or 1-day) window into the query so the Worker only
+      // ever scans recent rows instead of the entire table since April.
+      { sinceDate: analyticsSinceDate(timeframe, requestedDateKey) }
+    );
 
     const userIdsInLeaderboard = Array.from(byReader.values()).filter((e) => !e.isAnonymous).map((e) => e.readerId);
     let identityMap = new Map();
