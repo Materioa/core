@@ -147,6 +147,30 @@
   onMount(() => {
     try { installExternalLinkHandler(); } catch {}
     try {
+      // One-time cleanup of service workers registered by older builds.
+      // The app ships no SW, but a stale registration keeps re-fetching its
+      // script URL (/sw.js) on every navigation -> a permanent 404 for that
+      // visitor. Clearing it once stops the noise. Runs a single time ever.
+      if (
+        typeof navigator !== 'undefined' &&
+        'serviceWorker' in navigator &&
+        !localStorage.getItem('m_sw_cleanup_done')
+      ) {
+        navigator.serviceWorker
+          .getRegistrations()
+          .then((regs) => Promise.all(regs.map((r) => r.unregister())))
+          .then(() => {
+            if (typeof caches !== 'undefined') {
+              return caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))));
+            }
+          })
+          .catch(() => {})
+          .finally(() => {
+            try { localStorage.setItem('m_sw_cleanup_done', '1'); } catch {}
+          });
+      }
+    } catch {}
+    try {
       // Client analytics (PDF views, reading time, engagement) -> Supabase
       // via /api/v2/features?action=analytics. Initialized once per load.
       import('$lib/utils/analytics.js').then((m) => {

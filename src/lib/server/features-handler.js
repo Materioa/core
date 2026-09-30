@@ -11,7 +11,7 @@ import { env } from '$env/dynamic/private';
 import { supabase, supabaseAdmin, verifyToken } from '$lib/server/supabase.js';
 import { corsHeaders, isAllowedOrigin } from '$lib/server/cors-origins.js';
 import { getFormsCollection, getFormConfigsCollection, getMongoDb, resetMongoDb, withMongoTimeout } from '$lib/server/mongodb.js';
-import { cachedResponse, isCacheableRequest } from '$lib/server/edge-cache.js';
+import { cachedResponse, isCacheableRequest, markDegraded } from '$lib/server/edge-cache.js';
 import { sendAlertEmail, ALERT_EMAIL } from '$lib/server/mailer.js';
 import {
   isWebPushConfigured,
@@ -1632,9 +1632,13 @@ async function handlePromotionsFeature(request, url) {
   } catch (err) {
     console.warn('Promotions Mongo unavailable, using local fallback:', err.message);
   }
+  // All three serveLocal* helpers answer from the bundled snapshot rather
+  // than live Mongo, so they tag the response as degraded: the edge cache
+  // then stores it for seconds instead of the full TTL, so a transient
+  // Mongo blip can't pin stale content or mask recovery.
   const serveLocalPromo = () => {
     const promoFile = getLocalDataFile('promo.json') || bundledPromo;
-    if (promoFile && promoFile.enabled) return json(promoFile);
+    if (promoFile && promoFile.enabled) return markDegraded(json(promoFile));
     return json({ enabled: false, message: 'No active promotions' });
   };
   try {
@@ -1815,7 +1819,7 @@ async function handleReleasesFeature(request, url) {
       : Array.isArray(fallback?.releases)
         ? fallback.releases
         : [];
-    return json(releases);
+    return markDegraded(json(releases));
   };
   let db = null;
   try {
@@ -1946,7 +1950,7 @@ async function handleReleasesFeature(request, url) {
 async function handleExamdataFeature(request, url) {
   const serveLocalExamdata = () => {
     const fallback = getLocalDataFile('examdata.json') || bundledExamdata;
-    if (fallback) return json(fallback);
+    if (fallback) return markDegraded(json(fallback));
     return json({ enabled: false, semesters: [] });
   };
   let db = null;

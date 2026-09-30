@@ -18,6 +18,16 @@
 		}
 	],
 	"compatibility_flags": [
-		"nodejs_compat"
+		"nodejs_compat",
+		// CRITICAL for the shared Mongo client. workerd scopes I/O to a single
+		// request: a promise created in request A (our cached Mongo connection /
+		// in-flight connect) that settles later, while request B is running,
+		// gets B's continuations CANCELED — B then has nothing pending, hangs,
+		// and the runtime kills it ("code had hung and would never generate a
+		// response"). Wrangler tail showed exactly this warning on /promotions.
+		// This flag restores cross-request promise resolution, which is what a
+		// per-isolate cached client requires. Without it the only defence is
+		// timing out degraded reads (see withMongoTimeout).
+		"no_handle_cross_request_promise_resolution"
 	]
 }

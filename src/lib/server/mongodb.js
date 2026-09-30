@@ -36,21 +36,42 @@ export async function getMongoDb() {
 			// is cancelled and hangs forever. So: roomy pool, idle conns
 			// released fast, and any waiter still stuck fails fast (the race
 			// below turns it into fallback JSON, never a hung worker).
+			// Cloudflare enforces a HARD limit of 6 simultaneous outbound
+			// connections per Worker. The driver's own default pool (100, and
+			// 20 here) is far above that ceiling: the pool will happily try to
+			// open sockets the platform cannot grant, and `maxIdleTimeMS`
+			// then PINS them. Once ~6 sockets are held — even idle — a new
+			// request's connect has nowhere to go, parks in the driver's wait
+			// queue, and wedges with nothing pending (no driver timeout fires,
+			// nothing throws). That wedged checkout is what leaked when the
+			// runtime killed those events, poisoning the pool for every later
+			// request on the isolate — the 3s/8s crash signature.
+			//
+			// Fix: stay comfortably UNDER the ceiling, release idle sockets
+			// quickly so they never permanently occupy slots, and make
+			// contention fail fast so withMongoTimeout() can fall back to
+			// static JSON instead of hanging. Mongo reads here are small
+			// indexed finds, so 4 sockets is ample.
 			const client = new MongoClient(uri, {
 				// Cold handshakes from the edge (SRV DNS + TCP + throttled TLS)
 				// take seconds of wall time but little CPU — allow them room.
 				// Once one request per isolate connects, the pool + edge cache
 				// serve everything else in milliseconds.
-				serverSelectionTimeoutMS: 12000,
-				connectTimeoutMS: 12000,
+				serverSelectionTimeoutMS: 10000,
+				connectTimeoutMS: 10000,
 				// Dead pooled sockets must error out instead of hanging a
 				// request forever (Atlas/LB idle kills). Reads transparently
 				// retry once on a fresh connection (driver default).
 				socketTimeoutMS: 8000,
-				maxPoolSize: 20,
+				// MUST stay below Cloudflare's 6-connection ceiling.
+				maxPoolSize: 4,
 				minPoolSize: 0,
-				maxIdleTimeMS: 30000,
-				waitQueueTimeoutMS: 15000
+				// Release idle sockets fast: a pinned idle socket is a slot the
+				// next isolate/request cannot use.
+				maxIdleTimeMS: 5000,
+				// Contention should surface as an error quickly, never as a
+				// 15s stall that outlives the request.
+				waitQueueTimeoutMS: 4000
 			});
 			await client.connect();
 			const db = client.db('materio');

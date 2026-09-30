@@ -24,6 +24,25 @@ export function edgeCacheKey(url) {
 	return new Request(u.toString(), { method: 'GET' });
 }
 
+/**
+ * Marker set by handlers when they answer from a degraded source (bundled
+ * static snapshot because Mongo was slow/unreachable) instead of live data.
+ * A degraded answer is still a valid 200, but caching it for the full TTL
+ * pins stale content for minutes AND hides recovery: one transient blip
+ * would keep replaying the fallback long after Mongo came back. Degraded
+ * responses therefore get a short TTL so they self-heal quickly.
+ */
+export const DEGRADED_HEADER = 'X-Materio-Degraded';
+const DEGRADED_TTL_SECONDS = 15;
+
+/** Tags a response as degraded so the cache stores it only briefly. */
+export function markDegraded(res) {
+	try {
+		res.headers.set(DEGRADED_HEADER, '1');
+	} catch {}
+	return res;
+}
+
 /** Personalized or authed requests must never be served from shared cache. */
 export function isCacheableRequest(request, url) {
 	try {
@@ -102,7 +121,15 @@ export async function cachedResponse(request, ttlSeconds, producer) {
 			return res;
 		}
 		const res = await produceOnce();
-		if (res && res.ok && res.status === 200) await safePut(key, res, ttlSeconds);
+		if (res && res.ok && res.status === 200) {
+			// Degraded (fallback) answers must not occupy the cache for the
+			// full TTL — that would serve stale data and mask Mongo recovery.
+			let ttl = ttlSeconds;
+			try {
+				if (res.headers.get(DEGRADED_HEADER)) ttl = DEGRADED_TTL_SECONDS;
+			} catch {}
+			await safePut(key, res, ttl);
+		}
 		return res;
 	} catch {
 		// Only Cache-API failures land here now (a producer throw propagates
