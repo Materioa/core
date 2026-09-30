@@ -849,7 +849,20 @@ async function handleForms(request, url) {
       // forms-config.json fallback; the auto-show engine evaluates the rules.
       try {
         const collection = await getFormConfigsCollection();
-        const docs = await collection.find({ published: true, kind: { $in: ['popup', 'wizard', 'form'] } }).sort({ updatedAt: -1 }).toArray();
+        // Projected + capped: these docs carry whole wizard configs, and an
+        // unprojected toArray() parsed every field of every published popup.
+        // Combined with the distinct() calls below this endpoint measured
+        // 64ms CPU — 6x over the free tier's 10ms budget (outcome:
+        // exceededCpu in the logs). We only ever render a handful of popups.
+        const docs = await withMongoTimeout(
+          collection
+            .find({ published: true, kind: { $in: ['popup', 'wizard', 'form'] } })
+            .sort({ updatedAt: -1 })
+            .limit(25)
+            .toArray(),
+          5000,
+          'popup configs find'
+        );
         let activity = null;
         try {
           activity = await collection.db.collection('form_activity').findOne({});
@@ -863,11 +876,33 @@ async function handleForms(request, url) {
         const visitorId = url.searchParams.get('userId');
         if (visitorId) {
           try {
-            const [runs, subs] = await Promise.all([
-              collection.db.collection('form_responses').distinct('formId', { userId: visitorId }),
-              collection.db.collection('form_submissions').distinct('formType', { 'user.userId': visitorId })
-            ]);
-            doneIds = [...new Set([...(runs || []), ...(subs || [])])];
+            // Bounded projected finds instead of distinct(): distinct() is an
+            // unbounded aggregation that scans the collection and materialises
+            // every distinct value in the Worker. We only need the set of form
+            // ids this visitor answered, and a visitor realistically answered a
+            // few dozen at most.
+            const [runs, subs] = await withMongoTimeout(
+              Promise.all([
+                collection.db
+                  .collection('form_responses')
+                  .find({ userId: visitorId }, { projection: { formId: 1, _id: 0 } })
+                  .limit(500)
+                  .toArray(),
+                collection.db
+                  .collection('form_submissions')
+                  .find({ 'user.userId': visitorId }, { projection: { formType: 1, _id: 0 } })
+                  .limit(500)
+                  .toArray()
+              ]),
+              5000,
+              'popup done-ids lookup'
+            );
+            doneIds = [
+              ...new Set([
+                ...(runs || []).map((d) => d.formId).filter(Boolean),
+                ...(subs || []).map((d) => d.formType).filter(Boolean)
+              ])
+            ];
           } catch {}
         }
         return json({ popups: docs.map(({ _id, ...rest }) => rest), activity, doneIds });

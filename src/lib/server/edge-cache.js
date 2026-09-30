@@ -1,20 +1,17 @@
 // Edge caching for hot public GET endpoints on Cloudflare Workers.
-// Uses the platform Cache API (caches.default) so repeat hits never touch
-// Mongo or run handler code — the main defence against the free-tier CPU
-// limit. Falls back to running the handler directly anywhere else
-// (local dev, Android/Windows shells, prerender).
+// Two layers: a per-isolate in-memory TTL map, plus Cloudflare's CDN via
+// Cache-Control/s-maxage. Repeat hits never touch Mongo or run handler code —
+// the main defence against the free-tier CPU limit.
+//
+// NOTE: this used to layer caches.default on top. Production logs showed that
+// call wedging (cached GETs dying at wallTimeMs ~3100 / cpuTimeMs 3, matching
+// the old 3000ms match timeout), while the CDN was already caching correctly
+// via s-maxage. The Cache API layer was redundant and actively harmful, so it
+// is gone.
 
 // Query params that never change the payload — stripped from the cache key
 // so client cache-busters (?t=...) don't fragment the cache.
 const BUSTER_PARAMS = new Set(['t', '_', 'timestamp', '_t', 'cb', 'cachebuster', 'nocache']);
-
-function hasEdgeCache() {
-	try {
-		return typeof caches !== 'undefined' && !!caches.default;
-	} catch {
-		return false;
-	}
-}
 
 export function edgeCacheKey(url) {
 	const u = new URL(String(url));
@@ -76,6 +73,10 @@ export function isCacheableRequest(request, url) {
 // onto one producer keeps outbound pressure proportional to distinct keys.
 const inFlight = new Map();
 
+// Layer-1 cache: per-isolate, in memory. No platform I/O, so it cannot wedge.
+const memCache = new Map();
+const MAX_MEM_ENTRIES = 200;
+
 // A producer that never settles must not poison the key forever. Entries are
 // removed when the producer settles, AND treated as dead once they exceed this
 // age: the first version only had `.finally()`, so a wedged producer left a
@@ -108,98 +109,49 @@ async function joinInFlight(entry) {
 }
 
 /**
- * Serves `producer()` through the edge cache with a `ttlSeconds` lifetime.
- * Only 200 responses are stored. Returns live responses untouched when the
- * Cache API is unavailable. Every cache operation is time-boxed: a wedged
- * Cache API degrades to a live response, never a hung worker. Never throws.
- * Concurrent misses for the same key share one producer run.
+ * Serves `producer()` through a two-layer cache with a `ttlSeconds` lifetime:
+ *
+ *  1. A per-isolate in-memory TTL map — makes repeat requests on the same
+ *     isolate instant, with no I/O at all.
+ *  2. Cloudflare's CDN, via Cache-Control/s-maxage on the response. This is
+ *     where cross-PoP caching actually happens.
+ *
+ * It deliberately does NOT use `caches.default` any more. Production logs
+ * showed cached GETs dying at wallTimeMs ~3100 with cpuTimeMs 3 — that is this
+ * module's old 3000ms `caches.default.match()` timeout elapsing, i.e. the
+ * Cache API call itself was wedging. We had already confirmed the CDN caches
+ * these responses (CF-Cache-Status: HIT, s-maxage honoured), so the Cache API
+ * layer was redundant *and* was the thing hanging. Removing it also removes a
+ * dangling platform promise from every cached request.
+ *
+ * Only 200 responses are stored. Never throws on the cache path: a failure to
+ * read or write the cache degrades to a live producer run. Concurrent misses
+ * for the same key share a single producer run.
  */
 export async function cachedResponse(request, ttlSeconds, producer) {
-	// Time-boxed cache read: on timeout treat as a miss.
-	const safeMatch = async (key) => {
-		try {
-			return await Promise.race([
-				caches.default.match(key),
-				new Promise((resolve) => setTimeout(() => resolve(undefined), 3000))
-			]);
-		} catch {
-			return undefined;
-		}
-	};
-	// Time-boxed cache write: on timeout keep serving the live response.
-	const safePut = async (key, res, ttl) => {
-		try {
-			const store = res.clone();
-			store.headers.set('Cache-Control', `public, max-age=${ttl}, s-maxage=${ttl}`);
-			await Promise.race([
-				caches.default.put(key, store),
-				new Promise((_, reject) =>
-					setTimeout(() => reject(new Error('edge put timeout')), 5000)
-				)
-			]);
-		} catch {}
-	};
-
-	// The producer runs exactly once per distinct key at a time.
-	const produceOnce = async () => {
-		const res = await producer();
-		try {
-			if (res) res.headers.set('X-Edge-Cache', 'MISS');
-		} catch {}
-		return res;
-	};
-
-	const build = async (key) => {
-		const hit = await safeMatch(key);
-		if (hit) {
-			// Re-wrap: cached responses are immutable, but hooks.server.js
-			// sets per-request CORS headers afterwards.
-			const res = new Response(hit.body, hit);
-			res.headers.set('X-Edge-Cache', 'HIT');
-			return res;
-		}
-		const res = await produceOnce();
-		if (res && res.ok && res.status === 200) {
-			// Degraded (fallback) answers must not occupy the cache for the
-			// full TTL — that would serve stale data and mask Mongo recovery.
-			let ttl = ttlSeconds;
-			try {
-				if (res.headers.get(DEGRADED_HEADER)) ttl = DEGRADED_TTL_SECONDS;
-			} catch {}
-			await safePut(key, res, ttl);
-		}
-		return res;
-	};
-
-	if (!hasEdgeCache()) {
-		// No shared cache here (local dev, prerender): still collapse
-		// concurrent callers so we don't fan out per request.
-		const url = String(request?.url || 'no-url');
-		const entry = joinableInFlight(url);
-		if (entry) {
-			try {
-				return await joinInFlight(entry);
-			} catch {
-				// fall through and produce fresh rather than parking
-			}
-		}
-		const pending = build(NO_CACHE_KEY(request));
-		const record = { promise: pending, at: Date.now() };
-		inFlight.set(url, record);
-		try {
-			const res = await pending;
-			return res.clone();
-		} finally {
-			if (inFlight.get(url) === record) inFlight.delete(url);
-		}
-	}
-
 	const key = edgeCacheKey(request.url);
 	const keyId = key.url;
+
+	// Layer 1: fresh in-memory entry.
+	const mem = memCache.get(keyId);
+	if (mem && mem.expiresAt > Date.now()) {
+		try {
+			const res = new Response(mem.body, {
+				status: mem.status,
+				statusText: mem.statusText,
+				headers: mem.headers
+			});
+			res.headers.set('X-Edge-Cache', 'HIT');
+			return res;
+		} catch {
+			memCache.delete(keyId);
+		}
+	}
+	if (mem) memCache.delete(keyId);
+
+	// Coalesce concurrent misses so a burst runs the producer once.
 	const entry = joinableInFlight(keyId);
 	if (entry) {
-		// Coalesced onto an in-flight producer. Clone so each caller gets its
-		// own readable body — the shared Response is never consumed directly.
 		try {
 			return await joinInFlight(entry);
 		} catch {
@@ -208,19 +160,50 @@ export async function cachedResponse(request, ttlSeconds, producer) {
 		}
 	}
 
-	const pending = build(key);
+	const pending = (async () => {
+		const res = await producer();
+		if (res && res.ok && res.status === 200) {
+			// Degraded (fallback) answers must not occupy the cache for the full
+			// TTL — that would serve stale data and mask Mongo recovery.
+			let ttl = ttlSeconds;
+			try {
+				if (res.headers.get(DEGRADED_HEADER)) ttl = DEGRADED_TTL_SECONDS;
+			} catch {}
+			try {
+				res.headers.set('X-Edge-Cache', 'MISS');
+				// Browser + CDN caching. The CDN is the durable layer.
+				res.headers.set('Cache-Control', `public, max-age=${ttl}, s-maxage=${ttl}`);
+				const body = await res.clone().arrayBuffer();
+				memCache.set(keyId, {
+					body,
+					status: res.status,
+					statusText: res.statusText,
+					headers: new Headers(res.headers),
+					expiresAt: Date.now() + ttl * 1000
+				});
+				// Keep the in-memory map from growing without bound.
+				if (memCache.size > MAX_MEM_ENTRIES) {
+					const cutoff = Date.now();
+					for (const [k, v] of memCache) {
+						if (v.expiresAt <= cutoff) memCache.delete(k);
+					}
+					if (memCache.size > MAX_MEM_ENTRIES) {
+						// Still too big: drop the oldest insertion.
+						const firstKey = memCache.keys().next().value;
+						if (firstKey !== undefined) memCache.delete(firstKey);
+					}
+				}
+			} catch {}
+		}
+		return res;
+	})();
+
 	const record = { promise: pending, at: Date.now() };
 	inFlight.set(keyId, record);
 	try {
 		const res = await pending;
 		return res.clone();
-	} catch {
-		// Only Cache-API/producer failures land here.
-		throw new Error('edge cache unavailable and no response produced');
 	} finally {
 		if (inFlight.get(keyId) === record) inFlight.delete(keyId);
 	}
 }
-
-// Placeholder key for the no-Cache-API path (Cache API ops are skipped there).
-const NO_CACHE_KEY = (request) => ({ url: String(request?.url || 'no-url') });
