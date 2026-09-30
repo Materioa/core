@@ -66,9 +66,15 @@ export async function getMongoDb() {
 				// MUST stay below Cloudflare's 6-connection ceiling.
 				maxPoolSize: 4,
 				minPoolSize: 0,
-				// Release idle sockets fast: a pinned idle socket is a slot the
-				// next isolate/request cannot use.
-				maxIdleTimeMS: 5000,
+				// Keep warm sockets ALIVE between requests. A 5s idle reap was
+				// a mistake: with request gaps > 5s it forced a fresh cold
+				// handshake (~2.4s logged) on essentially every read, and each
+				// abandoned attempt burned one of the platform's 6 connection
+				// slots until the isolate could no longer connect at all
+				// (symptom: alternating ~200ms / ~5000ms responses — a healthy
+				// isolate beside a permanently wedged one). Since maxPoolSize
+				// is 4, holding sockets for 30s can never breach the ceiling.
+				maxIdleTimeMS: 30000,
 				// Contention should surface as an error quickly, never as a
 				// 15s stall that outlives the request.
 				waitQueueTimeoutMS: 4000

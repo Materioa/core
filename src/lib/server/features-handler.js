@@ -319,14 +319,21 @@ async function getMergedNotifications() {
   try {
     const db = await getMongoDb();
     const notificationsCollection = db.collection('notifications');
+    // No cursor .sort() here either (see handlePromotionsFeature): the sorted
+    // -cursor path wedges on workerd. Bounded by limit() so JS-sorting can't
+    // balloon memory if this collection ever grows, and only the newest slice
+    // is ever rendered anyway.
     mongoItems = await withMongoTimeout(
-      notificationsCollection
-        .find({})
-        .sort({ timestamp: -1, date: -1, _id: -1 })
-        .toArray(),
+      notificationsCollection.find({}).limit(200).toArray(),
       5000,
       'notifications find'
     );
+    mongoItems.sort((a, b) => {
+      const ta = Date.parse(a?.timestamp || a?.date || '') || 0;
+      const tb = Date.parse(b?.timestamp || b?.date || '') || 0;
+      if (ta !== tb) return tb - ta;
+      return String(b?._id || '').localeCompare(String(a?._id || ''));
+    });
   } catch (err) {
     console.warn('Could not read notifications from MongoDB:', err.message);
   }
@@ -1685,16 +1692,25 @@ async function handlePromotionsFeature(request, url) {
         }
 
         const now = new Date();
+        // Cursor .sort() is deliberately NOT used on this query: on workerd
+        // the driver's sorted-cursor path is the one shape that reliably
+        // wedged (every endpoint using .sort() timed out at the Mongo
+        // ceiling, while find()/.findOne() without it returned in well under
+        // a second). This collection is tiny (single-digit docs), so sorting
+        // the fetched array in JS is equivalent and sidesteps that entirely.
         let promos = [];
         try {
           promos = await withMongoTimeout(
-            promoCollection
-              .find({ enabled: true })
-              .sort({ lastUpdated: -1, _id: -1 })
-              .toArray(),
+            promoCollection.find({ enabled: true }).toArray(),
             5000,
             'promotions find-enabled'
           );
+          promos.sort((a, b) => {
+            const ta = Date.parse(a?.lastUpdated || '') || 0;
+            const tb = Date.parse(b?.lastUpdated || '') || 0;
+            if (ta !== tb) return tb - ta;
+            return String(b?._id || '').localeCompare(String(a?._id || ''));
+          });
         } catch (err) {
           console.warn('Promotions Mongo read failed, using local fallback:', err.message);
           return serveLocalPromo();
@@ -2960,6 +2976,14 @@ export async function handleFeaturesRequest({ request, url, params }) {
     }
     if (feature === 'forms') {
       return cachedResponse(request, 120, () => handleForms(request, url));
+    }
+    // Notifications are global (no per-user data) and are polled constantly,
+    // so this was the one hot read hitting Mongo on EVERY request — each poll
+    // paying a checkout and, when the isolate's pool was unhealthy, a 5s
+    // timeout plus a socket leak. Short TTL keeps it fresh (admin edits show
+    // up within a minute) while collapsing that load.
+    if (feature === 'notifications') {
+      return cachedResponse(request, 60, () => handleNotificationsFeature(request, url));
     }
   }
 
