@@ -4,7 +4,7 @@ import path from 'path';
 import { json } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import { supabase } from '$lib/server/supabase.js';
-import { getMongoDb } from './mongodb.js';
+import { getMongoDb, withMongoTimeout } from './mongodb.js';
 import { cachedResponse, isCacheableRequest } from './edge-cache.js';
 import { logError, getErrorsLastHour } from './error-tracker.js';
 import { sendIncidentEmail, sendAlertEmail, ALERT_EMAIL } from './mailer.js';
@@ -756,9 +756,13 @@ export async function handleHealthGet({ request, url, params }) {
       )
     ]);
     const releasesCollection = db.collection('releases');
-    const latestRelease = await releasesCollection
-      .find({}, { projection: { version: 1, build: 1 } })
-      .toArray();
+    const latestRelease = await withMongoTimeout(
+      releasesCollection
+        .find({}, { projection: { version: 1, build: 1 } })
+        .toArray(),
+      3000,
+      'health releases find'
+    );
     if (latestRelease && latestRelease.length > 0) {
       const parseBuildDate = (dateStr) => {
         if (!dateStr) return new Date(0);

@@ -10,7 +10,7 @@ import { ObjectId } from 'mongodb';
 import { env } from '$env/dynamic/private';
 import { supabase, supabaseAdmin, verifyToken } from '$lib/server/supabase.js';
 import { corsHeaders, isAllowedOrigin } from '$lib/server/cors-origins.js';
-import { getFormsCollection, getFormConfigsCollection, getMongoDb, resetMongoDb } from '$lib/server/mongodb.js';
+import { getFormsCollection, getFormConfigsCollection, getMongoDb, resetMongoDb, withMongoTimeout } from '$lib/server/mongodb.js';
 import { cachedResponse, isCacheableRequest } from '$lib/server/edge-cache.js';
 import { sendAlertEmail, ALERT_EMAIL } from '$lib/server/mailer.js';
 import {
@@ -108,7 +108,13 @@ function getLocalDataFile(filename) {
     path.join(process.cwd(), '..', filename)
   ];
   for (const p of candidates) {
-    if (fs.existsSync(p)) {
+    let exists = false;
+    try {
+      exists = fs.existsSync(p);
+    } catch {
+      exists = false;
+    }
+    if (exists) {
       try {
         return JSON.parse(fs.readFileSync(p, 'utf8'));
       } catch {}
@@ -313,10 +319,14 @@ async function getMergedNotifications() {
   try {
     const db = await getMongoDb();
     const notificationsCollection = db.collection('notifications');
-    mongoItems = await notificationsCollection
-      .find({})
-      .sort({ timestamp: -1, date: -1, _id: -1 })
-      .toArray();
+    mongoItems = await withMongoTimeout(
+      notificationsCollection
+        .find({})
+        .sort({ timestamp: -1, date: -1, _id: -1 })
+        .toArray(),
+      5000,
+      'notifications find'
+    );
   } catch (err) {
     console.warn('Could not read notifications from MongoDB:', err.message);
   }
@@ -1647,10 +1657,14 @@ async function handlePromotionsFeature(request, url) {
           const isAdmin = await checkAdminUser(request, url);
           if (!isAdmin) return json({ error: 'Admin privileges required' }, { status: 403 });
 
-          let promos = await promoCollection
-            .find({})
-            .sort({ lastUpdated: -1, _id: -1 })
-            .toArray();
+          let promos = await withMongoTimeout(
+            promoCollection
+              .find({})
+              .sort({ lastUpdated: -1, _id: -1 })
+              .toArray(),
+            5000,
+            'promotions find-all'
+          );
 
           if (promos.length === 0) {
             const promoFile = getLocalDataFile('promo.json');
@@ -1669,10 +1683,14 @@ async function handlePromotionsFeature(request, url) {
         const now = new Date();
         let promos = [];
         try {
-          promos = await promoCollection
-            .find({ enabled: true })
-            .sort({ lastUpdated: -1, _id: -1 })
-            .toArray();
+          promos = await withMongoTimeout(
+            promoCollection
+              .find({ enabled: true })
+              .sort({ lastUpdated: -1, _id: -1 })
+              .toArray(),
+            5000,
+            'promotions find-enabled'
+          );
         } catch (err) {
           console.warn('Promotions Mongo read failed, using local fallback:', err.message);
           return serveLocalPromo();
@@ -1817,7 +1835,7 @@ async function handleReleasesFeature(request, url) {
       case 'GET': {
         let releases = [];
         try {
-          releases = await releasesCollection.find({}).toArray();
+          releases = await withMongoTimeout(releasesCollection.find({}).toArray(), 5000, 'releases find');
         } catch (err) {
           console.warn('Releases Mongo read failed, using local fallback:', err.message);
           return serveLocalReleases();
@@ -1948,7 +1966,11 @@ async function handleExamdataFeature(request, url) {
     switch (method) {
       case 'GET': {
         try {
-          const data = await examdataCollection.findOne({ type: 'config' });
+          const data = await withMongoTimeout(
+            examdataCollection.findOne({ type: 'config' }),
+            5000,
+            'examdata find-config'
+          );
           if (data) {
             if (data.enabled === false) {
               return json({ enabled: false, semesters: [] });
@@ -1958,7 +1980,7 @@ async function handleExamdataFeature(request, url) {
             }
           }
 
-          const anyData = await examdataCollection.findOne({});
+          const anyData = await withMongoTimeout(examdataCollection.findOne({}), 5000, 'examdata find-any');
           if (anyData) {
             if (anyData.enabled === false) {
               return json({ enabled: false, semesters: [] });

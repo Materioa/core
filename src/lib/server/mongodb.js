@@ -119,6 +119,36 @@ export function resetMongoDb() {
 	return client.close().catch(() => {});
 }
 
+/**
+ * Bounds a driver operation with OUR OWN timer. This is load-bearing on
+ * workerd: when the pool is poisoned (checkouts leaked by killed events),
+ * queued operations wedge with nothing pending — no driver timeout fires,
+ * try/catch can't help (nothing throws), and the runtime kills the event
+ * for hanging (~75ms after the op starts: the 3001/8001ms crash signature).
+ * Our setTimeout demonstrably fires on this runtime, so a raced timer turns
+ * the wedge into a fast fallback instead of a killed event. On timeout the
+ * poisoned pool is also dropped so the next request reconnects fresh.
+ * Late op outcomes are always observed: an op that settles after the timeout
+ * must never become an unhandled rejection (another worker-crasher).
+ */
+export function withMongoTimeout(promise, ms = 5000, label = 'mongo op') {
+	let timer;
+	const guarded = promise.finally(() => clearTimeout(timer));
+	guarded.then(
+		() => {},
+		() => {}
+	);
+	const timeout = new Promise((_, reject) => {
+		timer = setTimeout(() => {
+			try {
+				resetMongoDb();
+			} catch {}
+			reject(new Error(`${label} timed out after ${ms}ms`));
+		}, ms);
+	});
+	return Promise.race([guarded, timeout]);
+}
+
 export async function getFormsCollection() {
 	const database = await getMongoDb();
 	return database.collection('form_submissions');
