@@ -218,17 +218,46 @@ async fn install_update_and_restart(
 
         log::info!("Downloading update from: {} to: {}", url, target_installer_str);
 
-        // Try downloading via curl.exe (built-in on Windows 10/11)
+        // Try downloading via curl.exe (built-in on Windows 10/11).
+        // BOUNDED: --connect-timeout / --max-time stop this hanging for
+        // minutes on an unreachable host. Previously there was no time limit
+        // at all, so a blocked/slow GitHub asset produced a multi-minute
+        // freeze with no output before finally giving up.
         let mut download_ok = false;
+        let mut curl_detail = String::new();
         let curl_res = Command::new("curl.exe")
             .creation_flags(CREATE_NO_WINDOW)
-            .args(&["-fSL", "--retry", "3", &url, "-o", &target_installer_str])
+            .args(&[
+                "-fSL",
+                "--connect-timeout",
+                "20",
+                "--max-time",
+                "600",
+                "--retry",
+                "2",
+                "--retry-delay",
+                "3",
+                &url,
+                "-o",
+                &target_installer_str,
+            ])
             .status();
 
         if let Ok(status) = curl_res {
             if status.success() && target_installer.exists() {
                 download_ok = true;
+            } else {
+                curl_detail = format!(
+                    "curl exit {:?}{}",
+                    status.code(),
+                    target_installer
+                        .metadata()
+                        .map(|m| format!(" ({} bytes written)", m.len()))
+                        .unwrap_or_default()
+                );
             }
+        } else {
+            curl_detail = "curl could not be started".to_string();
         }
 
         // Fallback to powershell if curl failed
@@ -244,12 +273,31 @@ async fn install_update_and_restart(
             if let Ok(status) = ps_res {
                 if status.success() && target_installer.exists() {
                     download_ok = true;
+                } else {
+                    let detail = format!("powershell exit {:?}", status.code());
+                    curl_detail = if curl_detail.is_empty() {
+                        detail
+                    } else {
+                        format!("{}; {}", curl_detail, detail)
+                    };
                 }
+            } else {
+                let detail = "powershell could not be started".to_string();
+                curl_detail = if curl_detail.is_empty() {
+                    detail
+                } else {
+                    format!("{}; {}", curl_detail, detail)
+                };
             }
         }
 
         if !download_ok {
-            return Err("Failed to download update installer".to_string());
+            // Report WHY, not just that it failed. This string is surfaced in
+            // the app UI, so include the download URL for diagnosis.
+            return Err(format!(
+                "Failed to download the installer from {} ({})",
+                url, curl_detail
+            ));
         }
 
         // Sanity: the real NSIS setup is ~80MB. Anything drastically
@@ -410,13 +458,30 @@ pub fn run() {
             }
         }))
         .setup(|app| {
-            if cfg!(debug_assertions) {
-                app.handle().plugin(
-                    tauri_plugin_log::Builder::default()
-                        .level(log::LevelFilter::Info)
-                        .build(),
-                )?;
-            }
+            // Logging was registered ONLY in debug builds, which meant every
+            // log::info!/warn! in the updater was discarded in shipped
+            // releases. A failed auto-update was therefore completely
+            // undiagnosable — the app just silently fell back to /downloads.
+            // Register it in release too, writing to a log file under the
+            // app's log directory so failures can actually be read.
+            let handle = app.handle().clone();
+            let mut builder = tauri_plugin_log::Builder::default()
+                .level(log::LevelFilter::Info);
+            let file_target = handle.path().app_log_dir().ok().map(|dir| {
+                let _ = std::fs::create_dir_all(&dir);
+                tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Folder {
+                    path: dir,
+                    file_name: None,
+                })
+            });
+            builder = match file_target {
+                Some(t) => builder.target(t),
+                None => builder.target(tauri_plugin_log::Target::new(
+                    tauri_plugin_log::TargetKind::Stdout,
+                )),
+            };
+            handle.plugin(builder.build())?;
+            let _ = &handle;
 
             // MCP server starts OFF by default. It will only be launched
             // when explicitly triggered by the user via start_mcp_server command.

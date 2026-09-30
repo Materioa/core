@@ -114,6 +114,9 @@
 							downloadUrl = data.windows?.downloadUrl || data.windows?.standaloneUrl || null;
 						}
 					} catch {}
+					// Kept for the failure path so the user can still get the
+					// installer even when the in-app download fails.
+					const resolvedUrl = downloadUrl;
 					// Never install a versioned asset that doesn't match the
 					// release just resolved above.
 					if (downloadUrl && expectedVersion &&
@@ -130,16 +133,44 @@
 			window.location.href = '/downloads';
 		} catch (err) {
 			console.error('Failed to install update:', err);
+			const msg = String((err as any)?.message || err || 'Unknown error');
+			// Do NOT silently navigate to /downloads inside the app. That shows
+			// an in-app page the user cannot install anything from, with no
+			// explanation of what failed — which presented as the updater
+			// freezing for minutes and then giving up. Surface the real reason
+			// and offer the one path that reliably works: open the installer in
+			// the system browser so it can actually be downloaded and run.
+			const openInBrowser = async () => {
+				try {
+					const invoke2 =
+						(window as any).__TAURI__?.core?.invoke || (window as any).__TAURI__?.invoke;
+					if (typeof invoke2 === 'function' && resolvedUrl) {
+						await invoke2('open_external_url', { url: resolvedUrl });
+						return;
+					}
+				} catch {}
+				window.open(resolvedUrl || '/downloads', '_blank');
+			};
 			try {
-				const msg = String((err as any)?.message || err || '');
-				if (msg.toLowerCase().includes('mismatch') || msg.toLowerCase().includes('invalid')) {
-					(window as any).materioAlert?.(
-						msg + ' — please install from the downloads page instead.',
-						{ type: 'danger', title: 'Update Blocked' }
-					);
+				// materioConfirm (not materioAlert) — only confirm resolves a
+				// boolean and offers a cancel; alert has no callback.
+				const confirmFn = (window as any).materioConfirm;
+				const message =
+					`The update could not be installed automatically.\n\n${msg}\n\n` +
+					`Open the installer in your browser to update manually?`;
+				if (typeof confirmFn === 'function') {
+					confirmFn(message, {
+						title: 'Update Failed',
+						confirmText: 'Open Installer',
+						cancelText: 'Close',
+						danger: true
+					}).then((ok) => {
+						if (ok) openInBrowser();
+					});
+				} else {
+					openInBrowser();
 				}
 			} catch {}
-			window.location.href = '/downloads';
 		} finally {
 			isInstalling = false;
 			activeNudge = null;
