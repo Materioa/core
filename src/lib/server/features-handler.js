@@ -20,6 +20,14 @@ import {
   removeWebPushSubscription
 } from '$lib/server/webpush.js';
 import { getContributionNotificationTemplate } from '$lib/server/email-templates.js';
+// Build-time bundled snapshots: static/ is uploaded as Assets (not visible
+// to fs at runtime on Workers), so fs-based getLocalDataFile() always misses
+// in production. These imports bake the last-deployed snapshot into the
+// bundle: 0ms, always available, fresh as of last deploy (refreshed daily by
+// the snapshot cron + deploy). Live Mongo data still wins whenever reachable.
+import bundledPromo from '../../../static/assets/data/promo.json';
+import bundledReleases from '../../../static/assets/data/releases.json';
+import bundledExamdata from '../../../static/assets/data/examdata.json';
 
 // ==========================================
 // Google Drive Configuration
@@ -1615,7 +1623,7 @@ async function handlePromotionsFeature(request, url) {
     console.warn('Promotions Mongo unavailable, using local fallback:', err.message);
   }
   const serveLocalPromo = () => {
-    const promoFile = getLocalDataFile('promo.json');
+    const promoFile = getLocalDataFile('promo.json') || bundledPromo;
     if (promoFile && promoFile.enabled) return json(promoFile);
     return json({ enabled: false, message: 'No active promotions' });
   };
@@ -1783,7 +1791,7 @@ async function handlePromotionsFeature(request, url) {
 // ==========================================
 async function handleReleasesFeature(request, url) {
   const serveLocalReleases = () => {
-    const fallback = getLocalDataFile('releases.json');
+    const fallback = getLocalDataFile('releases.json') || bundledReleases;
     const releases = Array.isArray(fallback)
       ? fallback
       : Array.isArray(fallback?.releases)
@@ -1919,7 +1927,7 @@ async function handleReleasesFeature(request, url) {
 // ==========================================
 async function handleExamdataFeature(request, url) {
   const serveLocalExamdata = () => {
-    const fallback = getLocalDataFile('examdata.json');
+    const fallback = getLocalDataFile('examdata.json') || bundledExamdata;
     if (fallback) return json(fallback);
     return json({ enabled: false, semesters: [] });
   };
@@ -2033,9 +2041,7 @@ async function handleExamdataFeature(request, url) {
   } catch (error) {
     console.error('ExamData Feature Error:', error);
     if (request.method === 'GET') {
-      const fallback = getLocalDataFile('examdata.json');
-      if (fallback) return json(fallback);
-      return json({ enabled: false, semesters: [] });
+      return serveLocalExamdata();
     }
     return json({ error: 'Database temporarily unavailable', details: error.message }, { status: 503 });
   }
@@ -2466,12 +2472,24 @@ async function handleAnalyticsIngest(request) {
     data.p_user_id = decoded?.id || (data.rawUserId && ANALYTICS_UUID_REGEX.test(data.rawUserId) ? data.rawUserId : null);
     delete data.rawUserId;
 
-    const matchedBan = await findActiveModerationRule({
-      anonId: data.p_anon_id,
-      fingerprint,
-      ipAddress: clientIp,
-      action: 'ban'
-    });
+    // Best-effort and bounded: when the Mongo pool is sick this lookup would
+    // otherwise queue behind it (15s wait-queue) and hold every analytics
+    // flush hostage. A missed ban check on one flush is harmless; the next
+    // flush re-checks.
+    let matchedBan = null;
+    try {
+      matchedBan = await Promise.race([
+        findActiveModerationRule({
+          anonId: data.p_anon_id,
+          fingerprint,
+          ipAddress: clientIp,
+          action: 'ban'
+        }),
+        new Promise((resolve) => setTimeout(() => resolve(null), 2500))
+      ]);
+    } catch {
+      matchedBan = null;
+    }
 
     if (matchedBan) {
       return json({ error: matchedBan.title || 'This device has been blocked', action: 'ban' }, { status: 403 });
