@@ -345,7 +345,15 @@ async fn install_update_and_restart(
             ) else if exist \"%ProgramFiles%\\Materio\\Materio.exe\" (\r\n\
                 start \"\" \"%ProgramFiles%\\Materio\\Materio.exe\"\r\n\
             )\r\n\
-            del \"{installer}\" 2>nul\r\n\
+            rem Force-delete the downloaded installer. A plain del silently\r\n\
+            rem fails while the file is still locked, which is how a 78MB\r\n\
+            rem installer was left sitting in TEMP after a successful update.\r\n\
+            :cleanup_loop\r\n\
+            del /f /q \"{installer}\" >nul 2>&1\r\n\
+            if exist \"{installer}\" (\r\n\
+                timeout /t 2 /nobreak >nul\r\n\
+                goto cleanup_loop\r\n\
+            )\r\n\
             (goto) 2>nul & del \"%~f0\" 2>nul & exit\r\n",
             pid = current_pid,
             installer = target_installer_str,
@@ -371,9 +379,24 @@ async fn install_update_and_restart(
             }
         }
 
-        // Close and exit the app so the installer can overwrite files
-        app.exit(0);
-        Ok(())
+        // Hard-exit rather than app.exit(0).
+        //
+        // app.exit(0) requests a GRACEFUL shutdown, which must be serviced by
+        // the event loop — but this command blocks that loop for the entire
+        // download (Command::status() is synchronous), so the graceful exit
+        // never completed. The detached updater script was left polling
+        // `tasklist` for this PID forever: the app appeared frozen on
+        // "Updating and Restarting" and only installed once the user closed it
+        // manually. Evidence: the installer had fully downloaded (78MB, valid
+        // v2.1.90 PE) yet the app was still on the old build until closed by
+        // hand, and the installer was left behind because the script's `del`
+        // ran while the file was still locked.
+        //
+        // The installer script handles the actual replacement, so an abrupt
+        // exit is safe here. Give the detached script a moment to start first.
+        let _ = app;
+        std::thread::sleep(std::time::Duration::from_millis(400));
+        std::process::exit(0);
     }
     #[cfg(not(target_os = "windows"))]
     {
