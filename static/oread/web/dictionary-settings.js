@@ -313,8 +313,14 @@
 
     // Card 2 - source
     var c2 = card('Source', 'Where definitions come from.');
+    // "Google" is listed first and is the default. It is the richest source
+    // (Oxford entries: IPA, native-speaker audio, thesaurus, etymology) and the
+    // fastest, and its credential lives in the app server's environment — so the
+    // reader never sees or supplies a key for it. Wiktionary and Custom stay
+    // available; Custom is the BYO slot for a different provider or a personal
+    // key.
     c2.body.appendChild(select(settings, 'provider', 'Provider', [
-      { value: 'auto', label: 'Automatic (race providers)' },
+      { value: 'auto', label: 'Google Dictionary' },
       { value: 'wiktionary', label: 'Wiktionary only' },
       { value: 'custom', label: 'Custom endpoint' }
     ]));

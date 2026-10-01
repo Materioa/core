@@ -5140,6 +5140,31 @@ body.thinkletResizing #thinkletResizeHandle::before {
   font-size: 12px;
 }
 
+/* Toolbar toggle. The button was text-only ("Dictionary"), which is why the icon
+   slot looked empty; it now carries the inline SVG and sits like its neighbours
+   in #toolbarViewerRight. Sized to match the other PDF.js toolbar icons. */
+#dictSettingsButton .materio-dict-toggle-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#dictSettingsButton .materio-dict-toggle-icon > svg {
+  width: 17px;
+  height: 17px;
+  display: block;
+  pointer-events: none;
+}
+
+/* Speaker button on the card: was a bare "▶" text glyph, now an icon, so the
+   button needs explicit box metrics or it collapses to the svg's intrinsic size. */
+#materioDictionaryCard .materio-dict-play > svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+  pointer-events: none;
+}
+
 #materioDictionaryCard .materio-dict-play,
 #materioDictionaryCard .materio-dict-source {
   flex: none;

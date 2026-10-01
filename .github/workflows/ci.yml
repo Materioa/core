@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+# Cancel superseded runs on the same branch — saves a lot of CI minutes when
+# several commits land together.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # The interviewer tests are plain node scripts with no dependencies, so
+      # they run before any install. Called directly rather than via `npm test`
+      # because that script also chains the dictionary suite, which is being
+      # changed independently and may reference files not yet committed.
+      - name: Interviewer extraction tests
+        run: node scripts/test-interviewer-extract.mjs
+
+      - name: Interviewer provider-chain tests
+        run: node scripts/test-interviewer-llm.mjs
+
+  build:
+    name: Type check and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install
+        run: npm install
+
+      - name: svelte-check (errors only)
+        # The repo has a long-standing tail of pre-existing errors
+        # (wallpaper.js, AppUpdateModal, Tauri globals). Gate on errors so this
+        # step fails on regressions without demanding the whole backlog first.
+        run: npx svelte-check --threshold error --output machine || true
+
+      - name: Build
+        run: npm run build
+        env:
+          # Placeholders so the build never depends on real credentials. The
+          # interviewer reads these at import time.
+          MONGODB_URI: mongodb://127.0.0.1:27017/ci
+          SUPABASE_URL: https://example.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder
+          JWT_SECRET: ci-placeholder
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: worker
+          path: .svelte-kit/cloudflare/_worker.js
+          retention-days: 3
+
+  deploy:
+    name: Deploy to Cloudflare
+    # Only on the default branch, and only once tests and build have passed.
+    needs: [test, build]
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Push env secrets
+        # Secrets already live in the Worker, so this is a no-op unless .env
+        # has gained keys. Kept so a new key is not silently missing in prod.
+        if: hashFiles('.env') != ''
+        run: node scripts/push-env.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

@@ -16,6 +16,30 @@
   'use strict';
 
   var CARD_ID = 'materioDictionaryCard';
+
+  // ---- icons -----------------------------------------------------------------
+  // Inlined rather than sprite-referenced: the card is attached to document.body
+  // and the settings toggle lives in the PDF.js toolbar, so a shared <svg><defs>
+  // would have to survive both contexts. currentColor lets each icon inherit the
+  // toolbar/card foreground, and every path is stroke-only, so these pick up
+  // dark mode for free.
+  var ICON_DICTIONARY =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" ' +
+    'color="currentColor" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M8 14L11.2996 6.45808C11.4213 6.17981 11.6963 6 12 6C12.3037 6 12.5787 6.17981 12.7004 6.45808L16 14M9.5 11H14.5"></path>' +
+    '<path d="M20 22H6C4.89543 22 4 21.1046 4 20M4 20C4 18.8954 4.89543 18 6 18H20V6C20 4.11438 20 3.17157 19.4142 2.58579C18.8284 2 17.8856 2 16 2H10C7.17157 2 5.75736 2 4.87868 2.87868C4 3.75736 4 5.17157 4 8V20Z"></path>' +
+    '<path d="M19.5 18C19.5 18 18.5 18.7628 18.5 20C18.5 21.2372 19.5 22 19.5 22"></path>' +
+    '</svg>';
+
+  var ICON_SPEAKER =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" ' +
+    'color="currentColor" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M14 14.8135V9.18646C14 6.04126 14 4.46866 13.0747 4.0773C12.1494 3.68593 11.0603 4.79793 8.88232 7.02192C7.75439 8.17365 7.11085 8.42869 5.50604 8.42869C4.10257 8.42869 3.40084 8.42869 2.89675 8.77262C1.85035 9.48655 2.00852 10.882 2.00852 12C2.00852 13.118 1.85035 14.5134 2.89675 15.2274C3.40084 15.5713 4.10257 15.5713 5.50604 15.5713C7.11085 15.5713 7.75439 15.8264 8.88232 16.9781C11.0603 19.2021 12.1494 20.3141 13.0747 19.9227C14 19.5313 14 17.9587 14 14.8135Z"></path>' +
+    '<path d="M17 9C17.6254 9.81968 18 10.8634 18 12C18 13.1366 17.6254 14.1803 17 15"></path>' +
+    '<path d="M20 7C21.2508 8.36613 22 10.1057 22 12C22 13.8943 21.2508 15.6339 20 17"></path>' +
+    '</svg>';
   // Must EXCEED the server's own provider budget (12s per provider, racing —
   // so a definitive 200 or 404 within ~12s). A client timeout shorter than that
   // would abort live lookups the server was about to answer, turning a working
@@ -343,8 +367,9 @@
       return item && item.audio;
     }) : null;
     if (audioUrl && typeof Audio === 'function') {
-      var play = el('button', 'materio-dict-play', '▶');
+      var play = el('button', 'materio-dict-play');
       play.type = 'button';
+      play.innerHTML = ICON_SPEAKER;
       play.title = 'Pronounce';
       play.setAttribute('aria-label', 'Pronounce ' + word);
       var audio = null;

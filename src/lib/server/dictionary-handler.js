@@ -27,6 +27,70 @@
 
 import { cachedResponse, isCacheableRequest } from './edge-cache.js';
 
+// ---- Google Dictionary extension endpoint ----------------------------------
+// A THIRD provider, enabled only when GOOGLE_DICT_KEY is present in the server
+// env. It is the richest source available here (Oxford entries: IPA, etymology,
+// thesaurus, native-speaker audio) and the fastest, but it is an UNDOCUMENTED
+// Google endpoint whose credential belongs to another product, so it stays
+// opt-in and never required: leave the env var unset and behaviour is exactly as
+// before, and the keyless providers remain in the race so a revocation degrades
+// quality rather than breaking lookups.
+//
+// Two constraints are load-bearing and easy to rediscover the hard way:
+//
+//   1. The key is referrer-restricted, enforced through a bespoke `x-referer`
+//      header (NOT the HTTP Referer). Missing it returns 403
+//      API_KEY_HTTP_REFERRER_BLOCKED; so does any other extension's ID. There is
+//      no proof-of-possession — the value is simply asserted.
+//
+//   2. The endpoint rejects any request carrying an `Origin` header with
+//      400 "Origin doesn't match Host for XD3". That is the entire reason this
+//      lookup lives in the Worker and never in the client: the desktop WebView
+//      (tauri://) and the browser both attach Origin unconditionally, and
+//      neither can be talked out of it.
+//
+// The default below is Google's published Chrome-extension ID; override with
+// GOOGLE_DICT_X_REFERER if Google rotates it.
+const GOOGLE_DICT_ENDPOINT =
+	'https://dictionaryextension-pa.googleapis.com/v2/dictionaryExtensionData';
+const GOOGLE_DICT_DEFAULT_X_REFERER = 'chrome-extension://mgijmajocgfcbeboacabfgobmjgjcoja';
+const GOOGLE_DICT_TIMEOUT_MS = 8000;
+const GOOGLE_DICT_DEFAULT_CORPUS = 'en-US';
+
+/**
+ * Resolves a server-side secret.
+ *
+ * Read lazily through a getter rather than captured at module load: capture
+ * freezes the value at import time, which is wrong for a secret that rotates
+ * between deploys inside a warm isolate. It also keeps this module free of the
+ * `$env/dynamic/private` import — a SvelteKit virtual module that the plain-Node
+ * test scripts in scripts/ cannot resolve, and they import this handler directly.
+ *
+ * Wrangler populates `process.env` from vars AND secrets because the worker
+ * enables `nodejs_compat` (see wrangler.jsonc), so the deployed path and a local
+ * `.env` both land here. `globalThis.env` covers harnesses that inject bindings
+ * without nodejs_compat.
+ */
+function secret(name) {
+	try {
+		return process?.env?.[name] || globalThis?.env?.[name] || '';
+	} catch {
+		return '';
+	}
+}
+
+/** Whether the optional Google provider is configured at all. */
+export function isGoogleDictEnabled() {
+	return !!secret('GOOGLE_DICT_KEY');
+}
+
+function googleDictXReferer() {
+	return secret('GOOGLE_DICT_X_REFERER') || GOOGLE_DICT_DEFAULT_X_REFERER;
+}
+
+/** Corpus values known to work, plus the country hint each implies. */
+const GOOGLE_DICT_CORPUS = { 'en-US': 'US', en: 'UK' };
+
 // A headword never changes meaning on any timescale that matters here.
 const CACHE_TTL_SECONDS = 60 * 60 * 24 * 7;
 
@@ -129,6 +193,16 @@ function uniqueStrings(values, limit) {
 	return out;
 }
 
+/**
+ * The upstream returns protocol-relative audio URLs (`//ssl.gstatic.com/…`).
+ * `new URL()` rejects those — no scheme — so passing one straight to finiteUrl()
+ * silently drops the recording. Normalise to https first, then validate.
+ */
+function httpsUrl(value) {
+	if (typeof value !== 'string' || !value) return '';
+	return value.startsWith('//') ? `https:${value}` : value;
+}
+
 function finiteUrl(value) {
 	if (typeof value !== 'string') return '';
 	try {
@@ -147,7 +221,7 @@ function tidyDefinition(text) {
 	return trimmed;
 }
 
-async function fetchJson(url, timeoutMs, externalController) {
+async function fetchJson(url, timeoutMs, externalController, extraHeaders = null) {
 	const controller = new AbortController();
 	const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -166,7 +240,8 @@ async function fetchJson(url, timeoutMs, externalController) {
 				accept: 'application/json',
 				// Both hosts are Cloudflare-fronted; an explicit UA avoids
 				// their default bot challenge on some edges.
-				'user-agent': 'MaterioDictionary/1.0 (+https://getmaterio.app)'
+				'user-agent': 'MaterioDictionary/1.0 (+https://getmaterio.app)',
+				...(extraHeaders || {})
 			}
 		});
 		if (!response.ok) return null;
@@ -259,6 +334,218 @@ function fromDictionaryApi(payload, word) {
 	};
 }
 
+/**
+ * Builds the Google endpoint URL.
+ *
+ * `corpus` reads like an optional extra but is NOT: omitting it returns the
+ * 20-byte { "status": 404 } miss envelope (verified live), so it is always sent.
+ * `language` only matters for translation mode. `strategy` must be 0, 1 or 2 —
+ * any other value is a 400 enum error — and all three return identical data.
+ */
+function googleDictUrl(word, options = {}) {
+	const language = options.language || 'en';
+	const corpus = options.corpus || GOOGLE_DICT_DEFAULT_CORPUS;
+	const url = new URL(GOOGLE_DICT_ENDPOINT);
+	url.searchParams.set('term', word);
+	url.searchParams.set('language', language);
+	url.searchParams.set('corpus', corpus);
+	const country = GOOGLE_DICT_CORPUS[corpus];
+	if (country) url.searchParams.set('country', country);
+	url.searchParams.set('strategy', '2');
+	url.searchParams.set('key', secret('GOOGLE_DICT_KEY'));
+	return url.toString();
+}
+
+/**
+ * dictionaryextension-pa → the app's own normalised shape.
+ *
+ * Same upstream the BYO slot can be pointed at, but with the credential supplied
+ * by the server env rather than the client, so this path IS cacheable and the key
+ * never reaches a shipped binary.
+ *
+ * Deliberately permissive: the endpoint is undocumented and can change without
+ * notice, so every field is probed defensively and an unrecognised body yields
+ * "no definition" rather than throwing.
+ */
+function fromGoogleDict(payload, word, options = {}) {
+	if (!payload || typeof payload !== 'object') return null;
+
+	// A MISS ARRIVES AS HTTP 200 with a 20-byte { "status": 404 } body, so the
+	// HTTP status proves nothing. The envelope's own `status` is the only
+	// reliable hit/miss signal, and an absent payload here must mean "not
+	// found" — never "fall through and try another provider".
+	if (payload.status !== 200) return null;
+
+	const dictionaryData = Array.isArray(payload.dictionaryData) ? payload.dictionaryData[0] : null;
+
+	if (dictionaryData && !dictionaryData.error) {
+		const entry = Array.isArray(dictionaryData.entries) ? dictionaryData.entries[0] : null;
+		const groups = entry && Array.isArray(entry.senseFamilies) ? entry.senseFamilies : [];
+
+		const meanings = [];
+		for (const family of groups) {
+			if (!family || !Array.isArray(family.senses)) continue;
+
+			// The API field is `partsOfSpeech`, an array of { value } objects.
+			// (The upstream extension's own template asks for `partsOfSpeechs`,
+			// which never matches, so its POS label silently never renders — do
+			// not copy that name.)
+			const posList = Array.isArray(family.partsOfSpeech) ? family.partsOfSpeech : [];
+			const pos = htmlToText(posList.find(p => p?.value)?.value || '');
+
+			const definitions = [];
+			for (const sense of family.senses) {
+				const text = tidyDefinition(sense?.definition?.text || '');
+				if (!text) continue;
+
+				// One usage example per sense, when the corpus carries any.
+				let example = '';
+				for (const group of Array.isArray(sense.exampleGroups) ? sense.exampleGroups : []) {
+					const found = (Array.isArray(group?.examples) ? group.examples : [])
+						.map(htmlToText)
+						.find(Boolean);
+					if (found) {
+						example = clampString(found, 200);
+						break;
+					}
+				}
+
+				// Thesaurus sits on the sense, not the family, and only some
+				// senses carry it.
+				const nyms = [];
+				for (const thesaurus of Array.isArray(sense.thesaurusEntries) ? sense.thesaurusEntries : []) {
+					for (const syn of Array.isArray(thesaurus?.synonyms) ? thesaurus.synonyms : []) {
+						for (const nym of Array.isArray(syn?.nyms) ? syn.nyms : []) {
+							const label = htmlToText(nym?.nym || '');
+							if (label) nyms.push(label);
+						}
+					}
+				}
+
+				definitions.push({
+					definition: text,
+					example,
+					synonyms: uniqueStrings(nyms, MAX_SYNONYMS),
+					antonyms: []
+				});
+				if (definitions.length >= MAX_DEFINITIONS_PER_POS) break;
+			}
+
+			if (!definitions.length) continue;
+			// Fall back to a generic label rather than skipping: the card draws a
+			// POS heading per group, so dropping one would strand its definitions
+			// under no heading at all.
+			meanings.push({
+				partOfSpeech: pos || 'definition',
+				definitions,
+				synonyms: [],
+				antonyms: []
+			});
+			if (meanings.length >= MAX_POS_GROUPS) break;
+		}
+
+		// Last resort: a scraped web definition when no licensed entry applied.
+		if (!meanings.length) {
+			const web = Array.isArray(dictionaryData.webDefinitions) ? dictionaryData.webDefinitions[0] : null;
+			const text = tidyDefinition(web?.definition || '');
+			if (text) {
+				meanings.push({
+					partOfSpeech: 'definition',
+					definitions: [{ definition: text, example: '', synonyms: [], antonyms: [] }],
+					synonyms: [],
+					antonyms: []
+				});
+			}
+		}
+
+		if (!meanings.length) return null;
+
+		// Phonetics live on the entry; audio URLs arrive protocol-relative.
+		const phonetics = [];
+		for (const item of Array.isArray(entry?.phonetics) ? entry.phonetics : []) {
+			if (!item || typeof item !== 'object') continue;
+			const text = typeof item.text === 'string' ? item.text : '';
+			const audio = finiteUrl(httpsUrl(item.oxfordAudio || ''));
+			if ((!text && !audio) || phonetics.some(p => p.text === text && p.audio === audio)) continue;
+			phonetics.push({ text, audio });
+			if (phonetics.length >= 4) break;
+		}
+
+		// In translation mode the only recording sits at the top level.
+		const topAudio = finiteUrl(httpsUrl(payload.oxfordAudio || ''));
+		if (topAudio && !phonetics.some(p => p.audio === topAudio)) {
+			phonetics.unshift({ text: '', audio: topAudio });
+		}
+
+		const sourceUrl =
+			options.language && options.language !== 'en'
+				? `https://translate.google.com/?sl=auto&tl=${encodeURIComponent(options.language)}&text=${encodeURIComponent(word)}`
+				: `https://www.google.com/search?q=${encodeURIComponent(`define ${word}`)}`;
+
+		return {
+			word: typeof entry?.headword === 'string' && entry.headword ? entry.headword : word,
+			// Prefer an IPA that actually has audio so the play button is never dead.
+			phonetic: (phonetics.find(p => p.text && p.audio) || phonetics.find(p => p.text) || {}).text || '',
+			phonetics: phonetics.slice(0, 5),
+			sourceUrl,
+			meanings
+		};
+	}
+
+	// Translation-shaped response: surface it as a single "translation" sense so
+	// the same card renders it without a second code path.
+	const translation = payload.translateResponse;
+	if (translation && typeof translation === 'object') {
+		const text = clampString(htmlToText(translation.translateText || ''), MAX_DEFINITION_CHARS);
+		if (!text) return null;
+
+		// uniqueStrings() takes plain strings, not objects.
+		const terms = Array.isArray(translation.bilingualDictionary)
+			? translation.bilingualDictionary.flatMap(entry =>
+				(Array.isArray(entry?.terms) ? entry.terms : [])
+			)
+			: [];
+
+		const audio = finiteUrl(httpsUrl(payload.oxfordAudio || ''));
+		const detected = htmlToText(translation.detectedSourceLanguage || 'auto');
+		const target = htmlToText(translation.outputLanguage || options.language || '');
+
+		return {
+			word,
+			phonetic: '',
+			phonetics: audio ? [{ text: '', audio }] : [],
+			sourceUrl: target
+				? `https://translate.google.com/?sl=${encodeURIComponent(detected)}&tl=${encodeURIComponent(target)}&text=${encodeURIComponent(word)}`
+				: '',
+			meanings: [{
+				partOfSpeech: 'translation',
+				definitions: [{ definition: text, example: '', synonyms: [], antonyms: [] }],
+				synonyms: [],
+				antonyms: []
+			}],
+			translationTerms: uniqueStrings(terms, MAX_SYNONYMS)
+		};
+	}
+
+	return null;
+}
+
+/**
+ * Normalises a raw upstream payload, exported for tests.
+ *
+ * The parsing rules are the only part of this provider that encodes upstream
+ * quirks — protocol-relative audio, the 200-with-404-body miss, `partsOfSpeech`
+ * naming — and they have to be verifiable without a live key in CI.
+ */
+export function parseGoogleDict(payload, word, options = {}) {
+	return fromGoogleDict(payload, word, options);
+}
+
+/** Builds the upstream URL for a word, exported alongside the parser for tests. */
+export function buildGoogleDictUrl(word, options = {}) {
+	return googleDictUrl(word, options);
+}
+
 /** en.wiktionary.org REST → the app's own normalised shape. */
 function fromWiktionary(payload, word) {
 	const entries = Array.isArray(payload?.en) ? payload.en : [];
@@ -309,7 +596,7 @@ function fromWiktionary(payload, word) {
  * A word missing from BOTH must not resolve early on the first rejection, so
  * the race waits for every source to settle before concluding "not found".
  */
-async function lookup(word) {
+async function lookup(word, options = {}) {
 	const sources = [
 		{
 			provider: 'dictionaryapi.dev',
@@ -325,6 +612,25 @@ async function lookup(word) {
 		}
 	];
 
+	// Google is tried BEFORE the race, not raced alongside it, so the answer is
+	// deterministic. Racing it meant Wiktionary (which answers in ~4s) frequently
+	// won despite Google being both richer and faster, and the card then rendered
+	// without audio or phonetics — the exact content this provider exists for.
+	// A miss or a failure here just falls through to the race below, which is what
+	// keeps a revoked key or a Google-side change from becoming a blank tooltip.
+	if (isGoogleDictEnabled()) {
+		const google = await fetchJson(
+			googleDictUrl(word, options),
+			GOOGLE_DICT_TIMEOUT_MS,
+			null,
+			// NOT a forbidden header name, so it is settable from here; it is the
+			// only thing that satisfies the key's referrer restriction.
+			{ 'x-referer': googleDictXReferer() }
+		);
+		const data = fromGoogleDict(google, word, options);
+		if (data) return { data, provider: 'google' };
+	}
+
 	const controllers = sources.map(() =>
 		typeof AbortController === 'function' ? new AbortController() : null
 	);
@@ -336,7 +642,7 @@ async function lookup(word) {
 	});
 
 	const attempts = sources.map(async (source, index) => {
-		const payload = await fetchJson(source.url, source.timeoutMs, controllers[index]);
+		const payload = await fetchJson(source.url, source.timeoutMs, controllers[index], source.headers);
 		const data = source.parse(payload, word);
 		if (data && !winner) {
 			winner = { data, provider: source.provider };
@@ -370,8 +676,39 @@ function jsonResponse(body, status, extraHeaders = {}) {
 	});
 }
 
+/**
+ * Language/corpus hints for the Google source, read from the query string.
+ *
+ * Validated against a shape test rather than passed through: these become query
+ * params on an upstream URL, and an unvalidated string there is a
+ * parameter-injection surface on what is effectively a server-side proxy.
+ */
+function googleOptionsFromQuery(url) {
+	const language = url.searchParams.get('glang') || '';
+	const corpus = url.searchParams.get('gcorpus') || '';
+	return {
+		language: /^[a-z]{2,3}(-[a-z]{2})?$/i.test(language) ? language : 'en',
+		corpus: /^[a-z]{2}(-[a-z]{2})?$/i.test(corpus) ? corpus : GOOGLE_DICT_DEFAULT_CORPUS
+	};
+}
+
 export async function handleDictionaryGet(event) {
 	const url = new URL(event.request.url);
+
+	// Advertise whether the optional richer provider is available, so the client
+	// can offer it without shipping a key or probing blind. Checked BEFORE word
+	// validation because it carries no word — validating first made the endpoint
+	// unreachable, always answering 400.
+	if (url.searchParams.get('capabilities') === '1') {
+		return jsonResponse({
+			ok: true,
+			providers: ['dictionaryapi.dev', 'wiktionary'],
+			google: isGoogleDictEnabled()
+				? { enabled: true, corpus: GOOGLE_DICT_DEFAULT_CORPUS }
+				: { enabled: false }
+		});
+	}
+
 	const word = normalizeWord(url.searchParams.get('word') || '');
 
 	if (!word) {
@@ -381,10 +718,12 @@ export async function handleDictionaryGet(event) {
 		);
 	}
 
+	const options = googleOptionsFromQuery(url);
+
 	if (!isCacheableRequest(event.request, event.request.url)) {
 		// Only reachable for an authenticated caller; skip the shared cache
 		// rather than risk serving one user's answer from another's cache slot.
-		const result = await lookup(word);
+		const result = await lookup(word, options);
 		if (!result) {
 			return jsonResponse({ ok: false, error: 'not_found', word }, 404);
 		}
@@ -392,7 +731,7 @@ export async function handleDictionaryGet(event) {
 	}
 
 	const cached = await cachedResponse(event.request, CACHE_TTL_SECONDS, async () => {
-		const result = await lookup(word);
+		const result = await lookup(word, options);
 		if (!result) {
 			// 404 deliberately left uncached by cachedResponse, so a word that
 			// gains an entry later is not pinned as missing for a week.
@@ -465,6 +804,12 @@ function safeUpstreamUrl(raw) {
 function parseCustomPayload(payload, word) {
 	if (!payload || typeof payload !== 'object') return null;
 
+	// A MISS ARRIVES AS HTTP 200 with { "status": 404 }. Without this check the
+	// function fell through to `return null` at the end, which reads as "no
+	// definition" — indistinguishable from a real miss, and it silently discarded
+	// any payload shape this parser did not recognise.
+	if (payload.status !== 200) return null;
+
 	const meanings = [];
 	const dictionaryData = Array.isArray(payload.dictionaryData) ? payload.dictionaryData[0] : null;
 
@@ -486,9 +831,16 @@ function parseCustomPayload(payload, word) {
 				});
 				if (definitions.length >= MAX_DEFINITIONS_PER_POS) break;
 			}
-			const pos = htmlToText(family.partOfSpeechs?.[0]?.partOfSpeech || '');
-			if (definitions.length && pos) {
-				meanings.push({ partOfSpeech: pos, definitions, synonyms: [], antonyms: [] });
+			// The API field is `partsOfSpeech` — an array of { value }. Reading
+			// `partOfSpeechs` (as this previously did) always produced '', and the
+			// `&& pos` guard then dropped EVERY sense group, so the custom path
+			// reported "no definition" for this endpoint whatever it returned.
+			const posList = Array.isArray(family.partsOfSpeech) ? family.partsOfSpeech : [];
+			const pos = htmlToText(posList.find(p => p?.value)?.value || '');
+			// Fall back rather than skip, so a corpus that omits a POS tag still
+			// renders its definitions.
+			if (definitions.length) {
+				meanings.push({ partOfSpeech: pos || 'definition', definitions, synonyms: [], antonyms: [] });
 			}
 		}
 
@@ -515,16 +867,14 @@ function parseCustomPayload(payload, word) {
 		for (const item of candidates) {
 			if (!item || typeof item !== 'object') continue;
 			const text = typeof item.text === 'string' ? item.text : '';
-			const audio = finiteUrl(
-				typeof item.oxfordAudio === 'string' ? 'https:' + item.oxfordAudio : item.oxfordAudio || ''
-			);
+			// oxfordAudio is protocol-relative ("//ssl.gstatic.com/…"), which
+			// new URL() rejects. Normalise before validating.
+			const audio = finiteUrl(httpsUrl(item.oxfordAudio || ''));
 			if ((!text && !audio) || phonetics.some(p => p.text === text && p.audio === audio)) continue;
 			phonetics.push({ text, audio });
 			if (phonetics.length >= 4) break;
 		}
-		const topAudio = finiteUrl(
-			typeof payload.oxfordAudio === 'string' ? 'https:' + payload.oxfordAudio : payload.oxfordAudio || ''
-		);
+		const topAudio = finiteUrl(httpsUrl(payload.oxfordAudio || ''));
 		if (topAudio) phonetics.unshift({ text: '', audio: topAudio });
 
 		return {
