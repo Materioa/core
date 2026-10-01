@@ -48,6 +48,12 @@
     // 'auto' races the built-in providers; 'wiktionary' pins one;
     // 'custom' uses the slot above.
     provider: 'auto',
+    // Translation mode for the Google provider. 'off' looks the word up in the
+    // corpus's own language; any language code asks for a translation instead
+    // (the endpoint answers with translateResponse). Empty corpus value means
+    // "derive it from the language" — en -> en-US, en-uk -> en.
+    translateTo: 'off',
+    corpus: '',
     maxDefinitions: 3,
     showExamples: true,
     showSynonyms: true,
@@ -267,6 +273,29 @@
     return row(label, sel, hint);
   }
 
+  /**
+   * A free-text field for a TOP-LEVEL setting.
+   *
+   * textInput() always writes into `custom[...]`, which is right for the BYO
+   * slot but wrong for the corpus field, which is a first-class setting shared
+   * with the Google provider. Without this the corpus value was unreachable.
+   */
+  function topInput(settings, key, label, placeholder, hint) {
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'dict-input';
+    input.value = settings[key] || '';
+    input.placeholder = placeholder || '';
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    input.addEventListener('change', function () {
+      var patch = {};
+      patch[key] = input.value.trim();
+      set(patch);
+    });
+    return row(label, input, hint);
+  }
+
   function textInput(settings, path, label, placeholder, hint) {
     var input = document.createElement('input');
     input.type = 'text';
@@ -324,6 +353,34 @@
       { value: 'wiktionary', label: 'Wiktionary only' },
       { value: 'custom', label: 'Custom endpoint' }
     ]));
+
+    // Translation controls. These apply to the Google provider, so they live
+    // OUTSIDE the Custom box — previously language/corpus existed only in the
+    // Custom slot, which is hidden unless provider === 'custom', and dictionary.js
+    // never sent them anyway. So there was no way to reach translation at all.
+    var translateBox = el('div', 'dict-translate');
+    translateBox.appendChild(select(settings, 'translateTo', 'Translate into', [
+      { value: 'off', label: 'Off — define in the corpus language' },
+      { value: 'es', label: 'Spanish' },
+      { value: 'fr', label: 'French' },
+      { value: 'de', label: 'German' },
+      { value: 'it', label: 'Italian' },
+      { value: 'pt', label: 'Portuguese' },
+      { value: 'ru', label: 'Russian' },
+      { value: 'ja', label: 'Japanese' },
+      { value: 'ko', label: 'Korean' },
+      { value: 'zh', label: 'Chinese' },
+      { value: 'ar', label: 'Arabic' },
+      { value: 'hi', label: 'Hindi' }
+    ], 'The Google endpoint returns a translation instead of a definition. Other providers are unaffected.'));
+
+    // Corpus only matters when not translating — with a translation target the
+    // endpoint picks its own corpus, so showing it would be misleading.
+    var corpusBox = el('div');
+    corpusBox.appendChild(topInput(settings, 'corpus', 'Corpus (no translation)',
+      'en-US, or en for UK spelling'));
+    translateBox.appendChild(corpusBox);
+    c2.body.appendChild(translateBox);
 
     var customBox = el('div', 'dict-custom');
     customBox.hidden = settings.provider !== 'custom';
@@ -424,6 +481,10 @@
     var settings = get();
     var customBox = panel.querySelector('.dict-custom');
     if (customBox) customBox.hidden = settings.provider !== 'custom';
+    // Corpus is only meaningful when NOT translating — with a target language
+    // the endpoint picks its own corpus.
+    var corpusRow = panel.querySelector('.dict-translate > div:last-child');
+    if (corpusRow) corpusRow.hidden = !!(settings.translateTo && settings.translateTo !== 'off');
   }
 
   function isOpen() {

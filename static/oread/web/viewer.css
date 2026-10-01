@@ -3024,6 +3024,14 @@
 
 :is(:is(:is(.annotationEditorLayer :is(.freeTextEditor, .inkEditor, .stampEditor, .highlightEditor, .signatureEditor), .textLayer) .editToolbar) .buttons) .delete {
   width: var(--editor-toolbar-height);
+  /* Only the width was set. The icon is a ::before with width:100%/height:100%,
+     so with no height on the button that collapsed to 0 and the trash glyph had
+     no box to paint into — which is why the delete control in the highlight /
+     annotation toolbar rendered as nothing at all. */
+  height: var(--editor-toolbar-height);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 :is(:is(:is(:is(.annotationEditorLayer :is(.freeTextEditor, .inkEditor, .stampEditor, .highlightEditor, .signatureEditor), .textLayer) .editToolbar) .buttons) .delete)::before {
@@ -5065,6 +5073,16 @@ body.thinkletResizing #thinkletResizeHandle::before {
   box-sizing: border-box;
   width: max-content;
   max-width: min(340px, calc(100vw - 24px));
+  /* A big word ("flow") returns many senses, and an unbounded card grew tall
+     enough to run off the top of the window — the header and the anchor word
+     both ended up above the viewport, so the tooltip no longer read as
+     attached to what it describes. Cap the height and let the body scroll
+     instead. positionCard() sizes against this, so the arrow still lands on
+     the word rather than on a card taller than the screen. */
+  max-height: min(420px, calc(100vh - 2 * var(--dict-card-viewport-margin, 8px)));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 12px 14px;
   border: 1px solid var(--doorhanger-border-color);
   border-radius: 10px;
@@ -5128,10 +5146,25 @@ body.thinkletResizing #thinkletResizeHandle::before {
   gap: 8px;
 }
 
+/* The scrollable region. Flex child with min-height:0 so it can actually
+   shrink below its content height inside the capped card — without min-height:0
+   a flex item refuses to shrink and the card just overflows anyway. */
+#materioDictionaryCard .materio-dict-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
+}
+
 #materioDictionaryCard .materio-dict-word {
   font-size: 15px;
   font-weight: 700;
   overflow-wrap: anywhere;
+}
+
+/* The head (word, phonetic, speaker, source) stays pinned while the meanings
+   scroll under it, so the word you selected is always readable. */
+#materioDictionaryCard .materio-dict-head {
+  flex: none;
 }
 
 #materioDictionaryCard .materio-dict-phonetic {

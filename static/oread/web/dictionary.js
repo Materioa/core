@@ -139,6 +139,21 @@
   }
 
   function dictionaryUrl(word) {
+    // Language/corpus hints for the Google provider. The endpoint decides
+    // definition vs. translation from `language`, and picks the dictionary
+    // variant from `corpus`, so both are only sent when they differ from the
+    // defaults — keeping the common case byte-identical to what it always was.
+    //
+    // `corpus` is NOT optional in practice even though it reads like one:
+    // omitting it returns the 20-byte miss envelope, so the server defaults it.
+    var extra = '';
+    try {
+      var cfg = config();
+      var target = cfg.translateTo && cfg.translateTo !== 'off' ? cfg.translateTo : '';
+      if (target) extra += '&glang=' + encodeURIComponent(target);
+      else if (cfg.corpus) extra += '&gcorpus=' + encodeURIComponent(cfg.corpus);
+    } catch (e) { /* no hints; the server defaults apply */ }
+
     // In native shells there is no same-origin backend (tauri://,
     // capacitor://), so a relative path 404s against the static asset server.
     // Resolve the absolute production API exactly like thinklet.js does for
@@ -149,9 +164,9 @@
       var isNative = h === 'tauri.localhost' || h === 'capacitor.localhost' ||
         p === 'tauri:' || p === 'capacitor:' ||
         (h === 'localhost' && window.location.port !== '5173');
-      if (isNative) return 'https://getmaterio.app/api/v2/dictionary?word=' + encodeURIComponent(word);
+      if (isNative) return 'https://getmaterio.app/api/v2/dictionary?word=' + encodeURIComponent(word) + extra;
     } catch (e) { /* fall through to the relative URL */ }
-    return '/api/v2/dictionary?word=' + encodeURIComponent(word);
+    return '/api/v2/dictionary?word=' + encodeURIComponent(word) + extra;
   }
 
   /**

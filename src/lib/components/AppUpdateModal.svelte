@@ -307,7 +307,10 @@
 	:global(body.coffee-dark-mode) .leaderboard-nudge-image,
 	:global(body.amoled-mode) .leaderboard-nudge-image,
 	:global(html.dark) .leaderboard-nudge-image {
-		filter: invert(1);
+		/* brightness(0) before invert() so the flip is luminance-only. A bare
+		   invert(1) reverses hue as well, and greet.webp is an illustration,
+		   not an icon authored for inversion. */
+		filter: brightness(0) invert(1);
 	}
 
 	.leaderboard-nudge-content {

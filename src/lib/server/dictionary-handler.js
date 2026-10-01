@@ -716,10 +716,22 @@ function jsonResponse(body, status, extraHeaders = {}) {
 function googleOptionsFromQuery(url) {
 	const language = url.searchParams.get('glang') || '';
 	const corpus = url.searchParams.get('gcorpus') || '';
-	return {
-		language: /^[a-z]{2,3}(-[a-z]{2})?$/i.test(language) ? language : 'en',
-		corpus: /^[a-z]{2}(-[a-z]{2})?$/i.test(corpus) ? corpus : GOOGLE_DICT_DEFAULT_CORPUS
-	};
+	const lang = /^[a-z]{2,3}(-[a-z]{2})?$/i.test(language) ? language : 'en';
+	const explicitCorpus = /^[a-z]{2}(-[a-z]{2})?$/i.test(corpus) ? corpus : '';
+
+	// When translating, `corpus` must follow the TARGET language.
+	//
+	// Sending language=es together with the default corpus of en-US asks for
+	// "hello in the US English dictionary", which HITS and returns a definition —
+	// so translation silently never happened. The upstream only returns
+	// translateResponse when the target language is not the corpus it looks in.
+	let resolved = explicitCorpus;
+	if (!resolved) {
+		// en-uk maps to corpus "en" (UK spelling); every other code is its own
+		// corpus, which the upstream accepts for the languages it carries.
+		resolved = lang === 'en-uk' ? 'en' : lang;
+	}
+	return { language: lang, corpus: resolved };
 }
 
 export async function handleDictionaryGet(event) {

@@ -14,12 +14,14 @@
 		version: 'v2.1.49',
 		windows: {
 			name: 'Materio_2.1.49_x64-setup.exe',
+			version: 'v2.1.49',
 			downloadUrl: 'https://github.com/Materioa/core/releases/download/v2.1.49/Materio_2.1.49_x64-setup.exe',
 			msiUrl: 'https://github.com/Materioa/core/releases/download/v2.1.49/Materio_2.1.49_x64_en-US.msi',
 			size: '48.5 MB'
 		},
 		android: {
 			name: 'Materio_2.1.49_arm64.apk',
+			version: 'v2.1.49',
 			downloadUrl: 'https://github.com/Materioa/core/releases/download/v2.1.49/Materio_2.1.49_arm64.apk',
 			size: '55.0 MB'
 		}
@@ -38,10 +40,16 @@
 					if (d.windows?.available !== false && d.windows?.downloadUrl) releaseData.windows.downloadUrl = d.windows.downloadUrl;
 					if (d.windows?.msiUrl) releaseData.windows.msiUrl = d.windows.msiUrl;
 					if (d.windows?.size) releaseData.windows.size = d.windows.size;
+					// `name` and `version` were never assigned here, so the asset
+					// filename and version string stayed frozen at whatever was
+					// hardcoded above (v2.1.49) no matter what the API returned.
+					if (d.windows?.name) releaseData.windows.name = d.windows.name;
+					if (d.windows?.version) releaseData.windows.version = d.windows.version;
 					// Only overwrite the APK link when this release actually
 					// ships one — otherwise the button would 404.
 					if (d.android?.available !== false && d.android?.downloadUrl) releaseData.android.downloadUrl = d.android.downloadUrl;
 					if (d.android?.available !== false && d.android?.size) releaseData.android.size = d.android.size;
+					if (d.android?.available !== false && d.android?.name) releaseData.android.name = d.android.name;
 					if (d.version) releaseData.version = d.version;
 				}
 			})
@@ -130,6 +138,12 @@
 					<div class="mt-4">
 						<h2 class="font-heading text-2xl sm:text-3xl font-semibold tracking-tight text-cream-dark">
 							Windows
+							<!-- Per-platform version. Releases here are frequently
+							     single-platform, so the top-level version is the
+							     newest build of EITHER app and does not describe this
+							     card — showing it on both put a Windows version next to
+							     an APK from an older release. -->
+							<span class="align-middle text-base font-sans font-normal text-neutral-400 ml-2">{releaseData.windows.version || releaseData.version}</span>
 						</h2>
 						<p class="font-sans text-[14.5px] leading-relaxed text-neutral-500 mt-2">
 							Native desktop app with offline study vault, instant search, and integrated local MCP server.
@@ -173,6 +187,10 @@
 					<div class="mt-4">
 						<h2 class="font-heading text-2xl sm:text-3xl font-semibold tracking-tight text-cream-dark">
 							Android
+							<!-- See the Windows card: each platform gets its own
+							     version, resolved server-side as "newest release that
+							     actually shipped this platform's asset". -->
+							<span class="align-middle text-base font-sans font-normal text-neutral-400 ml-2">{releaseData.android.version || releaseData.version}</span>
 						</h2>
 						<p class="font-sans text-[14.5px] leading-relaxed text-neutral-500 mt-2">
 							Fast, pocket-sized study companion with full offline caching, gestures, and dark mode reading.

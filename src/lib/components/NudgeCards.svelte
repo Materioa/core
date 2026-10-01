@@ -316,7 +316,13 @@
 	:global(body.dark-mode) .leaderboard-nudge-image,
 	:global(body.coffee-dark-mode) .leaderboard-nudge-image,
 	:global(body.amoled-mode) .leaderboard-nudge-image {
-		filter: invert(1);
+		/* brightness(0) first flattens every channel to black, so the invert
+		   that follows has no hue left to reverse. A plain invert(1) is a
+		   whole-image transform: it also flips colour, and these are .webp
+		   illustrations rather than icons authored for inversion, so the
+		   artwork came out with its colours reversed (the offline nudge's green
+		   icon rendered magenta). */
+		filter: brightness(0) invert(1);
 	}
 
 	.leaderboard-nudge-content {

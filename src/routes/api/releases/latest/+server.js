@@ -91,23 +91,70 @@ export async function GET({ fetch, platform }) {
 			const pubDate = data.published_at || new Date().toISOString();
 
 			const assetName = (a) => (a && a.name) || '';
-			const winSetup = data.assets?.find(a => /materio_.*_x64-setup\.exe/i.test(assetName(a)))
-				|| data.assets?.find(a => assetName(a) === 'Materio-Windows-Setup.exe' || assetName(a).includes('-setup.exe'));
-			const winMsi = data.assets?.find(a => assetName(a).endsWith('.msi'));
-			const winStandalone = data.assets?.find(a => assetName(a).includes('Standalone') || (assetName(a).endsWith('.exe') && !assetName(a).includes('-setup')));
-			const apkAsset = data.assets?.find(a => /materio_.*_arm64\.apk/i.test(assetName(a)))
-				|| data.assets?.find(a => assetName(a) === 'Materio-Android.apk')
-				|| data.assets?.find(a => assetName(a).endsWith('.apk') && !assetName(a).includes('debug'));
+			const pickWindows = (release) => {
+				const assets = release?.assets || [];
+				const setup = assets.find(a => /materio_.*_x64-setup\.exe/i.test(assetName(a)))
+					|| assets.find(a => assetName(a) === 'Materio-Windows-Setup.exe' || assetName(a).includes('-setup.exe'));
+				const msi = assets.find(a => assetName(a).endsWith('.msi'));
+				const standalone = assets.find(a => assetName(a).includes('Standalone')
+					|| (assetName(a).endsWith('.exe') && !assetName(a).includes('-setup')));
+				return { primary: setup || msi || standalone, msi, standalone };
+			};
+			const pickApk = (release) => {
+				const assets = release?.assets || [];
+				return assets.find(a => /materio_.*_arm64\.apk/i.test(assetName(a)))
+					|| assets.find(a => assetName(a) === 'Materio-Android.apk')
+					|| assets.find(a => assetName(a).endsWith('.apk') && !assetName(a).includes('debug'));
+			};
 
-			const primaryWin = winSetup || winMsi || winStandalone;
+			const win = pickWindows(data);
+			const winSetup = win.primary;
+			const winMsi = win.msi;
+			const winStandalone = win.standalone;
+			const primaryWin = winSetup;
 
-			// Per-platform availability: a release may ship only one platform
-			// (e.g. v2.1.46 was Windows-only). Never fabricate a download URL
-			// for a platform whose asset is absent — a guessed URL 404s to a
-			// GitHub HTML page, which the Android installer then rejects as
-			// "package invalid". Absent asset => available:false, url:null.
+			let apkAsset = pickApk(data);
+			let apkRelease = data;
+
+			// `releases/latest` is the newest release of ANY kind, and releases here
+			// are routinely single-platform: the Windows-only builds ship an .exe +
+			// .msi and no .apk. Reporting that as "Android unavailable" left the
+			// downloads page pointing at whatever hardcoded APK it fell back to
+			// (v2.1.49), while the newest real Android build was v2.1.92 and the
+			// page never learned it existed.
+			//
+			// So when the newest release has no APK, walk back through recent
+			// releases and use the newest one that actually shipped an APK. The two
+			// cards then each show their own real, current version — which is the
+			// point of having per-platform sections at all.
+			if (!apkAsset) {
+				try {
+					const listRes = await fetch(
+						`https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=30`,
+						{ headers: reqHeaders }
+					);
+					if (listRes.ok) {
+						for (const candidate of await listRes.json()) {
+							if (candidate?.draft) continue;
+							const found = pickApk(candidate);
+							if (found) {
+								apkAsset = found;
+								apkRelease = candidate;
+								break;
+							}
+						}
+					}
+				} catch (err) {
+					// A lookup failure here only costs Android freshness; the
+					// Windows answer is already resolved and must not be lost.
+					console.warn('Failed to scan for the latest APK release:', err);
+				}
+			}
+
 			const winAvailable = Boolean(primaryWin?.browser_download_url);
 			const apkAvailable = Boolean(apkAsset?.browser_download_url);
+			const apkVersion = apkRelease?.tag_name || version;
+			const apkDate = apkRelease?.published_at || pubDate;
 
 			const releasePayload = {
 				version,
@@ -123,7 +170,8 @@ export async function GET({ fetch, platform }) {
 					},
 					'android-arm64': {
 						url: apkAsset?.browser_download_url || null,
-						available: apkAvailable
+						available: apkAvailable,
+						version: apkVersion
 					}
 				},
 				windows: {
@@ -138,10 +186,13 @@ export async function GET({ fetch, platform }) {
 				},
 				android: {
 					name: apkAsset?.name || null,
-					version: apkAvailable ? version : null,
+					// Its own release's version, not the top-level one: on a
+					// Windows-only release these legitimately differ.
+					version: apkAvailable ? apkVersion : null,
 					available: apkAvailable,
 					downloadUrl: apkAsset?.browser_download_url || null,
 					size: apkAsset ? formatBytes(apkAsset.size) : null,
+					pub_date: apkDate,
 					format: 'APK'
 				}
 			};

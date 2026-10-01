@@ -9100,6 +9100,11 @@ body.dark-mode .update-btn:hover i {
     height: 8px;
     background: var(--color-primary-alt);
     border-radius: var(--radius-circle);
+    /* Without an explicit stacking hint the ::after sits behind the <a>'s own
+       background/icon layer and the dot is invisible even though the button
+       clearly has the has-update class. */
+    z-index: 1;
+    pointer-events: none;
 }
 
 /* Notification Badge Style */
