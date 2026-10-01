@@ -408,8 +408,239 @@ export async function handleDictionaryOptions(event) {
 	return new Response(null, {
 		status: 204,
 		headers: {
-			'access-control-allow-methods': 'GET, OPTIONS',
+			'access-control-allow-methods': 'GET, POST, OPTIONS',
 			'access-control-max-age': '86400'
 		}
 	});
+}
+
+// ---- user-configured provider ---------------------------------------------
+// A BYO slot: the client sends its own base URL, key and parameter names, and
+// this handler performs the upstream fetch. Two reasons it cannot happen in the
+// browser: the Worker is the only place with no `Origin` header (this class of
+// endpoint rejects any request carrying one), and the credential never has to
+// be embedded in a shipped binary.
+//
+// This endpoint is DELIBERATELY never cached and never logged with its body. A
+// cached response keyed on someone else's credential would be a cross-tenant
+// leak, so the edge cache is bypassed entirely for this path.
+
+const CUSTOM_TIMEOUT_MS = 12000;
+const CUSTOM_PARAM_KEYS = [
+	'termParam', 'languageParam', 'corpusParam', 'countryParam', 'strategyParam', 'keyParam'
+];
+
+/** Only http(s) URLs are proxied, and never a loopback/link-local address. */
+function safeUpstreamUrl(raw) {
+	if (typeof raw !== 'string' || !raw) return null;
+	let url;
+	try {
+		url = new URL(raw);
+	} catch {
+		return null;
+	}
+	if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+
+	const host = url.hostname.toLowerCase();
+	if (
+		host === 'localhost' || host === '::1' ||
+		host.endsWith('.localhost') || host.endsWith('.internal') ||
+		/^127\./.test(host) || /^10\./.test(host) ||
+		/^192\.168\./.test(host) || /^169\.254\./.test(host) ||
+		/^172\.(1[6-9]|2\d|3[01])\./.test(host)
+	) {
+		return null;
+	}
+	return url;
+}
+
+/**
+ * Reads the provider's response into the app's normalised shape.
+ *
+ * Deliberately permissive: this payload is undocumented and can change without
+ * notice, so every field is probed defensively and an unrecognised body yields
+ * "no definition" instead of throwing. A miss is also reported as HTTP 200 with
+ * a `status:404`-style body upstream, so the HTTP status alone is not trusted.
+ */
+function parseCustomPayload(payload, word) {
+	if (!payload || typeof payload !== 'object') return null;
+
+	const meanings = [];
+	const dictionaryData = Array.isArray(payload.dictionaryData) ? payload.dictionaryData[0] : null;
+
+	if (dictionaryData && !dictionaryData.error) {
+		const entry = Array.isArray(dictionaryData.entries) ? dictionaryData.entries[0] : null;
+		const groups = entry && Array.isArray(entry.senseFamilies) ? entry.senseFamilies : [];
+
+		for (const family of groups) {
+			if (!family || !Array.isArray(family.senses)) continue;
+			const definitions = [];
+			for (const sense of family.senses) {
+				const text = htmlToText(sense?.definition?.text || sense?.definition || '');
+				if (!text) continue;
+				definitions.push({
+					definition: text.slice(0, 400),
+					example: '',
+					synonyms: [],
+					antonyms: []
+				});
+				if (definitions.length >= MAX_DEFINITIONS_PER_POS) break;
+			}
+			const pos = htmlToText(family.partOfSpeechs?.[0]?.partOfSpeech || '');
+			if (definitions.length && pos) {
+				meanings.push({ partOfSpeech: pos, definitions, synonyms: [], antonyms: [] });
+			}
+		}
+
+		if (!meanings.length) {
+			const web = Array.isArray(dictionaryData.webDefinitions) ? dictionaryData.webDefinitions[0] : null;
+			const text = htmlToText(web?.definition || '');
+			if (text) {
+				meanings.push({
+					partOfSpeech: 'definition',
+					definitions: [{ definition: text.slice(0, 400), example: '', synonyms: [], antonyms: [] }],
+					synonyms: [],
+					antonyms: []
+				});
+			}
+		}
+
+		if (!meanings.length) return null;
+
+		const phonetics = [];
+		const candidates = [
+			...(Array.isArray(dictionaryData.phonetics) ? dictionaryData.phonetics : []),
+			...(entry && Array.isArray(entry.phonetics) ? entry.phonetics : [])
+		];
+		for (const item of candidates) {
+			if (!item || typeof item !== 'object') continue;
+			const text = typeof item.text === 'string' ? item.text : '';
+			const audio = finiteUrl(
+				typeof item.oxfordAudio === 'string' ? 'https:' + item.oxfordAudio : item.oxfordAudio || ''
+			);
+			if ((!text && !audio) || phonetics.some(p => p.text === text && p.audio === audio)) continue;
+			phonetics.push({ text, audio });
+			if (phonetics.length >= 4) break;
+		}
+		const topAudio = finiteUrl(
+			typeof payload.oxfordAudio === 'string' ? 'https:' + payload.oxfordAudio : payload.oxfordAudio || ''
+		);
+		if (topAudio) phonetics.unshift({ text: '', audio: topAudio });
+
+		return {
+			word,
+			phonetic: phonetics.find(p => p.text)?.text || '',
+			phonetics: phonetics.slice(0, 5),
+			sourceUrl: '',
+			meanings
+		};
+	}
+
+	// Translation-shaped response: surface it as a single "translation" sense.
+	const translation = payload.translateResponse;
+	if (translation && typeof translation === 'object') {
+		const text = htmlToText(translation.translateText || '');
+		if (!text) return null;
+		const terms = Array.isArray(translation.bilingualDictionary)
+			? translation.bilingualDictionary.flatMap(entry => (Array.isArray(entry?.terms) ? entry.terms : []))
+			: [];
+		return {
+			word,
+			phonetic: '',
+			phonetics: [],
+			sourceUrl: '',
+			meanings: [{
+				partOfSpeech: 'translation',
+				definitions: [{ definition: text, example: '', synonyms: [], antonyms: [] }],
+				synonyms: [],
+				antonyms: []
+			}],
+			translationTerms: uniqueStrings(terms, 8)
+		};
+	}
+
+	return null;
+}
+
+export async function handleDictionaryPost(event) {
+	let body;
+	try {
+		body = await event.request.json();
+	} catch {
+		return jsonResponse({ ok: false, error: 'invalid_body' }, 400);
+	}
+
+	const word = normalizeWord(body?.word || '');
+	const custom = body?.custom;
+	if (!word || !custom || typeof custom !== 'object') {
+		return jsonResponse({ ok: false, error: 'invalid_request' }, 400);
+	}
+
+	const url = safeUpstreamUrl(custom.baseUrl);
+	if (!url) {
+		return jsonResponse({ ok: false, error: 'invalid_base_url' }, 400);
+	}
+	if (typeof custom.key !== 'string' || !custom.key) {
+		return jsonResponse({ ok: false, error: 'missing_key' }, 400);
+	}
+
+	// Parameter names come from the client, so they are whitelisted to a simple
+	// identifier shape before being used as query keys.
+	const PARAM_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,30}$/;
+	const safeName = (name, fallback) =>
+		(typeof name === 'string' && PARAM_NAME.test(name)) ? name : fallback;
+
+	for (const paramKey of CUSTOM_PARAM_KEYS) {
+		const value = custom[paramKey];
+		if (value !== undefined && (typeof value !== 'string' || !PARAM_NAME.test(value))) {
+			return jsonResponse({ ok: false, error: `invalid_${paramKey}` }, 400);
+		}
+	}
+
+	url.searchParams.set(safeName(custom.termParam, 'term'), word.toLowerCase());
+	if (custom.language) url.searchParams.set(safeName(custom.languageParam, 'language'), String(custom.language));
+	if (custom.corpus) url.searchParams.set(safeName(custom.corpusParam, 'corpus'), String(custom.corpus));
+	if (custom.country) url.searchParams.set(safeName(custom.countryParam, 'country'), String(custom.country));
+	if (custom.strategy) url.searchParams.set(safeName(custom.strategyParam, 'strategy'), String(custom.strategy));
+	url.searchParams.set(safeName(custom.keyParam, 'key'), custom.key);
+
+	const headers = { accept: 'application/json' };
+	if (
+		typeof custom.headerName === 'string' &&
+		/^[A-Za-z-]{1,64}$/.test(custom.headerName) &&
+		typeof custom.headerValue === 'string' &&
+		custom.headerValue.length <= 512
+	) {
+		headers[custom.headerName] = custom.headerValue;
+	}
+
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), CUSTOM_TIMEOUT_MS);
+	try {
+		const response = await fetch(url.toString(), { headers, signal: controller.signal });
+		if (!response.ok) {
+			// Still credential-bearing, so still uncacheable: a shared cache
+			// entry here would expose the outcome of someone else's key.
+			return jsonResponse({ ok: false, error: 'upstream_error', status: response.status }, 502, {
+				'cache-control': 'no-store'
+			});
+		}
+		const payload = await response.json().catch(() => null);
+		const data = parseCustomPayload(payload, word);
+		if (!data) {
+			return jsonResponse({ ok: false, error: 'not_found', word }, 404, {
+				// Explicitly uncacheable: the request carried a credential.
+				'cache-control': 'no-store'
+			});
+		}
+		return jsonResponse(
+			{ ok: true, word, ...data, provider: 'custom' },
+			200,
+			{ 'cache-control': 'no-store' }
+		);
+	} catch {
+		return jsonResponse({ ok: false, error: 'upstream_unreachable' }, 504, { 'cache-control': 'no-store' });
+	} finally {
+		clearTimeout(timer);
+	}
 }

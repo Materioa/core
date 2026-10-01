@@ -1,0 +1,484 @@
+// Dictionary settings + word history, and the in-viewer settings panel.
+//
+// This is the "bring your own credentials" slot for a custom dictionary
+// provider. The request shape is fixed (base URL + query params + one extra
+// header) and the credential fields are deliberately EMPTY: this file ships no
+// keys and no default host. Until you fill them in, the Custom option is inert
+// and says so rather than failing silently.
+//
+// Storage layout (localStorage, desktop shell only):
+//   materio_dictionary_settings -> the object below
+//   materio_dictionary_history  -> { "<word>": "<first meaning>", ... }
+//
+// The panel and dictionary.js are separate scripts in the same window, so
+// changes are broadcast with a CustomEvent instead of a build-time coupling.
+
+(function () {
+  'use strict';
+
+  var SETTINGS_KEY = 'materio_dictionary_settings';
+  var HISTORY_KEY = 'materio_dictionary_history';
+  var HISTORY_LIMIT = 300;
+  var CHANGE_EVENT = 'materio:dictionary-settings';
+
+  // The documented request shape for the private endpoint, with credentials
+  // blank. `params` are appended verbatim; `headerName`/`headerValue` is the
+  // single optional extra header the provider needs.
+  var CUSTOM_DEFAULTS = {
+    baseUrl: '',
+    termParam: 'term',
+    languageParam: 'language',
+    language: 'en',
+    corpusParam: 'corpus',
+    corpus: 'en-US',
+    countryParam: 'country',
+    country: 'US',
+    strategyParam: 'strategy',
+    strategy: '2',
+    keyParam: 'key',
+    key: '',
+    headerName: '',
+    headerValue: ''
+  };
+
+  var DEFAULTS = {
+    enabled: true,
+    // 'select' | 'dblclick'
+    trigger: 'select',
+    // 'auto' races the built-in providers; 'wiktionary' pins one;
+    // 'custom' uses the slot above.
+    provider: 'auto',
+    maxDefinitions: 3,
+    showExamples: true,
+    showSynonyms: true,
+    audio: true,
+    storeHistory: false,
+    custom: CUSTOM_DEFAULTS
+  };
+
+  function isNativeShell() {
+    try {
+      var h = window.location.hostname || '';
+      var p = window.location.protocol || '';
+      return h === 'tauri.localhost' || h === 'capacitor.localhost' ||
+        p === 'tauri:' || p === 'capacitor:' ||
+        Boolean(window.__TAURI__) || Boolean(window.__TAURI_INTERNALS__);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function clone(value) {
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  /**
+   * Merges stored settings over the defaults, one level into `custom`.
+   * A missing/garbled blob must never leave the tooltip in a broken state, so
+   * anything unreadable is discarded rather than trusted.
+   */
+  function get() {
+    var stored = {};
+    try {
+      var raw = localStorage.getItem(SETTINGS_KEY);
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) stored = parsed;
+      }
+    } catch (e) { /* unreadable -> defaults */ }
+
+    var merged = clone(DEFAULTS);
+    for (var key in DEFAULTS) {
+      if (!Object.prototype.hasOwnProperty.call(DEFAULTS, key)) continue;
+      if (key === 'custom') continue;
+      if (typeof DEFAULTS[key] === 'boolean') {
+        if (typeof stored[key] === 'boolean') merged[key] = stored[key];
+      } else if (typeof stored[key] === typeof DEFAULTS[key]) {
+        merged[key] = stored[key];
+      }
+    }
+
+    if (stored.custom && typeof stored.custom === 'object') {
+      for (var ck in CUSTOM_DEFAULTS) {
+        if (!Object.prototype.hasOwnProperty.call(CUSTOM_DEFAULTS, ck)) continue;
+        var v = stored.custom[ck];
+        if (typeof v === 'string') merged.custom[ck] = v;
+      }
+    }
+
+    merged.maxDefinitions = Math.min(6, Math.max(1, Number(merged.maxDefinitions) || DEFAULTS.maxDefinitions));
+    return merged;
+  }
+
+  function set(patch) {
+    var next = get();
+    for (var key in patch || {}) {
+      if (key === 'custom' && patch.custom && typeof patch.custom === 'object') {
+        next.custom = Object.assign({}, next.custom, patch.custom);
+      } else if (Object.prototype.hasOwnProperty.call(DEFAULTS, key)) {
+        next[key] = patch[key];
+      }
+    }
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+    } catch (e) { /* private mode: keep in-memory behaviour only */ }
+    broadcast();
+    return next;
+  }
+
+  function reset() {
+    try {
+      localStorage.removeItem(SETTINGS_KEY);
+    } catch (e) {}
+    broadcast();
+    return get();
+  }
+
+  function broadcast() {
+    try {
+      window.dispatchEvent(new CustomEvent(CHANGE_EVENT, { detail: get() }));
+    } catch (e) { /* older WebView: listeners fall back to polling on next use */ }
+  }
+
+  function subscribe(fn) {
+    window.addEventListener(CHANGE_EVENT, function (event) {
+      try { fn(event.detail || get()); } catch (e) {}
+    });
+  }
+
+  // ---- word history -------------------------------------------------------
+  // Mirrors the Google Dictionary extension's model: a word -> meaning map,
+  // newest first, capped so it cannot grow without bound.
+  function readHistory() {
+    try {
+      var raw = localStorage.getItem(HISTORY_KEY);
+      if (!raw) return {};
+      var parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function writeHistory(map) {
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(map));
+    } catch (e) {}
+  }
+
+  function addToHistory(word, meaning) {
+    if (!get().storeHistory) return;
+    var key = String(word || '').toLowerCase();
+    if (!key) return;
+    var map = readHistory();
+    // Re-insert so a repeat lookup moves the word to the front.
+    delete map[key];
+    map[key] = String(meaning || '').slice(0, 300);
+
+    var keys = Object.keys(map);
+    if (keys.length > HISTORY_LIMIT) {
+      var drop = keys.slice(0, keys.length - HISTORY_LIMIT);
+      for (var i = 0; i < drop.length; i++) delete map[drop[i]];
+    }
+    writeHistory(map);
+    refreshHistoryView();
+  }
+
+  function listHistory() {
+    var map = readHistory();
+    return Object.keys(map).map(function (key) {
+      return { word: key, meaning: map[key] };
+    }).reverse();
+  }
+
+  function clearHistory() {
+    writeHistory({});
+    refreshHistoryView();
+  }
+
+  /** TSV, matching the extension's export column layout. */
+  function historyTsv() {
+    return ['word\tmeaning']
+      .concat(listHistory().map(function (row) {
+        return row.word + '\t' + String(row.meaning).replace(/[\t\r\n]+/g, ' ');
+      }))
+      .join('\n');
+  }
+
+  // ---- panel UI -----------------------------------------------------------
+  var panel = null;
+  var historyListEl = null;
+
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+
+  function card(title, subtitle) {
+    var section = el('section', 'dict-card');
+    var head = el('div', 'dict-card-head');
+    head.appendChild(el('h3', 'dict-card-title', title));
+    if (subtitle) head.appendChild(el('p', 'dict-card-sub', subtitle));
+    section.appendChild(head);
+    var body = el('div', 'dict-card-body');
+    section.appendChild(body);
+    return { section: section, body: body };
+  }
+
+  function row(labelText, control, hint) {
+    var wrap = el('div', 'dict-row');
+    var text = el('div', 'dict-row-text');
+    text.appendChild(el('span', 'dict-row-label', labelText));
+    if (hint) text.appendChild(el('span', 'dict-row-hint', hint));
+    wrap.appendChild(text);
+    wrap.appendChild(control);
+    return wrap;
+  }
+
+  function toggle(settings, key, label, hint) {
+    var input = document.createElement('input');
+    input.type = 'checkbox';
+    input.className = 'dict-switch';
+    input.checked = !!settings[key];
+    input.addEventListener('change', function () {
+      set({ [key]: input.checked });
+    });
+    return row(label, input, hint);
+  }
+
+  function select(settings, key, label, options, hint) {
+    var sel = document.createElement('select');
+    sel.className = 'dict-select';
+    options.forEach(function (opt) {
+      var option = document.createElement('option');
+      option.value = opt.value;
+      option.textContent = opt.label;
+      if (settings[key] === opt.value) option.selected = true;
+      sel.appendChild(option);
+    });
+    sel.addEventListener('change', function () {
+      var patch = {};
+      patch[key] = sel.value;
+      set(patch);
+      if (key === 'provider') refreshPanel();
+    });
+    return row(label, sel, hint);
+  }
+
+  function textInput(settings, path, label, placeholder, hint) {
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'dict-input';
+    input.value = settings.custom[path] || '';
+    input.placeholder = placeholder || '';
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    input.addEventListener('change', function () {
+      var patch = { custom: {} };
+      patch.custom[path] = input.value.trim();
+      set(patch);
+    });
+    return row(label, input, hint);
+  }
+
+  function buildPanel() {
+    var settings = get();
+
+    panel = el('aside', 'dict-panel');
+    panel.id = 'dictSettingsPanel';
+    panel.setAttribute('aria-label', 'Dictionary settings');
+    panel.hidden = true;
+
+    var header = el('div', 'dict-panel-head');
+    header.appendChild(el('span', 'dict-panel-title', 'Dictionary'));
+    var close = el('button', 'dict-panel-close', '✕');
+    close.type = 'button';
+    close.title = 'Close';
+    close.addEventListener('click', function () { togglePanel(false); });
+    header.appendChild(close);
+    panel.appendChild(header);
+
+    var scroll = el('div', 'dict-panel-scroll');
+
+    // Card 1 - trigger
+    var c1 = card('Pop-up definitions', 'When a definition card appears while reading.');
+    c1.body.appendChild(toggle(settings, 'enabled', 'Enable dictionary lookup'));
+    c1.body.appendChild(select(settings, 'trigger', 'Show on', [
+      { value: 'select', label: 'Selecting a word' },
+      { value: 'dblclick', label: 'Double-clicking a word' }
+    ], 'Multi-word selections always go to Ask AI.'));
+    scroll.appendChild(c1.section);
+
+    // Card 2 - source
+    var c2 = card('Source', 'Where definitions come from.');
+    c2.body.appendChild(select(settings, 'provider', 'Provider', [
+      { value: 'auto', label: 'Automatic (race providers)' },
+      { value: 'wiktionary', label: 'Wiktionary only' },
+      { value: 'custom', label: 'Custom endpoint' }
+    ]));
+
+    var customBox = el('div', 'dict-custom');
+    customBox.hidden = settings.provider !== 'custom';
+
+    var credWarn = el('p', 'dict-note',
+      'Credentials are blank. Fill in the key and header below to enable this source — nothing is shipped pre-filled.');
+    customBox.appendChild(credWarn);
+    customBox.appendChild(textInput(settings, 'baseUrl', 'Base URL', 'https://…/v2/dictionaryExtensionData'));
+    customBox.appendChild(textInput(settings, 'key', 'API key', 'paste your key'));
+    customBox.appendChild(textInput(settings, 'headerName', 'Extra header name', 'e.g. x-referer'));
+    customBox.appendChild(textInput(settings, 'headerValue', 'Extra header value', 'paste your value'));
+    customBox.appendChild(textInput(settings, 'termParam', 'Term parameter', 'term'));
+    customBox.appendChild(textInput(settings, 'language', 'Language', 'en'));
+    customBox.appendChild(textInput(settings, 'corpus', 'Corpus', 'en-US'));
+    customBox.appendChild(textInput(settings, 'country', 'Country', 'US'));
+    customBox.appendChild(textInput(settings, 'strategy', 'Strategy', '2'));
+
+    var probe = el('p', 'dict-note dict-note-quiet',
+      'Lookups from this endpoint are sent through this app\'s server because the browser always attaches an Origin header, which this endpoint rejects.');
+    customBox.appendChild(probe);
+    c2.body.appendChild(customBox);
+    scroll.appendChild(c2.section);
+
+    // Card 3 - content
+    var c3 = card('Content', 'How much a card shows.');
+    c3.body.appendChild(select(settings, 'maxDefinitions', 'Definitions per meaning', [
+      { value: '1', label: '1' }, { value: '2', label: '2' }, { value: '3', label: '3' },
+      { value: '4', label: '4' }, { value: '5', label: '5' }, { value: '6', label: '6' }
+    ]));
+    c3.body.appendChild(toggle(settings, 'showExamples', 'Show examples'));
+    c3.body.appendChild(toggle(settings, 'showSynonyms', 'Show synonyms'));
+    c3.body.appendChild(toggle(settings, 'audio', 'Offer pronunciation'));
+    scroll.appendChild(c3.section);
+
+    // Card 4 - history
+    var c4 = card('Word history', 'Words you have looked up on this device.');
+    c4.body.appendChild(toggle(settings, 'storeHistory', 'Store words I look up'));
+
+    historyListEl = el('div', 'dict-history');
+    c4.body.appendChild(historyListEl);
+
+    var actions = el('div', 'dict-actions');
+    var exportBtn = el('button', 'dict-btn', 'Export (.tsv)');
+    exportBtn.type = 'button';
+    exportBtn.addEventListener('click', function () {
+      try {
+        var blob = new Blob([historyTsv()], { type: 'text/plain' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'dictionary-history.tsv';
+        a.click();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      } catch (e) {}
+    });
+    var clearBtn = el('button', 'dict-btn', 'Clear history');
+    clearBtn.type = 'button';
+    clearBtn.addEventListener('click', function () { clearHistory(); });
+    actions.appendChild(exportBtn);
+    actions.appendChild(clearBtn);
+    c4.body.appendChild(actions);
+
+    var resetBtn = el('button', 'dict-btn dict-btn-reset', 'Reset all settings');
+    resetBtn.type = 'button';
+    resetBtn.addEventListener('click', function () {
+      reset();
+      refreshPanel();
+    });
+    c4.body.appendChild(resetBtn);
+    scroll.appendChild(c4.section);
+
+    panel.appendChild(scroll);
+    document.body.appendChild(panel);
+    refreshHistoryView();
+  }
+
+  function refreshHistoryView() {
+    if (!historyListEl) return;
+    historyListEl.textContent = '';
+    var rows = listHistory();
+    if (!rows.length) {
+      historyListEl.appendChild(el('p', 'dict-note dict-note-quiet', 'No words stored yet.'));
+      return;
+    }
+    rows.slice(0, 60).forEach(function (row) {
+      var item = el('div', 'dict-history-item');
+      item.appendChild(el('strong', 'dict-history-word', row.word));
+      if (row.meaning) item.appendChild(el('span', 'dict-history-meaning', row.meaning));
+      historyListEl.appendChild(item);
+    });
+    if (rows.length > 60) {
+      historyListEl.appendChild(el('p', 'dict-note dict-note-quiet', '…and ' + (rows.length - 60) + ' more'));
+    }
+  }
+
+  function refreshPanel() {
+    if (!panel) return;
+    var settings = get();
+    var customBox = panel.querySelector('.dict-custom');
+    if (customBox) customBox.hidden = settings.provider !== 'custom';
+  }
+
+  function isOpen() {
+    return !!(panel && !panel.hidden);
+  }
+
+  function togglePanel(force) {
+    if (!panel) buildPanel();
+    var next = typeof force === 'boolean' ? force : !isOpen();
+    panel.hidden = !next;
+    var button = document.getElementById('dictSettingsButton');
+    if (button) {
+      button.setAttribute('aria-expanded', next ? 'true' : 'false');
+      button.classList.toggle('toggled', next);
+    }
+    document.body.classList.toggle('dictPanelOpen', next);
+    if (next) refreshHistoryView();
+  }
+
+  function bind() {
+    var button = document.getElementById('dictSettingsButton');
+    if (button) {
+      button.removeAttribute('hidden');
+      button.addEventListener('click', function () { togglePanel(); });
+    }
+
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && isOpen()) {
+        event.stopPropagation();
+        togglePanel(false);
+      }
+    });
+
+    document.addEventListener('pointerdown', function (event) {
+      if (!isOpen()) return;
+      if (event.target.closest && event.target.closest('#dictSettingsPanel')) return;
+      if (event.target.closest && event.target.closest('#dictSettingsButton')) return;
+      togglePanel(false);
+    });
+  }
+
+  window.materioDictConfig = {
+    DEFAULTS: DEFAULTS,
+    CUSTOM_DEFAULTS: CUSTOM_DEFAULTS,
+    get: get,
+    set: set,
+    reset: reset,
+    subscribe: subscribe,
+    isOpen: isOpen,
+    toggle: togglePanel,
+    history: {
+      add: addToHistory,
+      list: listHistory,
+      clear: clearHistory,
+      tsv: historyTsv
+    }
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bind);
+  } else {
+    bind();
+  }
+})();

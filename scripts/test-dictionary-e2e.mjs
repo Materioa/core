@@ -156,10 +156,16 @@ function build() {
     Node: { ELEMENT_NODE: 1, TEXT_NODE: 3 },
     URL, console, AbortController, Map, Set, Promise,
     Audio: undefined,
+    // Mirrors production: our /api/v2/dictionary route is NOT deployed, so the
+    // lookup must succeed via the providers alone. Both are lowercase-only.
     fetch: async (url) => {
       calls.push(url);
       if (url.includes('/api/v2/dictionary')) {
-        return { ok: true, status: 200, json: async () => ({ ok: true, word: 'Confidentiality', ...PAYLOAD[0] }) };
+        return { ok: false, status: 404, json: async () => ({ ok: false, error: 'not_found' }) };
+      }
+      const headword = decodeURIComponent(url.split('/').pop() || '');
+      if (/[A-Z]/.test(headword)) {
+        return { ok: false, status: 404, json: async () => ({}) };
       }
       return { ok: true, status: 200, json: async () => PAYLOAD };
     }
@@ -200,7 +206,16 @@ check('card shows the selected word', text.includes('Confidentiality'), text.sli
 check('card shows the definition', text.includes('The state of being secret'), text.slice(0, 160));
 
 // --- Regression: a second event for the SAME word must not cancel the lookup.
-check('lookup not cancelled by follow-up events', calls.length === 1, `calls: ${calls.length}`);
+check('lookup not cancelled by follow-up events', calls.length >= 3, `calls: ${calls.length}`);
+check('api attempted first', calls[0].includes('/api/v2/dictionary'), calls.join(', '));
+const e2eProviderCalls = calls.filter((u) => !u.includes('/api/v2/dictionary'));
+check(
+  'providers queried with the LOWERCASE headword',
+  e2eProviderCalls.length === 2 &&
+    e2eProviderCalls.every((u) => !/[A-Z]/.test(decodeURIComponent(u.split('/').pop()))),
+  calls.join(', ')
+);
+check('definition resolved without the API', text.includes('The state of being secret'), text.slice(0, 160));
 
 // --- Selecting a DIFFERENT word must retarget the open card.
 const secondSpan = makeNode('span');

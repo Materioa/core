@@ -51,6 +51,7 @@ See https://github.com/adobe-type-tools/cmap-resources
   <script src="sidecar.js"></script>
   <script src="viewer.mjs" type="module"></script>
   <script src="showbtnrq.js"></script>
+  <script src="dictionary-settings.js"></script>
   <script src="dictionary.js"></script>
   <script src="thinklet.js"></script>
   <script src="overlays.js"></script>
@@ -246,6 +247,10 @@ See https://github.com/adobe-type-tools/cmap-resources
               </span>
             </div>
             <div id="toolbarViewerRight" class="toolbarHorizontalGroup">
+              <button id="dictSettingsButton" class="toolbarButton" type="button" tabindex="0"
+                aria-expanded="false" aria-controls="dictSettingsPanel" title="Dictionary settings" hidden>
+                <span>Dictionary</span>
+              </button>
               <button id="thinkletButton" class="toolbarButton" type="button" tabindex="0"
                 aria-expanded="false" aria-controls="thinkletPanel" title="Open Thinklet" hidden>
                 <span>Thinklet</span>

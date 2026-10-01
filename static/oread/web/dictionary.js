@@ -38,10 +38,81 @@
   // mistaken for a dismissal of the card it is about to open.
   var selectionStartedAt = 0;
 
+  /**
+   * Settings come from dictionary-settings.js when it is present (it owns the
+   * panel), and fall back to the same defaults inline so the tooltip still
+   * works if that script is ever absent.
+   */
+  function config() {
+    try {
+      if (window.materioDictConfig && typeof window.materioDictConfig.get === 'function') {
+        return window.materioDictConfig.get();
+      }
+    } catch (e) { /* fall through to defaults */ }
+    return {
+      enabled: true,
+      trigger: 'select',
+      provider: 'auto',
+      maxDefinitions: 3,
+      showExamples: true,
+      showSynonyms: true,
+      audio: true,
+      storeHistory: false
+    };
+  }
+
+  function noteHistory(word, data) {
+    try {
+      var cfg = window.materioDictConfig;
+      if (cfg && cfg.history && cfg.history.add && data && (data.meanings || []).length) {
+        cfg.history.add(word, data.meanings[0].definitions[0].definition);
+      }
+    } catch (e) { /* history is optional */ }
+  }
+
   // word -> normalised payload. Repeat lookups inside one reading session are
   // instant and cost no request; the server cache only helps on the next visit.
   var cache = new Map();
   var inflight = new Map();
+
+  // Words whose lookup FAILED. Without this, re-selecting a word that hit a
+  // transient provider error did nothing at all - the card sat in its error
+  // state and the "same word, just re-anchor" branch returned before any retry,
+  // so the tooltip only appeared "sometimes". Failures are remembered briefly
+  // (so a re-selection retries instead of re-failing identically) but not
+  // cached for long, and never cached as success.
+  var failedWords = new Map();
+  var FAILURE_RETRY_MS = 4000;
+
+  // Our own /api/v2/dictionary is a cache optimisation, not a dependency. In
+  // production that route is frequently not deployed at all, and paying a
+  // wasted round trip to a 404 on EVERY lookup added latency to each one. Once
+  // it is seen missing, stop probing for a while.
+  var apiMissingUntil = 0;
+  var API_RETRY_MS = 10 * 60 * 1000;
+
+  function apiIsAvailable() {
+    return Date.now() >= apiMissingUntil;
+  }
+
+  function noteApiMissing() {
+    apiMissingUntil = Date.now() + API_RETRY_MS;
+  }
+
+  /**
+   * The word as a dictionary lists it: lowercase, unpunctuated.
+   *
+   * Both providers are lowercase-only, so the lookup key is normalised anyway;
+   * displaying that same natural form keeps the card consistent with the
+   * headword the definitions belong to, instead of echoing whatever capital
+   * letter the sentence happened to start with.
+   */
+  function headword(word) {
+    return String(word || '')
+      .toLowerCase()
+      .replace(/^[^\p{L}\p{N}]+/u, '')
+      .replace(/[^\p{L}\p{N}]+$/u, '');
+  }
 
   function dictionaryUrl(word) {
     // In native shells there is no same-origin backend (tauri://,
@@ -223,7 +294,7 @@
   function renderLoading(word) {
     bodyEl.textContent = '';
     var head = el('div', 'materio-dict-head');
-    head.appendChild(el('span', 'materio-dict-word', word));
+    head.appendChild(el('span', 'materio-dict-word', displayWord(word)));
     var spinner = el('span', 'materio-dict-spinner');
     spinner.setAttribute('aria-hidden', 'true');
     head.appendChild(spinner);
@@ -234,7 +305,7 @@
   function renderNotFound(word) {
     bodyEl.textContent = '';
     var head = el('div', 'materio-dict-head');
-    head.appendChild(el('span', 'materio-dict-word', word));
+    head.appendChild(el('span', 'materio-dict-word', displayWord(word)));
     bodyEl.appendChild(head);
     bodyEl.appendChild(el(
       'div',
@@ -246,7 +317,7 @@
   function renderError(word) {
     bodyEl.textContent = '';
     var head = el('div', 'materio-dict-head');
-    head.appendChild(el('span', 'materio-dict-word', word));
+    head.appendChild(el('span', 'materio-dict-word', displayWord(word)));
     bodyEl.appendChild(head);
     bodyEl.appendChild(el(
       'div',
@@ -257,9 +328,10 @@
 
   function renderDefinition(word, data) {
     bodyEl.textContent = '';
+    var cfg = config();
 
     var head = el('div', 'materio-dict-head');
-    head.appendChild(el('span', 'materio-dict-word', word));
+    head.appendChild(el('span', 'materio-dict-word', displayWord(word)));
 
     if (data.phonetic) {
       head.appendChild(el('span', 'materio-dict-phonetic', data.phonetic));
@@ -267,9 +339,9 @@
 
     // Only offer playback when a recording exists, and prefer a phonetic that
     // has audio — a dead button is worse than no button.
-    var audioUrl = (data.phonetics || []).find(function (item) {
+    var audioUrl = cfg.audio ? (data.phonetics || []).find(function (item) {
       return item && item.audio;
-    });
+    }) : null;
     if (audioUrl && typeof Audio === 'function') {
       var play = el('button', 'materio-dict-play', '▶');
       play.type = 'button';
@@ -297,22 +369,25 @@
 
     bodyEl.appendChild(head);
 
+    var cfg = config();
+    var maxDefs = Math.max(1, Number(cfg.maxDefinitions) || 3);
+
     (data.meanings || []).forEach(function (meaning) {
       var group = el('section', 'materio-dict-group');
-      group.appendChild(el('div', 'materio-dict-pos', meaning.partOfSpeech));
+      group.appendChild(el('div', 'materio-dict-pos', displayWord(meaning.partOfSpeech)));
 
-      (meaning.definitions || []).forEach(function (def, index) {
+      (meaning.definitions || []).slice(0, maxDefs).forEach(function (def, index) {
         var block = el('div', 'materio-dict-def');
         if (index > 0) block.classList.add('materio-dict-def-alt');
         block.appendChild(el('div', 'materio-dict-def-text', def.definition));
-        if (def.example) {
+        if (cfg.showExamples && def.example) {
           block.appendChild(el('div', 'materio-dict-example', '“' + def.example + '”'));
         }
 
         var synonyms = (def.synonyms || []).concat(meaning.synonyms || [])
           .filter(function (value, i, arr) { return arr.indexOf(value) === i; })
           .slice(0, 6);
-        if (synonyms.length) {
+        if (cfg.showSynonyms && synonyms.length) {
           var chips = el('div', 'materio-dict-chips');
           synonyms.forEach(function (value) {
             chips.appendChild(el('span', 'materio-dict-chip', value));
@@ -325,6 +400,8 @@
 
       bodyEl.appendChild(group);
     });
+
+    noteHistory(word, data);
   }
 
   function show(word, rect) {
@@ -353,15 +430,23 @@
    * the browser, Tauri and the Android WebView with no proxy in between.
    */
   function lookupDirectly(word) {
+    // Both provider endpoints are LOWERCASE-ONLY and case-sensitive. Passing the
+    // raw selection capitalised - which is most words in a document - made
+    // Wiktionary answer 404 for "Confidentiality" while "confidentiality"
+    // returned a full entry, so capitalised lookups silently found nothing.
+    // The card still shows the word as the reader selected it; only the lookup
+    // key is normalised.
+    var key = String(word).toLowerCase();
+
     var sources = [
       {
         provider: 'dictionaryapi.dev',
-        url: 'https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent(word),
+        url: 'https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent(key),
         parse: parseDictionaryApi
       },
       {
         provider: 'wiktionary',
-        url: 'https://en.wiktionary.org/api/rest_v1/page/definition/' + encodeURIComponent(word),
+        url: 'https://en.wiktionary.org/api/rest_v1/page/definition/' + encodeURIComponent(key),
         parse: parseWiktionary
       }
     ];
@@ -369,7 +454,13 @@
     return new Promise(function (resolve, reject) {
       var controllers = [];
       var settled = false;
-      var sawNetworkFailure = false;
+      // A clean 404 is a DEFINITIVE answer ("no such headword"). A 5xx, timeout
+      // or network error is not - it only means we did not get to ask. Only
+      // when nothing definitive came back should this read as a connection
+      // problem, otherwise one flaky provider turns every genuine miss into a
+      // scary "check your connection".
+      var sawDefinitiveMiss = false;
+      var sawHardFailure = false;
 
       function settle(payload, error) {
         if (settled) return;
@@ -401,14 +492,16 @@
             }
           })
           .catch(function (error) {
-            // A clean 404 is a real answer; anything else is a broken request.
-            if (!error || !error.notFound) sawNetworkFailure = true;
+            if (error && error.notFound) sawDefinitiveMiss = true;
+            else sawHardFailure = true;
           });
       });
 
       Promise.all(attempts).then(function () {
         if (settled) return;
-        settle(null, makeError('no definition', !sawNetworkFailure));
+        // Prefer the definitive answer: if any provider said authoritatively
+        // that it has no such headword, that is the truthful message.
+        settle(null, makeError('no definition', sawDefinitiveMiss || !sawHardFailure));
       });
     });
   }
@@ -569,6 +662,21 @@
     };
   }
 
+  /**
+   * Display form of a word: first letter capitalised, the rest lowercase.
+   *
+   * Documents set headings in caps, so selecting from a section header gives
+   * "SECURITY" or "INTEGRITY". The card should read like prose ("Security"),
+   * while the LOOKUP key stays lowercase for the providers (see
+   * lookupDirectly) - this is presentation only and never changes what we ask
+   * for.
+   */
+  function displayWord(word) {
+    var text = String(word || '').toLowerCase();
+    if (!text) return '';
+    return text.charAt(0).toUpperCase() + text.slice(1);
+  }
+
   /** Only ever hand the DOM an http(s) URL it could actually follow. */
   function safeHttpUrl(value) {
     if (typeof value !== 'string' || !value) return '';
@@ -583,6 +691,15 @@
   function fetchDefinition(word) {
     var key = word.toLowerCase();
     if (cache.has(key)) return Promise.resolve(cache.get(key));
+
+    var cfg = config();
+    // A configured custom source replaces the built-ins entirely. It is sent to
+    // OUR server rather than fetched here, because the browser always attaches
+    // an Origin header and this class of endpoint rejects any request carrying
+    // one. Credentials stay out of the browser's hands beyond the request.
+    if (cfg.provider === 'custom' && cfg.custom && cfg.custom.baseUrl) {
+      return lookupCustom(word, cfg.custom);
+    }
 
     // Collapse concurrent lookups of the same word onto one request.
     if (inflight.has(key)) return inflight.get(key);
@@ -634,6 +751,53 @@
   }
 
   /**
+   * Looks a word up through our server against a user-configured endpoint.
+   *
+   * The credential fields are user-supplied and blank by default; this ships no
+   * key and no host. The server performs the upstream fetch (no Origin header
+   * from a Worker) and normalises the response, so the card renders the same
+   * way whichever source answered.
+   */
+  function lookupCustom(word, custom) {
+    if (!custom.key) {
+      return Promise.reject(makeError('no custom key configured', true));
+    }
+
+    // Credentials travel in a POST body, not in headers: headers get captured
+    // by far more log/CDN tooling than bodies.
+    return fetch('/api/v2/dictionary', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      credentials: 'omit',
+      body: JSON.stringify({
+        word: word,
+        custom: {
+          baseUrl: custom.baseUrl,
+          key: custom.key,
+          headerName: custom.headerName,
+          headerValue: custom.headerValue,
+          language: custom.language,
+          corpus: custom.corpus,
+          country: custom.country,
+          strategy: custom.strategy,
+          termParam: custom.termParam,
+          languageParam: custom.languageParam,
+          corpusParam: custom.corpusParam,
+          countryParam: custom.countryParam,
+          strategyParam: custom.strategyParam,
+          keyParam: custom.keyParam
+        }
+      })
+    }).then(function (response) {
+      if (!response.ok) throw makeError('custom lookup failed: ' + response.status, response.status === 404);
+      return response.json();
+    }).then(function (payload) {
+      if (!payload || payload.ok !== true) throw makeError('no definition', true);
+      return payload;
+    });
+  }
+
+  /**
    * Runs the lookup for a word whose card is already open and anchored.
    *
    * `token` guards the whole sequence: a newer selection bumps the token, so a
@@ -641,25 +805,39 @@
    * instead of overwriting the card with stale content.
    */
   function resolveWord(word, token) {
-    var pendingLookup = fetchDefinition(word);
-    pendingLookup
+    // Return the HANDLED chain, not the raw lookup. Returning the raw promise
+    // left a rejected lookup unhandled for every caller - the card still
+    // rendered the error state, but each miss logged an unhandled rejection,
+    // and window.materioDictionary.lookup() rejected for its caller too.
+    return fetchDefinition(word)
       .then(function (payload) {
-        if (token !== lookupToken || activeWord !== word || !card || card.hidden) return;
+        if (token !== lookupToken || activeWord !== word || !card || card.hidden) return payload;
         renderDefinition(word, payload);
         var rect = anchorRect();
         if (rect) positionCard(rect);
+        return payload;
       })
       .catch(function (error) {
-        if (token !== lookupToken || activeWord !== word || !card || card.hidden) return;
+        if (token !== lookupToken || activeWord !== word || !card || card.hidden) throw error;
         // Distinguish "this word has no entry" from "we could not ask", so a
         // typo is not reported as a connection problem.
         if (error && error.notFound) renderNotFound(word);
         else renderError(word);
+        throw error;
       });
-    return pendingLookup;
   }
 
-  function scheduleUpdate() {
+  function scheduleUpdate(event) {
+    var cfg = config();
+    if (!cfg.enabled) return;
+
+    // Trigger gating. Selection-mode only fires for a selection that was just
+    // made (selectionchange / mouseup / keyup); double-click mode only for an
+    // actual dblclick, so a drag-select never opens a card there.
+    var isDblClick = !!(event && event.type === 'dblclick');
+    if (cfg.trigger === 'dblclick' && !isDblClick) return;
+    if (cfg.trigger !== 'dblclick' && event && event.type === 'keydown') return;
+
     var selection = window.getSelection?.();
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
 
@@ -705,6 +883,7 @@
     document.addEventListener('mouseup', scheduleUpdate);
     document.addEventListener('touchend', scheduleUpdate, { passive: true });
     document.addEventListener('keyup', scheduleUpdate);
+    document.addEventListener('dblclick', scheduleUpdate);
 
     document.addEventListener('pointerdown', function (event) {
       if (card && !card.hidden && event.target.closest && event.target.closest('#' + CARD_ID)) return;
