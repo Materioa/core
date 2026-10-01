@@ -7,6 +7,16 @@ import {
 	getFormsCollection
 } from '$lib/server/mongodb.js';
 import { verifyToken } from '$lib/server/supabase.js';
+import {
+	normalise,
+	extractFields,
+	mergeExtracted,
+	sanitiseValue,
+	nextOpenField,
+	isSatisfied,
+	buildSystemPrompt
+} from '$lib/server/interviewer-extract.js';
+import { askInterviewerModel } from '$lib/server/interviewer-llm.js';
 
 function tokenUserId(request) {
 	try {
@@ -40,175 +50,107 @@ const defaultForm = {
 	triggers: { examTypes: ['viva', 'practical'], autoShow: true }
 };
 
-function normalise(text) {
-	return String(text || '').replace(/\s+/g, ' ').trim();
-}
+// Extraction, value merging and question selection all live in
+// interviewer-extract.js. The inline regex fallback that used to sit here
+// dumped the whole reply into fields[0] and guessed "subject" from the word
+// after "for" — which is how answers ended up overwritten with noise.
 
-function extractFields(text, fields) {
-	const answer = normalise(text);
-	const values = {};
-	for (const field of fields) {
-		const label = String(field.label || '').toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-		if (!label) continue;
-		const match = answer.match(new RegExp(`${label}\\s*(?:is|:|-)?\\s*([^.;]+)`, 'i'));
-		if (match && match[1].trim()) values[field.name] = match[1].trim();
-	}
-	if (fields[0] && !values[fields[0].name] && answer) values[fields[0].name] = answer;
-	if (fields.some((field) => field.name === 'subject') && !values.subject) {
-		const subjectMatch = answer.match(/(?:on|about|for|in)\s+([A-Za-z0-9 &'/-]+?)(?:[,.]|$)/i);
-		if (subjectMatch) values.subject = subjectMatch[1].trim();
-	}
-	const diff = answer.match(/\b(easy|moderate|challenging|hard|tough)\b/i);
-	if (diff && fields.some((f) => f.name === 'difficulty')) {
-		const d = diff[1].toLowerCase();
-		values.difficulty = d === 'hard' || d === 'tough' ? 'Challenging' : d.charAt(0).toUpperCase() + d.slice(1);
-	}
-	return values;
-}
-
-function nextOpenField(form, extracted = {}, skipped = []) {
-	const fields = form.fields || [];
-	// Prioritize required fields first
-	const nextReq = fields.find((f) => f.required && !extracted[f.name] && !skipped.includes(f.name));
-	if (nextReq) return nextReq;
-	// Then ask remaining optional fields
-	const nextOpt = fields.find((f) => !extracted[f.name] && !skipped.includes(f.name));
-	return nextOpt || null;
-}
-
+/**
+ * Conversational nudge when the model gave us nothing usable.
+ *
+ * Reading a field label aloud verbatim read as robotic, and when the visitor
+ * only said "oh hi" it replied as though they had already answered something.
+ * So: greet them properly when nothing has been captured, and otherwise fold
+ * the label into a sentence rather than quoting it.
+ */
 function questionFor(form, extracted, skipped, llmReply) {
-	if (llmReply) return llmReply;
+	if (llmReply && llmReply.trim()) return llmReply.trim();
 	const next = nextOpenField(form, extracted, skipped);
 	if (!next) return form?.interview?.completeMessage || 'Thanks — your response has been recorded.';
-	if (Object.keys(extracted).length === 0 && form?.interview?.openingQuestion) return form.interview.openingQuestion;
-	const skipHint = form?.interview?.skipAllowed !== false ? ' (You can skip this if you like.)' : '';
-	return `Got it. What about "${next.label}"?${skipHint}`;
+
+	const answered = Object.keys(extracted || {}).length > 0;
+	if (!answered) {
+		return "No rush — whenever you're ready, what would you like to tell me about?";
+	}
+
+	let ask = String(next.label || '').trim().replace(/[?.!]+$/, '');
+	if (!ask) ask = 'anything else';
+	if (/^(what|which)\b/i.test(ask)) {
+		ask = ask.replace(/^(what|which)\b/i, (m) => m.toLowerCase());
+	} else {
+		ask = `what about "${ask}"`;
+	}
+
+	const opener = 'Thanks, got it.';
+	const skipHint =
+		form?.interview?.skipAllowed !== false
+			? " And if you'd rather leave one out, just say so."
+			: '';
+	return `${opener} And ${ask}?${skipHint}`;
 }
 
+/**
+ * Runs the turn through the provider chain in interviewer-llm.js.
+ *
+ * Returns null when no provider could answer — the ONLY case where the regex
+ * extractor is used. Previously a single 429 from the last provider in the list
+ * sent the whole conversation down that path, which is why replies came across
+ * blunt and templated.
+ */
 async function extractWithLlm({ form, history, latestText, priorExtracted = {}, skipped = [] }) {
-	const fields = form.fields || [];
-	const nextField = nextOpenField(form, priorExtracted, skipped);
-	const geminiKey = env.GEMINI_API_KEY || env.GOOGLE_AI_KEY;
-	const nvidiaKey = env.NVIDIA_API_KEY || env.NVIDIA_NIM_KEY;
-	const openRouterKey = env.OPENROUTER_API_KEY;
-
-	const systemPrompt = [
-		form?.interview?.systemPrompt || 'You turn natural-language answers into structured form values. Be concise.',
-		`Form Fields JSON: ${JSON.stringify(fields.map(f => ({ name: f.name, label: f.label, required: !!f.required, options: f.options || [] })))}.`,
-		`Already extracted values: ${JSON.stringify(priorExtracted)}.`,
-		nextField ? `Target to collect next: "${nextField.label}" (name: "${nextField.name}", ${nextField.required ? 'required' : 'optional'}).` : 'All fields have been answered or skipped.',
-		`Reply ONLY with valid raw JSON in this format:
-{"extracted": { "fieldName": "value" }, "reply": "Your brief conversational follow-up or confirmation asking the next question", "complete": false}
-Set "complete" to true ONLY when all questions (both required and optional) have been asked or skipped.`
-	].join('\n');
-
-	// 1. Google AI Studio (Gemini)
-	if (geminiKey) {
-		try {
-			const model = env.INTERVIEWER_MODEL || 'gemini-1.5-flash';
-			const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					systemInstruction: { parts: [{ text: systemPrompt }] },
-					contents: [
-						...(history || []).slice(-8).map(m => ({
-							role: m.role === 'assistant' ? 'model' : 'user',
-							parts: [{ text: String(m.content).slice(0, 800) }]
-						})),
-						{ role: 'user', parts: [{ text: latestText }] }
-					],
-					generationConfig: {
-						responseMimeType: 'application/json',
-						temperature: 0.3
-					}
-				})
-			});
-			if (res.ok) {
-				const data = await res.json();
-				const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-				const parsed = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1));
-				return { extracted: parsed.extracted || {}, reply: parsed.reply || '', complete: !!parsed.complete };
-			}
-		} catch (err) {
-			console.warn('Gemini extraction failed, trying next provider:', err?.message);
-		}
-	}
-
-	// 2. NVIDIA NIM
-	if (nvidiaKey) {
-		try {
-			const model = env.INTERVIEWER_MODEL || 'meta/llama-3.3-70b-instruct';
-			const res = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
-				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${nvidiaKey}`,
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({
-					model,
-					temperature: 0.3,
-					messages: [
-						{ role: 'system', content: systemPrompt },
-						...(history || []).slice(-8).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: String(m.content).slice(0, 800) })),
-						{ role: 'user', content: latestText }
-					]
-				})
-			});
-			if (res.ok) {
-				const data = await res.json();
-				const raw = data?.choices?.[0]?.message?.content || '';
-				const parsed = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1));
-				return { extracted: parsed.extracted || {}, reply: parsed.reply || '', complete: !!parsed.complete };
-			}
-		} catch (err) {
-			console.warn('NVIDIA extraction failed, trying OpenRouter:', err?.message);
-		}
-	}
-
-	// 3. OpenRouter (Default)
-	if (openRouterKey) {
-		const model = env.INTERVIEWER_MODEL || 'openrouter/free';
-		const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-			method: 'POST',
-			headers: {
-				Authorization: `Bearer ${openRouterKey}`,
-				'Content-Type': 'application/json',
-				'HTTP-Referer': 'https://getmaterio.app',
-				'X-Title': 'Materio Interviewer'
-			},
-			body: JSON.stringify({
-				model,
-				temperature: 0.3,
-				messages: [
-					{ role: 'system', content: systemPrompt },
-					...(history || []).slice(-8).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: String(m.content).slice(0, 800) })),
-					{ role: 'user', content: latestText }
-				]
-			})
-		});
-		if (!res.ok) throw new Error(`OpenRouter HTTP ${res.status}`);
-		const data = await res.json();
-		const raw = data?.choices?.[0]?.message?.content || '';
-		const parsed = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1));
-		return { extracted: parsed.extracted || {}, reply: parsed.reply || '', complete: !!parsed.complete };
-	}
-
-	throw new Error('No AI provider key configured');
+	const system = buildSystemPrompt({ form, priorExtracted, skipped });
+	const messages = [
+		...(history || []).slice(-12).map((m) => ({
+			role: m.role === 'user' ? 'user' : 'assistant',
+			content: String(m.content).slice(0, 1000)
+		})),
+		{ role: 'user', content: String(latestText).slice(0, 2000) }
+	];
+	return askInterviewerModel({ system, messages });
 }
+
+
+/**
+ * Form configs change a few times a month, but this lookup runs on every page
+ * load and on every chat turn. A short in-process cache takes a Mongo
+ * round-trip off the critical path — that read was the visible pause before
+ * the interviewer card appeared.
+ */
+const CONFIG_TTL_MS = 60_000;
+const configCache = new Map();
 
 async function loadForm(formId) {
+	const hit = configCache.get(formId);
+	if (hit && Date.now() - hit.at < CONFIG_TTL_MS) return hit.value;
+
+	let value;
 	try {
 		const configs = await getFormConfigsCollection();
 		const configured = await configs.findOne({ id: formId, published: true });
 		if (configured) {
 			const { _id, ...rest } = configured;
-			return rest;
+			value = rest;
+		} else {
+			value = { ...defaultForm, id: formId };
 		}
 	} catch (error) {
+		// A failed lookup must not be cached, or one blip disables the form for
+		// the next minute.
 		console.error('Interviewer form config lookup failed:', error);
+		return { ...defaultForm, id: formId };
 	}
-	return { ...defaultForm, id: formId };
+
+	configCache.set(formId, { at: Date.now(), value });
+	return value;
+}
+
+/**
+ * Drop a cached config after an admin edit. Leading underscore because
+ * SvelteKit only permits a fixed set of exports from a +server.js file.
+ */
+export function _invalidateInterviewerConfig(formId) {
+	if (formId) configCache.delete(formId);
+	else configCache.clear();
 }
 
 function enhanceSingleQuestion(q) {
@@ -413,6 +355,11 @@ export async function POST({ request }) {
 		let llmReply = '';
 		let llmComplete = false;
 
+		// Which field we last asked about. The regex fallback needs this to know
+		// where the visitor's reply belongs — without it every turn looked like
+		// a blank slate, which is what made it re-ask everything.
+		const hintField = nextOpenField({ ...form, fields }, priorExtracted, priorSkipped)?.name || null;
+
 		try {
 			const out = await extractWithLlm({
 				form: { ...form, fields },
@@ -421,27 +368,74 @@ export async function POST({ request }) {
 				priorExtracted,
 				skipped: priorSkipped
 			});
-			extractedNew = out.extracted || {};
-			llmReply = out.reply || '';
-			llmComplete = !!out.complete;
+			if (out) {
+				extractedNew = out.extracted || {};
+				llmReply = out.reply || '';
+				llmComplete = !!out.complete;
+			} else {
+				// Every provider is rate-limited or down. This is now the ONLY
+				// path that reaches the regex extractor.
+				extractedNew = extractFields(text, fields, priorExtracted, hintField);
+			}
 		} catch (err) {
 			console.warn('Falling back to regex extraction:', err?.message);
-			extractedNew = extractFields(text, fields);
+			extractedNew = extractFields(text, fields, priorExtracted, hintField);
 		}
 
-		const extracted = { ...priorExtracted, ...extractedNew };
-		const nextField = nextOpenField({ ...form, fields }, extracted, priorSkipped);
+		// Monotonic merge: a good answer is never replaced by a restatement or
+		// a stray sentence, only by an explicit correction.
+		let { extracted, added, updated } = mergeExtracted(
+			{ ...form, fields },
+			priorExtracted,
+			extractedNew
+		);
+
+		// Guarantee forward progress. If nothing usable came back for the field
+		// we just asked about, attribute the reply ourselves rather than going
+		// round the loop. Sanitise first — a digression must not be parked in a
+		// field just because we happened to ask for it.
+		if (hintField && extracted[hintField] === undefined && !priorExtracted[hintField]) {
+			const guessed = extractFields(text, fields, { ...priorExtracted, ...extracted }, hintField);
+			const fieldDef = fields.find((f) => f.name === hintField);
+			const value = guessed[hintField] ? sanitiseValue(fieldDef, guessed[hintField]) : null;
+			if (value) {
+				extracted = { ...extracted, [hintField]: value };
+				added = [...added, hintField];
+			}
+		}
+
+		// Never nag. If we have asked the same field twice and still have nothing
+		// for it, take the hint and move on — this is the "it keeps asking for
+		// the same value" complaint in its purest form.
+		const askedLog = Array.isArray(existing?.asked) ? [...existing.asked] : [];
+		if (hintField) askedLog.push(hintField);
+		let activeSkipped = priorSkipped;
+		let nextField = nextOpenField({ ...form, fields }, extracted, activeSkipped);
+		if (nextField && hintField === nextField.name) {
+			const times = askedLog.filter((n) => n === hintField).length;
+			if (times >= 2 && !activeSkipped.includes(hintField)) {
+				activeSkipped = [...activeSkipped, hintField];
+				nextField = nextOpenField({ ...form, fields }, extracted, activeSkipped);
+			}
+		}
 		const isFinished = !nextField || llmComplete;
 		const reply = isFinished
 			? (form?.interview?.completeMessage || llmReply || 'Thanks — your response has been recorded.')
-			: questionFor({ ...form, fields }, extracted, priorSkipped, llmReply);
+			: questionFor({ ...form, fields }, extracted, activeSkipped, llmReply);
 
 		if (sessions) {
 			try {
 				await sessions.updateOne(
 					{ sessionId },
 					{
-						$set: { updatedAt: new Date(), extracted, status: isFinished ? 'completed' : 'in_progress' },
+						$set: {
+							updatedAt: new Date(),
+							extracted,
+							skipped: activeSkipped,
+							asked: askedLog.slice(-20),
+							status: isFinished ? 'completed' : 'in_progress',
+							lastAsked: nextField?.name || null
+						},
 						$push: { messages: { role: 'assistant', content: reply, createdAt: new Date() } }
 					}
 				);
@@ -498,6 +492,8 @@ export async function POST({ request }) {
 			message: reply,
 			reply,
 			nextField,
+			added,
+			updated,
 			complete: isFinished
 		});
 	} catch (error) {
@@ -508,7 +504,7 @@ export async function POST({ request }) {
 
 export async function PATCH({ request }) {
 	try {
-		const { sessionId, action, field, examContext } = await request.json();
+		const { sessionId, action, field, values, examContext } = await request.json();
 		if (!sessionId) return json({ error: 'sessionId is required' }, { status: 400 });
 		let collection = null;
 		try {
@@ -522,21 +518,36 @@ export async function PATCH({ request }) {
 		const form = await loadForm(existing.formId);
 		const fields = form.fields || defaultForm.fields;
 		const skipped = existing.skipped || [];
-		const extracted = existing.extracted || {};
+		let extracted = existing.extracted || {};
+
+		// The review step sends the visitor's corrections. Sanitise them exactly
+		// like live extraction so a stray sentence cannot be written, then apply
+		// them over what we hold — these are deliberate, so they win.
+		if (values && typeof values === 'object') {
+			const { extracted: cleaned } = mergeExtracted({ ...form, fields }, {}, values);
+			extracted = { ...extracted, ...cleaned };
+		}
 
 		if (action === 'skip') {
 			const target = field || nextOpenField({ ...form, fields }, extracted, skipped)?.name;
-			if (target && !skipped.includes(target)) skipped.push(target);
-			const nextField = nextOpenField({ ...form, fields }, extracted, skipped);
+			// Non-mutating: this used to push onto the array read straight out of
+			// the Mongo document, so a retry could double-skip.
+			const nextSkipped = target && !skipped.includes(target) ? [...skipped, target] : skipped;
+			const nextField = nextOpenField({ ...form, fields }, extracted, nextSkipped);
 			const isFinished = !nextField;
 			const reply = isFinished
 				? (form?.interview?.completeMessage || 'Thanks — your response has been recorded.')
-				: questionFor({ ...form, fields }, extracted, skipped, '');
+				: questionFor({ ...form, fields }, extracted, nextSkipped, '');
 
 			await collection.updateOne(
 				{ sessionId },
 				{
-					$set: { skipped, updatedAt: new Date(), status: isFinished ? 'completed' : 'in_progress' },
+					$set: {
+						skipped: nextSkipped,
+						updatedAt: new Date(),
+						status: isFinished ? 'completed' : 'in_progress',
+						lastAsked: nextField?.name || null
+					},
 					$push: { messages: { role: 'assistant', content: reply, createdAt: new Date() } }
 				}
 			);
@@ -544,14 +555,14 @@ export async function PATCH({ request }) {
 			await getFormResponsesCollection()
 				.then((responses) => responses.updateOne(
 					{ sessionId },
-					{ $set: { skipped, values: extracted, status: isFinished ? 'completed' : 'in_progress', updatedAt: new Date().toISOString() } },
+					{ $set: { skipped: nextSkipped, values: extracted, status: isFinished ? 'completed' : 'in_progress', updatedAt: new Date().toISOString() } },
 					{ upsert: true }
 				))
 				.catch(() => {});
 
 			return json({
 				extracted,
-				skipped,
+				skipped: nextSkipped,
 				message: reply,
 				reply,
 				nextField,

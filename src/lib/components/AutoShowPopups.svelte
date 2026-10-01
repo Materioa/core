@@ -3,7 +3,7 @@
 	import { browser } from '$app/environment';
 	import { page } from '$app/stores';
 	import { get } from 'svelte/store';
-	import { activeModalStore } from '$lib/stores.js';
+	import { activeModalStore, overlayLockStore } from '$lib/stores.js';
 
 	// Evaluates the auto-show rules managed in the admin panel (form_activity
 	// collection, ported from the parent formActivity.json) and opens the
@@ -107,6 +107,11 @@
 			timer = setTimeout(() => {
 				try {
 					if (get(activeModalStore)) { console.log('[autoshow] skipped, another modal is open'); return; }
+					// The viva interviewer is a card overlay rather than an
+					// activeModalStore entry, so it has to be checked separately.
+					// Without this a promo could stack on top of an open
+					// interview and the visitor would see two overlapping cards.
+					if (get(overlayLockStore)) { console.log('[autoshow] skipped, an overlay owns the screen'); return; }
 					console.log(`[autoshow] opening “${popup.id}”`);
 					activeModalStore.set(popup.id);
 					localStorage.setItem(`materio_form_last_${rule.id}`, String(Date.now()));

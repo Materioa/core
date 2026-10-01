@@ -127,6 +127,19 @@ export const bookmarksStore = writable([]);
 // Active Global Modal Store ('bug-report', 'contribute', 'ai-chat', 'seating-lookup', 'syllabus', null)
 export const activeModalStore = writable(null);
 
+// Cards and overlays that are NOT in activeModalStore but still own the screen.
+// Modals that open themselves automatically (promos, the viva interviewer) must
+// consult this before showing, otherwise two overlays stack on top of each
+// other and the visitor ends up looking at whichever happens to be painted
+// last. Kept separate from activeModalStore because putting the interviewer
+// there would collide with the URL-hash routing in +layout.svelte.
+export const overlayLockStore = writable(null);
+
+/** True when any overlay owns the screen. Callers check this before opening. */
+export function isOverlayLocked(get) {
+    return get(overlayLockStore) !== null || get(activeModalStore) !== null;
+}
+
 // Notifications Store
 export const notificationsStore = writable({
     unreadCount: 0,

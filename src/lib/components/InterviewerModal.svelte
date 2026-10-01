@@ -1,7 +1,7 @@
 <script>
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
-	import { activeModalStore } from '$lib/stores.js';
+	import { activeModalStore, overlayLockStore } from '$lib/stores.js';
 	import { page } from '$app/stores';
 	import { getSkipLanding, isForceApp } from '$lib/utils/landingPrefs.js';
 	import InterviewerCore from './InterviewerCore.svelte';
@@ -42,6 +42,22 @@
 		$activeModalStore !== null && !INTERVIEW_MODAL_KEYS.includes($activeModalStore)
 	);
 
+	// ...and stand down for any other overlay that owns the screen (a promo
+	// card mid-animation, the PDF reader, search). This is the half that was
+	// missing: the interviewer respected other modals, but nothing respected
+	// the interviewer, so a promo could open on top of it.
+	let isOverlayLocked = $derived($overlayLockStore !== null);
+
+	// Claim the screen while we are up. Kept out of activeModalStore because
+	// that store drives URL-hash routing in +layout.svelte.
+	$effect(() => {
+		if (!isOpen) return;
+		overlayLockStore.set('interviewer');
+		return () => {
+			if ($overlayLockStore === 'interviewer') overlayLockStore.set(null);
+		};
+	});
+
 	let isExplicitlyTriggered = $derived(
 		INTERVIEW_MODAL_KEYS.includes($activeModalStore) ||
 		($page.url.searchParams.get('interview') !== null) ||
@@ -56,6 +72,7 @@
 	// Shows only when no other modal is open, and only when a viva/practical exam has started to show up (or explicitly opened)
 	let isOpen = $derived(
 		!isOtherModalOpen &&
+		!isOverlayLocked &&
 		$page.url.pathname !== '/interviewer' &&
 		!isLanding && (
 			isExplicitlyTriggered ||

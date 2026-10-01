@@ -81,6 +81,62 @@
 
 	let isMorphed = $state(false);
 	let isMorphing = $state(false);
+
+	// Stage flow: the welcome hero doubles as "intro", then the conversation,
+	// an optional review-and-correct step, then the thank-you screen. `review`
+	// is only ever entered when admin → Forms and Wizards has it switched on.
+	let stage = $state('chat');
+	let reviewDraft = $state({});
+	let isFinalising = $state(false);
+	let reviewOpen = $state(false);
+
+	/** Admin can turn the review step off; when off we finish as soon as the
+	 *  required fields are settled. */
+	let reviewEnabled = $derived(form?.interview?.showReview !== false);
+
+	function openReview() {
+		reviewDraft = { ...values };
+		stage = 'review';
+		reviewOpen = true;
+	}
+
+	function backToChat() {
+		reviewOpen = false;
+		stage = 'chat';
+	}
+
+	/** Persist the visitor's corrections, then let the normal completion path run. */
+	async function submitReview() {
+		if (isFinalising) return;
+		isFinalising = true;
+		try {
+			const cleaned = Object.fromEntries(
+				Object.entries(reviewDraft).filter(([, v]) => hasValue(v))
+			);
+			const res = await fetch('/api/interviewer', {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json', ...authHeaders() },
+				body: JSON.stringify({
+					sessionId,
+					action: 'complete',
+					values: cleaned,
+					examContext: { code: examCode, subject: examSubject }
+				})
+			});
+			if (res.ok) {
+				const data = await res.json().catch(() => ({}));
+				if (data.extracted) mergeExtracted(data.extracted);
+			}
+		} catch {
+			// Nothing was lost — the thank-you screen is still honest about it.
+		} finally {
+			isFinalising = false;
+			reviewOpen = false;
+			isComplete = true;
+			fireInterviewMagic('complete');
+			scrollToBottom();
+		}
+	}
 	let currentMode = $derived(isMorphed ? 'fullscreen' : initialMode);
 
 	let activeTab = $state('contribute'); // 'contribute' | 'responses'
@@ -149,13 +205,6 @@
 	function hasValue(v) {
 		return String(v ?? '').trim().length > 0;
 	}
-	function mergeExtracted(obj) {
-		if (!obj || typeof obj !== 'object') return;
-		const clean = Object.fromEntries(
-			Object.entries(obj).filter(([, v]) => hasValue(v))
-		);
-		if (Object.keys(clean).length > 0) values = { ...values, ...clean };
-	}
 	let requiredDone = $derived(requiredFields.filter((f) => hasValue(values[f.name])).length);
 	let nextField = $derived(
 		requiredFields.find((f) => !values[f.name] && !skipped.includes(f.name)) ||
@@ -165,23 +214,66 @@
 	let capturedEntries = $derived(Object.entries(values).filter(([, v]) => hasValue(v)));
 	let isHeroState = $derived(messages.length <= 1 && !isComplete && currentMode === 'fullscreen');
 
+	// Every required field is answered or skipped, so the review step is worth
+	// showing. Declared here because it depends on requiredFields above.
+	let reviewReady = $derived(
+		reviewEnabled &&
+		!isComplete &&
+		requiredFields.length > 0 &&
+		requiredFields.every((f) => hasValue(values[f.name]) || skipped.includes(f.name))
+	);
+
+	/**
+	 * Client-side mirror of the server's capture rule. This used to be a plain
+	 * `{ ...values, ...clean }` spread, which let a stray or restated value
+	 * overwrite something the visitor had already given us — the same bug as
+	 * the server-side one, visible in the UI before the request even landed.
+	 * An existing answer now only changes on an explicit correction.
+	 */
+	const CORRECTION_RE = /\b(actually|correction|i mean|sorry|typo|mistake|scratch that|instead|rather)\b/i;
+	function canReplaceExisting(existing, incoming) {
+		if (CORRECTION_RE.test(incoming)) return true;
+		// Filling a stub with something real is an improvement, not an overwrite.
+		return existing.length <= 12 && incoming.length > existing.length + 12;
+	}
+	function mergeExtracted(obj) {
+		if (!obj || typeof obj !== 'object') return;
+		const next = { ...values };
+		let changed = false;
+		for (const [k, v] of Object.entries(obj)) {
+			if (!hasValue(v)) continue;
+			const clean = String(v).trim();
+			const existing = next[k];
+			if (!hasValue(existing)) {
+				next[k] = clean;
+				changed = true;
+			} else if (clean !== String(existing).trim() && canReplaceExisting(String(existing), clean)) {
+				next[k] = clean;
+				changed = true;
+			}
+		}
+		if (changed) values = next;
+	}
+
 	// Dynamic, friendly greeting derived from form configs in database
 	let formGreeting = $derived.by(() => {
-		if (!form) return { title: 'Materio Interviewer', intro: '', prompt: '' };
-		const title = form.title || 'Materio Interviewer';
-		const desc = form.description || '';
-		const sys = form.interview?.systemPrompt || '';
+		if (!form) return { title: 'Materio Interviewer', intro: '', prompt: '', privacy: '' };
+		// Admin → Forms and Wizards → Conversation owns this copy. Fall back to
+		// the form title/description so older saved docs still read well.
+		const title = form.interview?.introTitle || form.title || 'Materio Interviewer';
 		const prompt = form.interview?.openingQuestion || 'What would you like to share today?';
+		const privacy = form.interview?.privacyNote || '';
 
-		let intro = desc;
-		if (!intro && sys) {
-			intro = sys.replace(/^You\s+(collect|triage|recruit|gather)\s+/i, "I'm here to help collect ");
+		let intro = form.interview?.introBody || form.description || '';
+		if (!intro) {
+			const sys = form.interview?.systemPrompt || '';
+			if (sys) intro = sys.replace(/^You\s+(collect|triage|recruit|gather)\s+/i, "I'm here to help collect ");
 		}
 		if (!intro) {
 			intro = "Tell me in your own words — I'll organize and save your answers as we talk.";
 		}
 
-		return { title, intro, prompt };
+		return { title, intro, prompt, privacy };
 	});
 
 	// Context-aware, appropriate placeholder derived dynamically from form and active field
@@ -862,6 +954,9 @@
 								<h1 class="hero-heading">{formGreeting.title}</h1>
 								<p class="hero-sub">{formGreeting.intro}</p>
 								<p class="hero-question">{formGreeting.prompt}</p>
+								{#if formGreeting.privacy}
+									<p class="hero-privacy">{formGreeting.privacy}</p>
+								{/if}
 							</div>
 						{:else}
 							<div class="messages-list">
@@ -932,6 +1027,12 @@
 									</button>
 								{/if}
 
+								{#if reviewReady}
+									<button type="button" class="skip-btn review-btn" onclick={openReview}>
+										Review
+									</button>
+								{/if}
+
 								<button
 									type="submit"
 									class="send-btn"
@@ -950,6 +1051,61 @@
 				</footer>
 			{/if}
 		</div>
+
+		<!-- Review step: the visitor corrects or clears everything we picked up
+		     before it is written. Only reachable when admin → Forms and Wizards
+		     has the review step switched on. -->
+		{#if reviewOpen}
+			<div class="review-overlay" role="dialog" aria-modal="true" aria-label="Check your answers">
+				<div class="review-panel">
+					<header class="review-head">
+						<h2>One last look</h2>
+						<p>
+							{#if form?.interview?.privacyNote}
+								{form.interview.privacyNote}
+							{:else}
+								Have a read before this is sent — anything here can be changed.
+							{/if}
+						</p>
+					</header>
+
+					<div class="review-body">
+						{#each allFields as f (f.name)}
+							<div class="review-row">
+								<label for="rv-{f.name}">
+									{f.label}{f.required ? '' : ' · optional'}
+									{#if skipped.includes(f.name)}<span class="review-chip">skipped</span>{/if}
+								</label>
+								{#if f.type === 'select' && f.options?.length}
+									<select id="rv-{f.name}" bind:value={reviewDraft[f.name]}>
+										<option value="">Not answered</option>
+										{#each f.options as o, oi (oi)}
+											<option value={typeof o === 'string' ? o : o.label ?? o.value}>
+												{typeof o === 'string' ? o : o.label ?? o.value}
+											</option>
+										{/each}
+									</select>
+								{:else}
+									<textarea
+										id="rv-{f.name}"
+										rows={f.type === 'textarea' ? 3 : 1}
+										placeholder={f.placeholder || `Add your answer for "${f.label}"`}
+										bind:value={reviewDraft[f.name]}
+									></textarea>
+								{/if}
+							</div>
+						{/each}
+					</div>
+
+					<footer class="review-foot">
+						<button type="button" class="secondary-action-btn" onclick={backToChat}>Back</button>
+						<button type="button" class="primary-action-btn" onclick={submitReview} disabled={isFinalising}>
+							{isFinalising ? 'Sending…' : 'Send it'}
+						</button>
+					</footer>
+				</div>
+			</div>
+		{/if}
 	{/if}
 </div>
 
@@ -1991,6 +2147,158 @@
 		color: var(--iv-muted);
 		margin: 0 0 16px 0;
 		max-width: 580px;
+	}
+
+	/* ---------- review step ---------- */
+
+	.hero-privacy {
+		margin: 14px auto 0;
+		max-width: 46ch;
+		font-size: 12.5px;
+		line-height: 1.55;
+		opacity: 0.72;
+	}
+
+	.review-btn {
+		font-weight: 600;
+		opacity: 1;
+	}
+
+	.review-overlay {
+		position: fixed;
+		inset: 0;
+		z-index: 60;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 20px;
+		background: rgba(0, 0, 0, 0.55);
+		backdrop-filter: blur(6px);
+		-webkit-backdrop-filter: blur(6px);
+		animation: review-fade 0.18s ease both;
+	}
+
+	@keyframes review-fade {
+		from { opacity: 0; }
+		to { opacity: 1; }
+	}
+
+	.review-panel {
+		width: min(560px, 100%);
+		max-height: 88vh;
+		display: flex;
+		flex-direction: column;
+		background: var(--iv-panel, #fff);
+		color: var(--iv-panel-fg, #1b1b18);
+		border: 1px solid rgba(0, 0, 0, 0.1);
+		border-radius: 18px;
+		box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+		overflow: hidden;
+	}
+
+	.review-head {
+		padding: 20px 22px 14px;
+		border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+	}
+
+	.review-head h2 {
+		margin: 0 0 5px;
+		font-size: 19px;
+		letter-spacing: -0.01em;
+	}
+
+	.review-head p {
+		margin: 0;
+		font-size: 12.5px;
+		line-height: 1.5;
+		opacity: 0.72;
+	}
+
+	.review-body {
+		flex: 1;
+		overflow-y: auto;
+		padding: 4px 22px 8px;
+	}
+
+	.review-row {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		padding: 13px 0;
+		border-top: 1px solid rgba(0, 0, 0, 0.07);
+	}
+
+	.review-row:first-child {
+		border-top: 0;
+	}
+
+	.review-row label {
+		display: flex;
+		align-items: center;
+		gap: 7px;
+		font-size: 11px;
+		letter-spacing: 0.07em;
+		text-transform: uppercase;
+		opacity: 0.65;
+	}
+
+	.review-chip {
+		font-size: 9.5px;
+		letter-spacing: 0.05em;
+		padding: 2px 7px;
+		border-radius: 999px;
+		border: 1px solid rgba(0, 0, 0, 0.14);
+		text-transform: uppercase;
+	}
+
+	.review-row textarea,
+	.review-row select {
+		width: 100%;
+		box-sizing: border-box;
+		font: inherit;
+		font-size: 14px;
+		line-height: 1.5;
+		padding: 9px 11px;
+		border-radius: 10px;
+		border: 1px solid rgba(0, 0, 0, 0.14);
+		background: rgba(0, 0, 0, 0.02);
+		color: inherit;
+		resize: vertical;
+		outline: none;
+		transition: border-color 0.15s ease, box-shadow 0.15s ease;
+	}
+
+	.review-row textarea:focus,
+	.review-row select:focus {
+		border-color: rgba(163, 73, 20, 0.55);
+		box-shadow: 0 0 0 3px rgba(163, 73, 20, 0.12);
+	}
+
+	.review-foot {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 10px;
+		padding: 14px 22px 18px;
+		border-top: 1px solid rgba(0, 0, 0, 0.08);
+	}
+
+	@media (max-width: 560px) {
+		.review-overlay {
+			padding: 8px;
+			align-items: flex-end;
+		}
+
+		.review-panel {
+			max-height: 92vh;
+			border-radius: 18px 18px 12px 12px;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.review-overlay {
+			animation: none;
+		}
 	}
 
 	.hero-question {
