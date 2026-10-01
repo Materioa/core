@@ -73,15 +73,45 @@ const GOOGLE_DICT_DEFAULT_CORPUS = 'en-US';
  */
 function secret(name) {
 	try {
-		return process?.env?.[name] || globalThis?.env?.[name] || '';
+		const v = process?.env?.[name] || globalThis?.env?.[name] || '';
+		return typeof v === 'string' ? v.trim() : v;
 	} catch {
 		return '';
 	}
 }
 
+/**
+ * True when GOOGLE_DICT_KEY is present AND shaped like the browser key this
+ * endpoint wants.
+ *
+ * This guard exists because a key pasted with a stray newline or surrounding
+ * quotes makes Google answer `400 API_KEY_INVALID` rather than `403` — the same
+ * shape as a revoked credential. Requiring the exact 39-char shape means such a
+ * value disables the provider cleanly instead of adding a silent 400 to every
+ * lookup.
+ */
+function googleDictKey() {
+	const raw = secret('GOOGLE_DICT_KEY');
+	if (!raw) return '';
+	// A Google API key is exactly 39 base64url characters. Anything else earns a
+	// 400 API_KEY_INVALID — including one carrying a stray newline or quote from
+	// shell-quoting, which is easy to mistake for a revoked key. Strip
+	// quotes/whitespace, then require the exact length and alphabet.
+	//
+	// Deliberately prefix-agnostic: the purpose is to catch copy-paste artefacts,
+	// not to second-guess Google's key format, so this stays right if they ever
+	// change it.
+	const cleaned = raw.replace(/^["'\s]+|["'\s]+$/g, '');
+	return /^[0-9A-Za-z_-]{39}$/.test(cleaned) ? cleaned : '';
+}
+
+function googleDictEnabled() {
+	return !!googleDictKey();
+}
+
 /** Whether the optional Google provider is configured at all. */
 export function isGoogleDictEnabled() {
-	return !!secret('GOOGLE_DICT_KEY');
+	return googleDictEnabled();
 }
 
 function googleDictXReferer() {
@@ -352,7 +382,7 @@ function googleDictUrl(word, options = {}) {
 	const country = GOOGLE_DICT_CORPUS[corpus];
 	if (country) url.searchParams.set('country', country);
 	url.searchParams.set('strategy', '2');
-	url.searchParams.set('key', secret('GOOGLE_DICT_KEY'));
+	url.searchParams.set('key', googleDictKey());
 	return url.toString();
 }
 
