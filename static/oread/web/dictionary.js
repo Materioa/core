@@ -77,12 +77,20 @@
 
     // Only the document text layer. Without this a selection inside the find
     // bar, a sidebar input or our own card would trigger a lookup.
+    //
+    // commonAncestorContainer is a TEXT NODE whenever the selection sits inside
+    // a single span - which is the normal case for selecting one word, since
+    // PDF.js emits each text run as its own span. `.closest()` lives on
+    // Element.prototype, so a text node has no such method; an earlier guard
+    // that required one rejected exactly the single-word case and made the
+    // tooltip impossible to trigger. Resolve to the owning ELEMENT first.
     var container = range.commonAncestorContainer;
-    if (!container || typeof container.closest !== 'function') return '';
-    var layer = container.nodeType === Node.ELEMENT_NODE
-      ? container.closest('.textLayer')
-      : container.parentElement?.closest('.textLayer');
-    if (!layer) return '';
+    if (!container) return '';
+    var element = container.nodeType === Node.ELEMENT_NODE
+      ? container
+      : container.parentElement;
+    if (!element || typeof element.closest !== 'function') return '';
+    if (!element.closest('.textLayer')) return '';
 
     var text = range.toString().replace(/\s+/g, ' ').trim();
     if (!text || text.length > 64) return '';
@@ -652,8 +660,6 @@
   }
 
   function scheduleUpdate() {
-    window.clearTimeout(timer);
-
     var selection = window.getSelection?.();
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
 
@@ -668,6 +674,13 @@
     if (!rect) return;
 
     // Same word, card already open: only re-anchor, never refetch.
+    //
+    // This branch must NOT clear the pending lookup. selectionchange, mouseup
+    // and keyup all fire for one word selection, and an unconditional
+    // clearTimeout() at the top of this function wiped the armed lookup on the
+    // second event before the re-anchor early-return - so the card opened and
+    // then sat on "Looking up…" forever. The debounce is the only reason to
+    // clear anything, and there is nothing to debounce once armed.
     if (card && !card.hidden && activeWord === word) {
       positionCard(rect);
       return;
@@ -676,6 +689,8 @@
     activeWord = word;
     show(word, rect);
 
+    // Arm the lookup once per word, not once per event.
+    window.clearTimeout(timer);
     timer = window.setTimeout(function () {
       resolveWord(word, lookupToken);
     }, 90);
