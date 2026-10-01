@@ -158,7 +158,12 @@ export function resetMongoDb() {
  * Late op outcomes are always observed: an op that settles after the timeout
  * must never become an unhandled rejection (another worker-crasher).
  */
-export function withMongoTimeout(promise, ms = 5000, label = 'mongo op') {
+export function withMongoTimeout(promiseLike, ms = 5000, label = 'mongo op') {
+	// Promise.resolve() first: accept any thenable, not just a real Promise.
+	// Some driver/query-builder objects implement .then() but not .finally(),
+	// and calling .finally() on those throws synchronously — which turns a
+	// healthy read into a failed request.
+	const promise = Promise.resolve(promiseLike);
 	let timer;
 	const guarded = promise.finally(() => clearTimeout(timer));
 	guarded.then(

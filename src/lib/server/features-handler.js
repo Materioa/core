@@ -2710,7 +2710,16 @@ const ANALYTICS_COLUMNS = 'user_id, anon_id, metrics, date';
 // and the handler runs live instead of being served from cache).
 const SUPABASE_OP_TIMEOUT_MS = 4000;
 
-async function supabaseWithTimeout(promise, label) {
+async function supabaseWithTimeout(promiseLike, label) {
+	// CRITICAL: supabase-js query builders (.from().select(), .rpc()) are
+	// THENABLES, not Promises — they implement .then() but NOT .finally().
+	// Calling .finally() on one throws "promise.finally is not a function",
+	// which silently broke EVERY analytics flush (merge_daily_stats), the
+	// leaderboard scan, the views RPC and the identity lookup — the requests
+	// still returned 200, so the data was dropped with only a server-side log.
+	// Promise.resolve() assimilates a thenable into a real Promise first.
+	const promise = Promise.resolve(promiseLike);
+
 	let timer;
 	const guarded = promise.finally(() => clearTimeout(timer));
 	guarded.then(
