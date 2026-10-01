@@ -5053,6 +5053,186 @@ body.thinkletResizing #thinkletResizeHandle::before {
   outline: none;
 }
 
+/* Dictionary selection tooltip
+   ---------------------------------------------------------------------------
+   A floating card anchored to the selected word, with an arrow pointing back
+   at it. Sits above the toolbar/sidebar and the selection menu so it is never
+   occluded while reading. Colours come from the same theme variables the rest
+   of the viewer chrome uses, so dark/coffee modes need no extra rules here. */
+#materioDictionaryCard {
+  position: fixed;
+  z-index: 100001;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(340px, calc(100vw - 24px));
+  padding: 12px 14px;
+  border: 1px solid var(--doorhanger-border-color);
+  border-radius: 10px;
+  background: var(--doorhanger-bg-color);
+  color: var(--text-primary-color);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.22);
+  font-family: 'OpenRunde', 'Open Runde', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: start;
+  cursor: default;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms ease, visibility 120ms ease;
+}
+
+/* Hidden state must beat the [hidden] attribute's display:none only where we
+   animate; keep [hidden] authoritative otherwise. */
+#materioDictionaryCard[hidden] {
+  display: none;
+}
+
+#materioDictionaryCard.materio-dict-visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+#materioDictionaryCard .materio-dict-arrow {
+  position: absolute;
+  left: var(--materio-dict-arrow-left, 50%);
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--doorhanger-border-color);
+  background: var(--doorhanger-bg-color);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+/* Above the word: the arrow hangs below the card's bottom edge. */
+#materioDictionaryCard[data-placement='top'] .materio-dict-arrow {
+  bottom: -6px;
+  border-top: 0;
+  border-left: 0;
+}
+
+/* Below the word: the arrow sits above the card's top edge. */
+#materioDictionaryCard[data-placement='bottom'] .materio-dict-arrow {
+  top: -6px;
+  border-bottom: 0;
+  border-right: 0;
+}
+
+#materioDictionaryCard .materio-dict-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#materioDictionaryCard .materio-dict-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+#materioDictionaryCard .materio-dict-word {
+  font-size: 15px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+#materioDictionaryCard .materio-dict-phonetic {
+  color: var(--text-primary-color);
+  opacity: 0.65;
+  font-size: 12px;
+}
+
+#materioDictionaryCard .materio-dict-play,
+#materioDictionaryCard .materio-dict-source {
+  flex: none;
+  border: 0;
+  padding: 0 2px;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 11px;
+  text-decoration: none;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+#materioDictionaryCard .materio-dict-source {
+  margin-inline-start: auto;
+}
+
+#materioDictionaryCard .materio-dict-play:hover,
+#materioDictionaryCard .materio-dict-play:focus-visible,
+#materioDictionaryCard .materio-dict-source:hover,
+#materioDictionaryCard .materio-dict-source:focus-visible {
+  opacity: 1;
+  outline: none;
+}
+
+#materioDictionaryCard .materio-dict-status {
+  opacity: 0.7;
+}
+
+#materioDictionaryCard .materio-dict-spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  opacity: 0.6;
+  animation: materioDictSpin 700ms linear infinite;
+}
+
+@keyframes materioDictSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+#materioDictionaryCard .materio-dict-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+#materioDictionaryCard .materio-dict-pos {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+#materioDictionaryCard .materio-dict-def {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* Numbered sense separation without CSS counters leaking into the text. */
+#materioDictionaryCard .materio-dict-def-alt {
+  padding-inline-start: 8px;
+  border-inline-start: 2px solid var(--button-hover-color);
+}
+
+#materioDictionaryCard .materio-dict-example {
+  opacity: 0.72;
+  font-style: italic;
+}
+
+#materioDictionaryCard .materio-dict-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-block-start: 2px;
+}
+
+#materioDictionaryCard .materio-dict-chip {
+  padding: 1px 7px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  font-size: 11px;
+  opacity: 0.75;
+}
+
 #sidebarContainer :is(input, button, select) {
   font: message-box;
 }
