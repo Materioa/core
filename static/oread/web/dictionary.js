@@ -34,6 +34,9 @@
   var timer = 0;
   var lookupToken = 0;
   var activeWord = '';
+  // Set on pointerdown so a click that immediately produces a selection is not
+  // mistaken for a dismissal of the card it is about to open.
+  var selectionStartedAt = 0;
 
   // word -> normalised payload. Repeat lookups inside one reading session are
   // instant and cost no request; the server cache only helps on the next visit.
@@ -330,6 +333,245 @@
     positionCard(rect);
   }
 
+  /**
+   * Looks a word up directly against both keyless free providers, racing them.
+   *
+   * This is the primary path, not a fallback. The same-origin API is tried
+   * first because it adds a week-long edge cache, but it is an optimisation:
+   * the deployed worker can lag behind a desktop release (a build publishes the
+   * app before anyone runs `wrangler deploy`), and when that happens a client
+   * that only spoke to the API shows nothing at all. Both providers send
+   * `Access-Control-Allow-Origin: *`, so talking to them directly works from
+   * the browser, Tauri and the Android WebView with no proxy in between.
+   */
+  function lookupDirectly(word) {
+    var sources = [
+      {
+        provider: 'dictionaryapi.dev',
+        url: 'https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent(word),
+        parse: parseDictionaryApi
+      },
+      {
+        provider: 'wiktionary',
+        url: 'https://en.wiktionary.org/api/rest_v1/page/definition/' + encodeURIComponent(word),
+        parse: parseWiktionary
+      }
+    ];
+
+    return new Promise(function (resolve, reject) {
+      var controllers = [];
+      var settled = false;
+      var sawNetworkFailure = false;
+
+      function settle(payload, error) {
+        if (settled) return;
+        settled = true;
+        if (payload) resolve(payload);
+        else reject(error);
+      }
+
+      var attempts = sources.map(function (source) {
+        var controller = typeof AbortController === 'function' ? new AbortController() : null;
+        if (controller) controllers.push(controller);
+
+        return fetch(source.url, {
+          method: 'GET',
+          headers: { accept: 'application/json' },
+          signal: controller ? controller.signal : undefined,
+          credentials: 'omit'
+        })
+          .then(function (response) {
+            if (!response.ok) throw makeError('provider said ' + response.status, response.status === 404);
+            return response.json();
+          })
+          .then(function (payload) {
+            var parsed = source.parse(payload, word);
+            if (parsed) {
+              // First usable answer wins; release the loser's socket.
+              controllers.forEach(function (c) { try { c.abort(); } catch (e) {} });
+              settle(parsed);
+            }
+          })
+          .catch(function (error) {
+            // A clean 404 is a real answer; anything else is a broken request.
+            if (!error || !error.notFound) sawNetworkFailure = true;
+          });
+      });
+
+      Promise.all(attempts).then(function () {
+        if (settled) return;
+        settle(null, makeError('no definition', !sawNetworkFailure));
+      });
+    });
+  }
+
+  function makeError(message, notFound) {
+    var error = new Error(message);
+    error.notFound = !!notFound;
+    return error;
+  }
+
+  var HTML_ENTITIES = {
+    amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' '
+  };
+
+  /**
+   * Flattens provider HTML into plain text. Wiktionary returns small
+   * MediaWiki fragments, which must never reach the card as markup.
+   */
+  function htmlToText(html) {
+    if (typeof html !== 'string') return '';
+    return html
+      .replace(/<[^>]*>/g, '')
+      .replace(/&#(\d+);/g, function (_, code) {
+        var num = Number(code);
+        return num > 0 ? String.fromCodePoint(num) : '';
+      })
+      .replace(/&([a-z]+);/gi, function (match, name) {
+        var key = String(name).toLowerCase();
+        return HTML_ENTITIES[key] !== undefined ? HTML_ENTITIES[key] : match;
+      })
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function clampString(value, max) {
+    if (typeof value !== 'string') return '';
+    return value.length > max ? value.slice(0, max - 1).trimEnd() + '…' : value;
+  }
+
+  function uniqueStrings(values, limit) {
+    var seen = {};
+    var out = [];
+    for (var i = 0; i < (values || []).length; i++) {
+      var text = htmlToText(values[i]);
+      if (!text || seen[text]) continue;
+      seen[text] = true;
+      out.push(text);
+      if (out.length >= limit) break;
+    }
+    return out;
+  }
+
+  /** dictionaryapi.dev payload → the shape renderDefinition() consumes. */
+  function parseDictionaryApi(payload, word) {
+    if (!Array.isArray(payload) || !payload.length) return null;
+
+    var phonetic = '';
+    var phonetics = [];
+    var sourceUrl = '';
+
+    for (var e = 0; e < payload.length && phonetics.length < 4; e++) {
+      var entry = payload[e];
+      if (!entry || typeof entry !== 'object') continue;
+      if (!phonetic && typeof entry.phonetic === 'string') phonetic = entry.phonetic;
+      if (!sourceUrl && Array.isArray(entry.sourceUrls) && entry.sourceUrls.length) {
+        sourceUrl = entry.sourceUrls[0];
+      }
+      var items = Array.isArray(entry.phonetics) ? entry.phonetics : [];
+      for (var p = 0; p < items.length && phonetics.length < 4; p++) {
+        var item = items[p];
+        if (!item) continue;
+        var text = typeof item.text === 'string' ? item.text : '';
+        var audio = safeHttpUrl(item.audio);
+        if ((!text && !audio) || phonetics.some(function (x) {
+          return x.text === text && x.audio === audio;
+        })) continue;
+        phonetics.push({ text: text, audio: audio });
+      }
+    }
+
+    // Prefer an IPA that actually has audio so the play button is never dead.
+    if (!phonetic) phonetic = (phonetics.find(function (x) { return x.text; }) || {}).text || '';
+
+    var meanings = [];
+    for (var m = 0; m < payload.length && meanings.length < 5; m++) {
+      var list = Array.isArray(payload[m].meanings) ? payload[m].meanings : [];
+      for (var g = 0; g < list.length && meanings.length < 5; g++) {
+        var meaning = list[g];
+        if (!meaning || !meaning.partOfSpeech) continue;
+        var definitions = [];
+        var defs = Array.isArray(meaning.definitions) ? meaning.definitions : [];
+        for (var d = 0; d < defs.length && definitions.length < 6; d++) {
+          var defText = clampString(htmlToText(defs[d].definition), 400);
+          if (!defText) continue;
+          definitions.push({
+            definition: defText,
+            example: clampString(htmlToText(defs[d].example), 200),
+            synonyms: uniqueStrings(defs[d].synonyms, 8),
+            antonyms: uniqueStrings(defs[d].antonyms, 8)
+          });
+        }
+        if (!definitions.length) continue;
+        meanings.push({
+          partOfSpeech: meaning.partOfSpeech,
+          definitions: definitions,
+          synonyms: uniqueStrings(meaning.synonyms, 8),
+          antonyms: uniqueStrings(meaning.antonyms, 8)
+        });
+      }
+    }
+
+    if (!meanings.length) return null;
+
+    return {
+      word: typeof payload[0].word === 'string' ? payload[0].word : word,
+      phonetic: phonetic,
+      phonetics: phonetics,
+      sourceUrl: safeHttpUrl(sourceUrl),
+      meanings: meanings,
+      provider: 'dictionaryapi.dev'
+    };
+  }
+
+  /** en.wiktionary.org REST payload → the shape renderDefinition() consumes. */
+  function parseWiktionary(payload, word) {
+    var entries = payload && Array.isArray(payload.en) ? payload.en : [];
+    if (!entries.length) return null;
+
+    var meanings = [];
+    for (var i = 0; i < entries.length && meanings.length < 5; i++) {
+      var entry = entries[i];
+      if (!entry || !entry.partOfSpeech) continue;
+      var definitions = [];
+      var defs = Array.isArray(entry.definitions) ? entry.definitions : [];
+      for (var d = 0; d < defs.length && definitions.length < 6; d++) {
+        var text = clampString(htmlToText(defs[d].definition), 400);
+        if (!text) continue;
+        definitions.push({ definition: text, example: '', synonyms: [], antonyms: [] });
+      }
+      if (!definitions.length) continue;
+      meanings.push({
+        partOfSpeech: entry.partOfSpeech,
+        definitions: definitions,
+        synonyms: [],
+        antonyms: []
+      });
+    }
+
+    if (!meanings.length) return null;
+
+    return {
+      word: word,
+      phonetic: '',
+      phonetics: [],
+      sourceUrl: 'https://en.wiktionary.org/wiki/' + encodeURIComponent(word),
+      meanings: meanings,
+      provider: 'wiktionary'
+    };
+  }
+
+  /** Only ever hand the DOM an http(s) URL it could actually follow. */
+  function safeHttpUrl(value) {
+    if (typeof value !== 'string' || !value) return '';
+    try {
+      var url = new URL(value);
+      return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : '';
+    } catch (e) {
+      return '';
+    }
+  }
+
   function fetchDefinition(word) {
     var key = word.toLowerCase();
     if (cache.has(key)) return Promise.resolve(cache.get(key));
@@ -349,14 +591,7 @@
       credentials: 'omit'
     })
       .then(function (response) {
-        // 404 is a real answer ("no such headword"), distinct from the request
-        // itself failing. Tag it so the card can say the useful thing instead
-        // of blaming the network for a spelling mistake.
-        if (!response.ok) {
-          var failure = new Error('dictionary request failed: ' + response.status);
-          failure.notFound = response.status === 404;
-          throw failure;
-        }
+        if (!response.ok) throw makeError('dictionary request failed: ' + response.status, response.status === 404);
         return response.json();
       })
       .then(function (payload) {
@@ -367,6 +602,19 @@
         }
         cache.set(key, payload);
         return payload;
+      })
+      // The API is a cache optimisation, not a dependency. If it is missing
+      // (deployed worker predating this build) or unreachable, go straight to
+      // the providers so the tooltip still works.
+      .catch(function (error) {
+        return lookupDirectly(word).then(function (payload) {
+          if (cache.size >= MAX_CACHE_ENTRIES) {
+            var oldest = cache.keys().next().value;
+            if (oldest !== undefined) cache.delete(oldest);
+          }
+          cache.set(key, payload);
+          return payload;
+        });
       })
       .finally(function () {
         window.clearTimeout(timerId);
@@ -445,11 +693,27 @@
 
     document.addEventListener('pointerdown', function (event) {
       if (card && !card.hidden && event.target.closest && event.target.closest('#' + CARD_ID)) return;
+      // A click that starts a fresh selection must not be treated as a
+      // dismissal that outlives the selection it caused: PDF.js fires
+      // selectionchange right after this, which re-opens the card.
+      selectionStartedAt = Date.now();
       hideCard();
     });
 
-    // A scrolled rect is stale: the anchor would point at the old spot.
-    document.addEventListener('scroll', hideCard, true);
+    // On scroll the anchor rect moves, so RE-ANCHOR rather than dismiss. Hiding
+    // here made the card vanish the moment the viewer scrolled by a few pixels
+    // (PDF.js scrolls the container for many reasons mid-gesture), which read
+    // as "the tooltip never appeared".
+    document.addEventListener('scroll', function () {
+      if (!card || card.hidden) return;
+      var rect = anchorRect();
+      if (!rect) {
+        // The selection itself is gone (page turn, text layer swapped out).
+        hideCard();
+        return;
+      }
+      positionCard(rect);
+    }, true);
 
     document.addEventListener('keydown', function (event) {
       if (event.key !== 'Escape') return;
@@ -483,6 +747,39 @@
       activeWord = cleaned;
       show(cleaned, rect || anchorRect() || { top: 40, bottom: 40, left: 40, width: 0, height: 0 });
       return resolveWord(cleaned, lookupToken);
+    },
+    /**
+     * Explains, from the app's own console, why a selection did or did not open
+     * a card. Each step the trigger path can bail on is reported explicitly, so
+     * "the tooltip is not showing" resolves to one specific check instead of a
+     * guess.
+     */
+    diagnose: function () {
+      var selection = window.getSelection?.();
+      var range = selection && selection.rangeCount ? selection.getRangeAt(0) : null;
+      var container = range ? range.commonAncestorContainer : null;
+      var layer = null;
+      try {
+        layer = container
+          ? (container.nodeType === Node.ELEMENT_NODE
+            ? container.closest('.textLayer')
+            : container.parentElement && container.parentElement.closest('.textLayer'))
+          : null;
+      } catch (e) { /* reported below */ }
+
+      return {
+        pluginLoaded: true,
+        hasSelection: !!(selection && selection.rangeCount && !selection.isCollapsed),
+        selectionText: selection ? String(selection.toString()) : '',
+        inTextLayer: !!layer,
+        wouldLookUp: !!selectedWord(),
+        extractedWord: selectedWord() || null,
+        hasAnchorRect: !!anchorRect(),
+        cardExists: !!card,
+        cardVisible: !!(card && !card.hidden),
+        activeWord: activeWord || null,
+        apiUrl: dictionaryUrl('probe')
+      };
     }
   };
 })();
