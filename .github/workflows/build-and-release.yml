@@ -91,7 +91,14 @@ jobs:
             # file alone, which meant src/ changes produced NO app build at
             # all — every web-side fix silently stopped at the web.
             APP_PATHS='^(src/|packages/|package\.json$|package-lock\.json$|capacitor\.config\.json|vite\.config\.|svelte\.config\.|tailwind\.config\.|postcss\.config\.)'
-            echo "$FILES" | grep -Eq "$APP_PATHS" && ANDROID=true || true
+            # BOTH apps, not Android only. src/ is the whole Svelte app: the
+            # desktop app bundles it via `npm run build:static` (see
+            # tauri.conf.json beforeBuildCommand), so a change here reaches
+            # Windows users only if a Windows build runs. This previously set
+            # ANDROID alone, which meant every src/ push published an APK and
+            # no installer - the desktop app silently kept serving the previous
+            # bundle.
+            echo "$FILES" | grep -Eq "$APP_PATHS" && { ANDROID=true; WINDOWS=true; } || true
             if echo "$FILES" | grep -Eq '^(src-tauri/|android/|\.github/workflows/build-and-release\.yml)'; then
               ANDROID=true
               WINDOWS=true
