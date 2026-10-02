@@ -41,6 +41,21 @@
 (function () {
     'use strict';
 
+    // Diagnostic marker: grep the app log for ANNOTDIAG.
+    function diag() {
+        try {
+            var parts = [];
+            for (var i = 0; i < arguments.length; i++) {
+                var a = arguments[i];
+                parts.push(typeof a === 'string' ? a : JSON.stringify(a));
+            }
+            console.log('[ANNOTDIAG] ' + parts.join(' '));
+            try {
+                parent.postMessage({ type: 'materioAnnotDiag', line: parts.join(' ') }, '*');
+            } catch (e2) { /* ignore */ }
+        } catch (e) { /* ignore */ }
+    }
+
     var SAVE_DEBOUNCE_MS = 400;
     var RESTORE_RETRY_MS = 1000;
     var RESTORE_MAX_ATTEMPTS = 30;
@@ -386,11 +401,15 @@
                     layer = null;
                 }
                 if (!layer || typeof layer.deserialize !== 'function') {
+                    diag('SKIP noLayer key=' + key, 'page=' + pageIndex,
+                        'pageView=' + !!pageView, 'builder=' + !!builder);
                     remaining.push(key); // page not rendered yet: retry
                     continue;
                 }
                 try {
                     var editor = await layer.deserialize(entry);
+                    diag('deserialize key=' + key, 'page=' + pageIndex,
+                        'returned=' + !!editor, 'hasAddOrRebuild=' + (typeof layer.addOrRebuild === 'function'));
                     if (editor && typeof layer.addOrRebuild === 'function') {
                         layer.addOrRebuild(editor);
                         appliedIds[key] = true;
@@ -400,6 +419,7 @@
                         appliedIds[key] = true; // unknown type: skip, never retry
                     }
                 } catch (e) {
+                    diag('deserialize THREW key=' + key, 'page=' + pageIndex, String(e && e.message || e));
                     remaining.push(key); // possibly transient (layer not
                     // ready): retry rather than dropping the annotation
                 }
@@ -511,6 +531,7 @@
         if (!data || typeof data.type !== 'string') return;
         if (data.type === 'materioAnnotInit') {
             var map = (data.annotations && data.annotations.storage) || {};
+            diag('initReceived entries=' + Object.keys(map).length, 'pdfDoc=' + !!pdfDoc());
             var str = stableStringify(map);
             if (str === lastInitStr && initApplied) {
                 // Repeat post of an already-applied init (parent retries as

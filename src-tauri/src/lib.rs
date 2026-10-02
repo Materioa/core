@@ -490,6 +490,14 @@ pub fn run() {
             let handle = app.handle().clone();
             let mut builder = tauri_plugin_log::Builder::default()
                 .level(log::LevelFilter::Info);
+            // Forward the WebView's console.* into the same log file. Without
+            // this only Rust-side macros were persisted, so anything logged from
+            // JS — the viewer runs in an iframe and has no devtools in a
+            // packaged app — vanished. That is why a failing PDF annotation
+            // restore was undiagnosable: the whole failure path is JS.
+            builder = builder.target(tauri_plugin_log::Target::new(
+                tauri_plugin_log::TargetKind::Webview,
+            ));
             let file_target = handle.path().app_log_dir().ok().map(|dir| {
                 let _ = std::fs::create_dir_all(&dir);
                 tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Folder {

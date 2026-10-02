@@ -103,12 +103,22 @@
         } catch {}
     }
 
+    function annotDiag(...args) {
+        // Diagnostic marker: grep the app log for ANNOTDIAG.
+        try { console.log('[ANNOTDIAG]', ...args); } catch {}
+        try {
+            window.__materioAnnotDiag = window.__materioAnnotDiag || [];
+            window.__materioAnnotDiag.push(args.map(a => (typeof a === 'string' ? a : JSON.stringify(a))).join(' '));
+        } catch {}
+    }
+
     function ensureAnnotInit() {
         if (!annotIdentityReady || !pdfHash) return;
         const key = pdfHash + '|' + (get(pdfModalStore).pdfUrl || '');
         if (annotInitFor === key) return;
         annotInitFor = key;
         const msg = { type: 'materioAnnotInit', annotations: { storage: pendingAnnotStorage } };
+        annotDiag('postInit key=', key, 'entries=', Object.keys(pendingAnnotStorage || {}).length);
         postToViewer(msg);
         // The viewer listener may not exist yet on first load; retry so the
         // restore is never lost. Guarded by annotInitFor so each PDF inits once.
@@ -152,7 +162,11 @@
 
             pendingAnnotStorage = (existing && existing.storage) || {};
             lastSavedSnapshot = annotSnapshot(pendingAnnotStorage);
-        } catch {
+            annotDiag('identity byteHash=', byteHash, 'urlHash=', urlHash,
+                'chosen=', pdfHash, 'foundRecord=', !!existing,
+                'entries=', Object.keys(pendingAnnotStorage).length);
+        } catch (e) {
+            annotDiag('identity FAILED', String(e && e.message || e));
             pdfHash = null;
             pendingAnnotStorage = {};
             lastSavedSnapshot = '';
@@ -455,6 +469,9 @@
         const handleMsg = (e) => {
             if (e.data && (e.data.type === 'applyOverlayModes' || e.data.type === 'requestOverlayModes')) {
                 syncThemeToIframe();
+            }
+            if (e.data && e.data.type === 'materioAnnotDiag') {
+                annotDiag('viewer>', e.data.line);
             }
             if (e.data && e.data.type === 'materioAnnotReady') {
                 // The viewer (re)loaded: any earlier init post may have been
