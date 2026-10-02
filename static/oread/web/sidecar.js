@@ -497,8 +497,32 @@
                     for (var dk in data) {
                         if (Object.prototype.hasOwnProperty.call(data, dk)) entry[dk] = data[dk];
                     }
-                    entry.inkLists = freehand;
-                    diag('freehand->inkLists key=' + key, 'rows=' + freehand.length,
+                    // Flatten the outline rows into the stride-8 quadPoints array
+                    // that HighlightEditor.deserialize actually reads:
+                    //     if (quadPoints) { for (let i = 0; i < quadPoints.length; i += 8) ... }
+                    //
+                    // NOT inkLists: that branch reads only inkLists[0] and walks
+                    // it as one flat [x,y,x,y,...] stroke, so handing it N rows
+                    // built a single bogus stroke and threw
+                    // "offset is out of bounds".
+                    var flatQ = [];
+                    for (var rr = 0; rr < freehand.length; rr++) {
+                        var row = freehand[rr];
+                        if (row === null || row === undefined) continue;
+                        if (typeof row === 'number') { flatQ.push(row); continue; }
+                        var len = typeof row.length === 'number' ? row.length : null;
+                        if (len === null && typeof row === 'object') {
+                            var kk = Object.keys(row);
+                            len = kk.length;
+                            for (var q = 0; q < kk.length; q++) flatQ.push(Number(row[kk[q]]));
+                            continue;
+                        }
+                        for (var cc = 0; cc < len; cc++) flatQ.push(Number(row[cc]));
+                    }
+                    entry.quadPoints = new Float32Array(flatQ);
+                    try { delete entry.inkLists; } catch (e8) { entry.inkLists = undefined; }
+                    diag('freehand->quadPoints key=' + key, 'rows=' + freehand.length,
+                        'values=' + flatQ.length, 'stride8=' + (flatQ.length % 8 === 0),
                         'shape=' + (Array.isArray(data.outlines) ? 'array' : 'object'));
                 }
                 // Normalise the geometry before handing it to PDF.js.
