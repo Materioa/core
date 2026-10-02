@@ -32,6 +32,13 @@ jobs:
       - name: Interviewer provider-chain tests
         run: node scripts/test-interviewer-llm.mjs
 
+      # Fails if any addEventListener call passes a function where an event
+      # name belongs. That mistake throws, and the surrounding try/catch eats
+      # it, so it once left every activity listener unregistered and silently
+      # stopped reading stats from being recorded.
+      - name: Listener registration guard
+        run: node scripts/test-analytics-listeners.mjs
+
   build:
     name: Type check and build
     runs-on: ubuntu-latest

@@ -470,10 +470,27 @@ class ExodusAnalytics {
       if (this._pdfTitle && isPdfScrollEvent) this._lastPdfScrollTs = now;
     };
     const pdfScrollEvents = new Set(['scroll', 'wheel', 'touchmove']);
+    // The event name was never passed to addEventListener, so each call threw
+    // "parameter 1 is not of type 'string'", the forEach died on its first
+    // iteration, and the surrounding catch swallowed it. That left all six
+    // activity listeners unregistered, so _lastActivityTs froze at page load.
+    // Two consequences: _recordEngagementUntil capped itself at the idle
+    // cutoff forever (2 min, or 5 min in a PDF), and the heartbeat's idle gate
+    // was permanently tripped so it never flushed at all. Long reading
+    // sessions reported almost nothing.
+    // Registered individually so one failure can't take out the rest, and
+    // captured because 'scroll' does not bubble (scrollable inner elements).
+    ['mousedown', 'keydown', 'scroll', 'touchstart', 'wheel', 'touchmove'].forEach((ev) => {
+      try {
+        document.addEventListener(ev, () => mark(pdfScrollEvents.has(ev)), {
+          passive: true,
+          capture: true
+        });
+      } catch (err) {
+        console.warn('[analytics] activity listener failed:', ev, err?.message || err);
+      }
+    });
     try {
-      ['mousedown', 'keydown', 'scroll', 'touchstart', 'wheel', 'touchmove'].forEach((ev) => {
-        document.addEventListener(() => mark(pdfScrollEvents.has(ev)), { passive: true });
-      });
       // Viewer iframe activity bridge (posted by the PDF viewer when present).
       window.addEventListener('message', (event) => {
         try {
