@@ -32,6 +32,9 @@ const lines = [];
 const log = (...a) => { lines.push(a.join(' ')); out.textContent = lines.join('\n'); };
 const out = document.getElementById('log');
 const fr = document.getElementById('fr');
+// ?page=N opens the viewer on a page other than page 1, so a test can check
+// that an annotation on a page the reader never scrolled to still restores.
+const startPage = new URLSearchParams(location.search).get('page');
 
 window.addEventListener('message', (e) => {
   if (!e.data || typeof e.data.type !== 'string') return;
@@ -49,7 +52,8 @@ window.addEventListener('message', (e) => {
   }
 });
 
-fr.src = '/static/oread/web/viewer.html?file=' + encodeURIComponent(PDF_URL);
+fr.src = '/static/oread/web/viewer.html?file=' + encodeURIComponent(PDF_URL) +
+  (startPage ? '#page=' + encodeURIComponent(startPage) : '');
 
 // Capture the viewer's console once it exists (same origin, so reachable).
 let patched = false;

@@ -439,6 +439,20 @@
                 if (!layer || typeof layer.deserialize !== 'function') {
                     diag('SKIP noLayer key=' + key, 'page=' + pageIndex,
                         'pageView=' + !!pageView, 'builder=' + !!builder);
+                    // PDF.js only builds a page's AnnotationEditorLayerBuilder
+                    // while that page is being drawn. Reopening a document
+                    // restores the LAST VIEWED page, so a page the reader has
+                    // not scrolled to never draws, its builder never exists, and
+                    // the annotation waiting on it can never be deserialized -
+                    // no amount of retrying helps. Force the page to render.
+                    try {
+                        if (pageView && typeof pageView.draw === 'function' &&
+                            (!pageView.div || pageView.div.getAttribute('data-rendered') !== 'true')) {
+                            diag('forcing draw key=' + key, 'page=' + pageIndex);
+                            var p = pageView.draw();
+                            if (p && typeof p.catch === 'function') p.catch(function () { });
+                        }
+                    } catch (e5) { /* best effort */ }
                     remaining.push(key); // page not rendered yet: retry
                     continue;
                 }
@@ -470,6 +484,37 @@
                     }
                     if (editor && typeof layer.addOrRebuild === 'function') {
                         layer.addOrRebuild(editor);
+                        // PDF.js hides the editor layer's own container while it
+                        // is empty:
+                        //     render()  ->  if (this.isEmpty) this.div.hidden = true
+                        // and nothing ever sets it back except updateMode(), which
+                        // only runs when a user clicks an annotation tool:
+                        //     updateMode(mode)  ->  this.div.hidden = false
+                        //
+                        // A document reopened with nobody touching the toolbar has
+                        // mode NONE, so the layer renders empty and hidden. We then
+                        // add a perfectly good editor into that hidden container:
+                        // it exists, it is in annotationStorage, it serialises -
+                        // and the reader sees a blank page. That is why highlights,
+                        // drawings and text all "fail to restore" identically.
+                        //
+                        // Unhide the container rather than forcing a tool mode: that
+                        // keeps the toolbar and text-selection behaviour untouched,
+                        // and render() will not re-hide a non-empty layer.
+                        try {
+                            if (layer.div && layer.div.hidden) {
+                                diag('unhide layer key=' + key, 'page=' + pageIndex);
+                                layer.div.hidden = false;
+                            }
+                            if (typeof layer.render === 'function') {
+                                layer.render({
+                                    viewport: pageView && pageView.viewport,
+                                    div: layer.div,
+                                    intent: 'display',
+                                });
+                                if (layer.div && layer.div.hidden) layer.div.hidden = false;
+                            }
+                        } catch (e4) { /* visibility is best-effort */ }
                         appliedIds[key] = true;
                     } else if (editor) {
                         appliedIds[key] = true;

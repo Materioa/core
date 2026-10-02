@@ -150,7 +150,12 @@ try {
   await send('Page.navigate', { url: VIEWER });
   await sleep(10000);
   check('AnnotationEditorUIManager reachable', (await ev('!!window.__ui')) === true);
-  await ev('(async () => { await window.__ui.updateMode(9); return 1; })()'); // HIGHLIGHT
+  // ANNOT_MODE=ink reproduces the freehand "draw" tool, which serializes to
+  // paths:{lines,points} - a different shape from a highlight's quadPoints.
+  const MODE = (process.env.ANNOT_MODE || 'highlight').toLowerCase();
+  const EDITOR_MODE = MODE === 'ink' ? 15 : 9;
+  console.log(`  mode: ${MODE} (annotationEditorMode=${EDITOR_MODE})`);
+  await ev(`(async () => { await window.__ui.updateMode(${EDITOR_MODE}); return 1; })()`);
   await sleep(2000);
   await ev(`(() => {
     const tls = [...document.querySelectorAll('.textLayer')];
@@ -192,13 +197,13 @@ try {
     catch (err) { rec.serializeThrew = String(err.message); }
     return JSON.stringify(rec);
   })()`));
-  check('highlight created', !!captured.persisted, captured.ctor || captured.err);
+  check('annotation created', !!captured.persisted, captured.ctor || captured.err);
   const payload = captured.persisted;
 
   // ---------------- PHASE 2: cold reopen, restore it ----------------------
   console.log('\nPHASE 2  cold reopen and restore the persisted payload');
-  const restore = async (storage) => {
-    await send('Page.navigate', { url: `${ORIGIN}/scripts/annot-restore-harness.html` });
+  const restore = async (storage, startPage) => {
+    await send('Page.navigate', { url: `${ORIGIN}/scripts/annot-restore-harness.html` + (startPage ? `?page=${startPage}` : '') });
     await sleep(1500);
     await ev(`window.__P = ${JSON.stringify(storage)};
       const fr = document.getElementById('fr');
@@ -209,28 +214,90 @@ try {
         if (fr.contentWindow && fr.contentWindow.PDFViewerApplication && fr.contentWindow.PDFViewerApplication.pdfDocument) post(); }, 300);
       return 1;`);
     await sleep(22000);
+    // Visibility, not DOM presence. A restored editor sitting inside the
+    // layer's `hidden` container is present in the DOM and in
+    // annotationStorage, serialises fine, and is completely invisible - which
+    // is exactly what made an earlier version of this check pass while the
+    // reader saw a blank page.
     return ev(`(() => {
       const w = document.getElementById('fr').contentWindow;
+      const wd = document.getElementById('fr').contentDocument;
       const all = w.PDFViewerApplication.pdfDocument.annotationStorage.getAll() || {};
       const k = Object.keys(all)[0]; const e = all[k];
       let serErr = null;
       if (e) { try { e.serialize(false); } catch (err) { serErr = String(err.message); } }
+      const pv = w.PDFViewerApplication.pdfViewer;
+      const pvPage = pv.getPageView(e ? e.pageIndex : 0);
+      const bld = pvPage && pvPage.annotationEditorLayer;
+      const layer = bld && bld.annotationEditorLayer;
+      const div = layer && layer.div;
+      const edDiv = e && e.div;
+      const r = edDiv && edDiv.getBoundingClientRect();
+      const cs = edDiv && w.getComputedStyle(edDiv);
+      let hiddenAncestor = null;
+      for (let n = edDiv; n && n !== wd.body; n = n.parentElement) {
+        if (n.hidden) { hiddenAncestor = n.className || n.tagName; break; }
+      }
+      let onTop = null;
+      if (r && r.width > 1 && r.height > 1) {
+        const t = wd.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        if (t) {
+          const cls = typeof t.className === 'string' ? t.className : (t.className.baseVal || '');
+          onTop = t.tagName + (cls ? '.' + String(cls).split(' ')[0] : '');
+        } else onTop = 'null';
+      }
       return JSON.stringify({
-        rendered: w.document.querySelectorAll('.annotationEditorLayer div').length,
+        rendered: wd.querySelectorAll('.annotationEditorLayer div').length,
         storage: Object.keys(all).length,
         serializeThrew: serErr,
         synced: Object.keys(window.__lastSync || {}).length,
+        layerDivHidden: div ? div.hidden : null,
+        hiddenAncestor,
+        editorRect: r ? { w: Math.round(r.width), h: Math.round(r.height) } : null,
+        editorDisplay: cs ? cs.display : null,
+        editorVisibility: cs ? cs.visibility : null,
+        editorOpacity: cs ? cs.opacity : null,
+        elementAtEditorCentre: onTop,
       });
     })()`);
   };
 
   if (payload) {
     const r2 = JSON.parse(await restore({ pdf0178: payload }));
-    check('editor restored and rendered', r2.storage > 0 && r2.rendered > 0,
-      `storage=${r2.storage} divs=${r2.rendered}`);
+    check('editor restored into storage', r2.storage > 0, `storage=${r2.storage}`);
     check('editor is serializable again', r2.serializeThrew === null, r2.serializeThrew || 'ok');
     check('sync reports the annotation (not an empty snapshot)', r2.synced === 1,
       `synced=${r2.synced}`);
+    // The regression that actually matched the bug report: an editor that is
+    // present and serialisable but sitting in a hidden container, so the reader
+    // sees nothing.
+    check('editor layer is NOT hidden', r2.layerDivHidden === false,
+      `layerDivHidden=${r2.layerDivHidden}`);
+    check('no hidden ancestor on the editor element', r2.hiddenAncestor === null,
+      `hiddenAncestor=${r2.hiddenAncestor}`);
+    check('editor has real geometry', !!r2.editorRect && r2.editorRect.w > 1 && r2.editorRect.h > 1,
+      JSON.stringify(r2.editorRect));
+    check('editor is painted (display/visibility/opacity)',
+      r2.editorDisplay !== 'none' && r2.editorVisibility !== 'hidden' &&
+      r2.editorOpacity !== '0',
+      `display=${r2.editorDisplay} visibility=${r2.editorVisibility} opacity=${r2.editorOpacity}`);
+    check('editor is the top element at its own centre', !!r2.elementAtEditorCentre,
+      `topEl=${r2.elementAtEditorCentre}`);
+
+    // PHASE 2b: cold reopen landing on a DIFFERENT page than the annotation.
+    // PDF.js restores the last-viewed page, so the page carrying an annotation
+    // is often never drawn - and its AnnotationEditorLayerBuilder is only built
+    // during drawing, which leaves deserialize with no target. Retrying alone
+    // cannot fix that; the restore path has to force the page to render.
+    console.log('\nPHASE 2b  cold reopen, viewer starts on the LAST page');
+    const offEntry = Object.assign({}, payload, { pageIndex: 0 });
+    const r2b = JSON.parse(await restore({ offPage: offEntry }, 3));
+    check('annotation on an unrendered page still restores', r2b.storage > 0,
+      `storage=${r2b.storage}`);
+    check('unrendered-page annotation is not left hidden', r2b.layerDivHidden === false,
+      `layerDivHidden=${r2b.layerDivHidden}`);
+    check('unrendered-page annotation is reported in the sync', r2b.synced === 1,
+      `synced=${r2b.synced}`);
 
     // ---------------- PHASE 3: the cycle must be stable -------------------
     console.log('\nPHASE 3  reopen using the payload phase 2 reported');
@@ -239,9 +306,12 @@ try {
       round2 ? `keys=${Object.keys(round2).join(',')}` : 'null');
     if (round2 && Object.keys(round2).length) {
       const r3 = JSON.parse(await restore(round2));
-      check('second reopen still restores', r3.storage > 0 && r3.rendered > 0,
-        `storage=${r3.storage} divs=${r3.rendered}`);
-      check('second reopen still syncs 1 entry', r3.synced === 1, `synced=${r3.synced}`);
+      check('second reopen restores into storage', r3.storage > 0, `storage=${r3.storage}`);
+      check('second reopen layer not hidden', r3.layerDivHidden === false,
+        `layerDivHidden=${r3.layerDivHidden}`);
+      check('second reopen editor has real geometry',
+        !!r3.editorRect && r3.editorRect.w > 1 && r3.editorRect.h > 1, JSON.stringify(r3.editorRect));
+      check('second reopen syncs 1 entry', r3.synced === 1, `synced=${r3.synced}`);
     }
   }
   ws.close();
