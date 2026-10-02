@@ -240,7 +240,18 @@ try {
     await setPayload(storage);
     await send('Page.navigate', { url: `${ORIGIN}/scripts/annot-restore-harness.html` + (startPage ? `?page=${startPage}` : '') });
     await sleep(1500);
-    await sleep(14000);
+    // Wait for the viewer's document to actually exist rather than assuming a
+    // fixed load time - otherwise a slow start turns into a bogus failure.
+    let ready = false;
+    for (let i = 0; i < 40; i++) {
+      const ok = await ev(`(() => { try {
+        const w = document.getElementById('fr').contentWindow;
+        return !!(w && w.PDFViewerApplication && w.PDFViewerApplication.pdfDocument); } catch (e) { return false; } })()`);
+      if (ok === true) { ready = true; break; }
+      await sleep(500);
+    }
+    if (!ready) throw new Error('viewer document never became ready');
+    await sleep(12000);
     const harnessLog = await ev('document.getElementById("log") ? document.getElementById("log").textContent : "NO LOG"');
     if (process.env.ANNOT_VERBOSE) {
       console.log('  harness log:');
@@ -411,6 +422,40 @@ try {
         !!r3.editorRect && r3.editorRect.w > 1 && r3.editorRect.h > 1, JSON.stringify(r3.editorRect));
       check('second reopen syncs 1 entry', r3.synced === 1, `synced=${r3.synced}`);
     }
+
+    // PHASE 2d: a FREE (freehand) HIGHLIGHT - the exact shape found in the
+    // reader's own annot-diag.log:
+    //     ctor=HIGHLIGHT fields=... quadPoints=null outlines=object ...
+    // HighlightEditor.deserialize reads only quadPoints and inkLists, so this
+    // restored as a bare editor with no geometry: truthy deserialize, successful
+    // addOrRebuild, unhidden layer, and nothing drawn.
+    console.log('\nPHASE 2d  freehand HIGHLIGHT (quadPoints=null, outlines is an object)');
+    const freeHl = {
+      annotationType: 9,
+      color: [255, 235, 59],
+      opacity: 1,
+      thickness: 12,
+      quadPoints: null,
+      outlines: { outline: [[120, 640, 140, 668, 320, 640, 340, 668]] },
+      pageIndex: 0,
+      rect: [120, 640, 340, 668],
+      rotation: 0,
+      structTreeParentId: null,
+      id: null,
+    };
+    const rf = JSON.parse(await restore({ pdfjs_internal_editor_0: freeHl }));
+    console.log('  ' + JSON.stringify(rf));
+    check('free highlight restores into storage', rf.storage > 0, `storage=${rf.storage}`);
+    check('free highlight editor is not empty', rf.isEmpty === false, `isEmpty=${rf.isEmpty}`);
+    check('free highlight editor is attached to the DOM', rf.attachedToDom === true,
+      `attached=${rf.attachedToDom}`);
+    check('free highlight layer is not hidden', rf.layerDivHidden === false,
+      `layerDivHidden=${rf.layerDivHidden}`);
+    check('free highlight has real geometry',
+      !!rf.editorRect && rf.editorRect.w > 1 && rf.editorRect.h > 1, JSON.stringify(rf.editorRect));
+    check('free highlight is reported in the sync', rf.synced === 1, `synced=${rf.synced}`);
+    check('free highlight editor is serializable', rf.serializeThrew === null,
+      rf.serializeThrew || 'ok');
   }
   ws.close();
 } catch (err) {

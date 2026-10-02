@@ -422,22 +422,36 @@
                     continue;
                 }
                 // Freehand highlights serialize their geometry as `outlines`
-                // only (no quadPoints/inkLists), but the layer rebuilds
-                // solely from quadPoints or inkLists. Feed the outlines back
-                // through the inkLists path (same coordinate shape: flat
-                // point loops) so freehand strokes restore instead of
-                // returning a bare, invisible editor.
+                // only (no quadPoints/inkLists), but HighlightEditor.deserialize
+                // reads ONLY quadPoints and inkLists - it never looks at
+                // `outlines`. So a free highlight restores as a bare editor with
+                // no geometry: deserialize() returns a truthy editor, addOrRebuild
+                // succeeds, the layer is unhidden, and nothing is drawn.
+                //
+                // `outlines` comes in two shapes and both are in the wild:
+                //   outlines: [ [...], [...] ]        (older captures)
+                //   outlines: { outline: [ [...] ] } (what the viewer writes)
+                // The old guard was Array.isArray(outlines), which silently
+                // rejected the object form - the common one.
                 var entry = data;
                 diag('restoreEntry key=' + key, 'page=' + pageIndex,
                     'ctor=' + entryCtor(data),
                     'fields=' + entryFields(data));
-                if (!data.quadPoints && !data.inkLists &&
-                    Array.isArray(data.outlines) && data.outlines.length) {
+                var freehand = null;
+                if (Array.isArray(data.outlines)) {
+                    freehand = data.outlines;
+                } else if (data.outlines && typeof data.outlines === 'object' &&
+                    Array.isArray(data.outlines.outline)) {
+                    freehand = data.outlines.outline;
+                }
+                if (!data.quadPoints && !data.inkLists && freehand && freehand.length) {
                     entry = {};
                     for (var dk in data) {
                         if (Object.prototype.hasOwnProperty.call(data, dk)) entry[dk] = data[dk];
                     }
-                    entry.inkLists = data.outlines;
+                    entry.inkLists = freehand;
+                    diag('freehand->inkLists key=' + key, 'rows=' + freehand.length,
+                        'shape=' + (Array.isArray(data.outlines) ? 'array' : 'object'));
                 }
                 // Normalise the geometry before handing it to PDF.js.
                 //
