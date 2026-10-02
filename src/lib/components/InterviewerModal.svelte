@@ -129,13 +129,17 @@ import { get } from 'svelte/store';
 					const res = await fetch(url);
 					if (!res.ok) continue;
 					const j = await res.json();
-					if (j && j.enabled !== false && Array.isArray(j.semesters)) {
+					// An OK response is authoritative, including
+					// { enabled: false }. Reading "admin switched exam cards
+					// off" as "no data" fell through to the stale snapshot, so
+					// the viva auto-show came back anyway.
+					if (j && Array.isArray(j.semesters)) {
 						data = j;
 						break;
 					}
 				} catch {}
 			}
-			if (!data) return;
+			if (!data || data.enabled === false) return;
 
 			let savedSem = null;
 			try {

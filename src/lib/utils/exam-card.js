@@ -327,12 +327,24 @@ export async function loadAndDisplayExamCard() {
                 const response = await fetch(request.url, request.options);
                 if (!response.ok) continue;
                 const freshData = await response.json();
-                if (freshData && freshData.enabled !== false && Array.isArray(freshData.semesters) && freshData.semesters.length > 0) {
+                if (!freshData || typeof freshData !== 'object') continue;
+                // Any OK response is authoritative — including
+                // { enabled: false }. Treating "admin switched it off" as "no
+                // data" let this loop fall through to the build-time snapshot,
+                // so the card came back after being disabled. Only a request
+                // that genuinely failed may fall back.
+                if (freshData.enabled === false) {
+                    hideExamCards();
+                    isExamDataLoading = false;
+                    hasExamDataProcessed = true;
+                    return;
+                }
+                if (Array.isArray(freshData.semesters) && freshData.semesters.length > 0) {
                     examData = freshData;
                     cacheExamData(freshData);
                     loaded = true;
-                    break;
                 }
+                break;
             } catch (err) {
             }
         }

@@ -2035,6 +2035,10 @@ async function handleExamdataFeature(request, url) {
 
     switch (method) {
       case 'GET': {
+        // Distinguish "Mongo is down" from "Mongo says there is no config".
+        // Only the former may fall back to the bundled snapshot; the latter
+        // used to resurrect an exam config an admin had just cleared.
+        let mongoAnswered = false;
         try {
           const data = await withMongoTimeout(
             examdataCollection.findOne({ type: 'config' }),
@@ -2042,6 +2046,7 @@ async function handleExamdataFeature(request, url) {
             'examdata find-config'
           );
           if (data) {
+            mongoAnswered = true;
             if (data.enabled === false) {
               return json({ enabled: false, semesters: [] });
             }
@@ -2052,6 +2057,7 @@ async function handleExamdataFeature(request, url) {
 
           const anyData = await withMongoTimeout(examdataCollection.findOne({}), 5000, 'examdata find-any');
           if (anyData) {
+            mongoAnswered = true;
             if (anyData.enabled === false) {
               return json({ enabled: false, semesters: [] });
             }
@@ -2063,6 +2069,9 @@ async function handleExamdataFeature(request, url) {
           console.warn('Examdata Mongo read failed, using local fallback:', err.message);
         }
 
+        if (mongoAnswered) {
+          return json({ enabled: false, semesters: [] });
+        }
         return serveLocalExamdata();
       }
 

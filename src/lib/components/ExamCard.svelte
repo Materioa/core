@@ -44,6 +44,28 @@
     }
 
     onMount(async () => {
+        // Live admin-managed config first. This component used to fetch ONLY
+        // the build-time snapshot, so every showBeforeDays / enabled change
+        // made in admin never reached it — the card was driven entirely by
+        // whatever was baked in at the last deploy.
+        try {
+            const live = await fetch('/api/v2/examdata', { cache: 'no-store' });
+            if (live.ok) {
+                const j = await live.json();
+                if (j && j.enabled !== false && Array.isArray(j.semesters) && j.semesters.length > 0) {
+                    examData = j;
+                    selectedSemester = j.semesters[0];
+                    loading = false;
+                    return;
+                }
+                // Authoritative "off" from admin — do not fall back.
+                loading = false;
+                return;
+            }
+        } catch (e) {
+            // Unreachable; the snapshot below is the fallback for that case only.
+        }
+
         try {
             const res = await fetch('/assets/data/examdata.json');
             if (res.ok) {
