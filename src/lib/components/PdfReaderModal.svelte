@@ -4,6 +4,9 @@
     import { pdfModalStore, bookmarksStore, actualThemeStore } from "$lib/stores.js";
     import { activeModalStore } from '$lib/stores.js';
     import { savePdfOffline, isPdfOffline, getOfflinePdf } from '$lib/utils/offlineDb.js';
+    import { isNative } from '$lib/config/api.js';
+    import { bindSounds, autoAnnotate, sfx } from '$lib/sounds/index.js';
+    import * as cue from '$lib/sounds/events.js';
     import { hashPdfBuffer, hashPdfUrl, getPdfAnnotations, savePdfAnnotations } from '$lib/utils/pdfAnnotations.js';
     import { toApiUrl } from '$lib/config/api.js';
     import HugeIcon from "./HugeIcon.svelte";
@@ -277,6 +280,8 @@
             return;
         }
         const count = await flushAnnotSave();
+        // The dialog cue already reports the outcome, so these two are left to
+        // it rather than doubling up on the same moment.
         if (window.materioAlert) {
             if (count >= 0) window.materioAlert(`Annotations saved for this PDF (${count}). They will reappear next time you open it.`, { type: 'success', title: 'Annotations Saved' });
             else window.materioAlert('Could not save annotations. Please try again.', { type: 'danger', title: 'Save Failed' });
@@ -323,6 +328,9 @@
             if (pdfHash && annotDirty) await flushAnnotSave();
         } catch {}
         resetAnnotState();
+        resetPdfSounds();
+        // A new document is being fetched: slow work has started.
+        cue.pdfOpening();
         lastHandledPdfUrl = url;
         currentOfflineRecord = null;
         offlineArrayBuffer = null;
@@ -429,7 +437,32 @@
         lastHandledPdfUrl = '';
     }
 
+    // PDF lifecycle sounds. The viewer (static/oread/web/overlays.js) already
+    // posts pdfProgress / pdfLoaded / pdfError up for exactly this purpose —
+    // nothing consumed them until now, which is why the viewer was silent.
+    const onPdfProgress = cue.createPdfProgressCue();
+    let pdfReadyPlayed = false;
+
+    function resetPdfSounds() {
+        pdfReadyPlayed = false;
+    }
+
+    // The viewer runs in its own document (same-origin), so cuelume's
+    // delegated bindings can be installed in there too. That covers the
+    // pdf.js toolbar — highlight and freehand tool switches, page navigation,
+    // zoom — without touching the oread build itself.
+    function bindViewerSounds() {
+        if (!isNative) return;
+        try {
+            const doc = document.getElementById('pdf-iframe')?.contentDocument;
+            if (!doc?.body) return;
+            bindSounds(doc);
+            autoAnnotate(doc.body);
+        } catch {}
+    }
+
     async function handleIframeLoad() {
+        bindViewerSounds();
         syncThemeToIframe();
         setTimeout(syncThemeToIframe, 150);
         setTimeout(syncThemeToIframe, 500);
@@ -480,6 +513,21 @@
             if (e.data && e.data.type === 'materioAnnotDiag') {
                 annotDiag('viewer>', e.data.line);
             }
+            if (e.data && e.data.type === 'pdfProgress') {
+                onPdfProgress(e.data.loaded, e.data.total);
+            }
+            if (e.data && e.data.type === 'pdfLoaded') {
+                // documentloaded and pagesloaded both fire; one cue per
+                // document, not per event.
+                if (!pdfReadyPlayed) {
+                    pdfReadyPlayed = true;
+                    cue.pdfReady();
+                }
+                bindViewerSounds();
+            }
+            if (e.data && e.data.type === 'pdfError') {
+                cue.pdfFailed();
+            }
             if (e.data && e.data.type === 'materioAnnotReady') {
                 // The viewer (re)loaded: any earlier init post may have been
                 // lost before its listener existed, so force a fresh post.
@@ -487,10 +535,14 @@
                 ensureAnnotInit();
             }
             if (e.data && e.data.type === 'materioAnnotChanged') {
+                // A highlight or a drawing landed. Throttled inside the cue:
+                // one stroke can emit a long run of these.
+                cue.annotationCommitted();
                 queueAnnotSave(e.data.annotations?.storage);
                 resolveFlushWaiter();
             }
             if (e.data && e.data.type === 'materioAnnotSynced') {
+                cue.annotationCommitted();
                 queueAnnotSave(e.data.annotations?.storage, { synced: true });
                 resolveFlushWaiter();
             }
@@ -558,6 +610,7 @@
         }
         resetAnnotState();
         cleanupActiveBlob();
+        cue.pdfClosing();
         isClosing = true;
         setTimeout(() => {
             pdfModalStore.update((state) => ({ ...state, isOpen: false }));

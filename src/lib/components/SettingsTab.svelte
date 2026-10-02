@@ -2,8 +2,18 @@
     import { onMount } from 'svelte';
     import { themeStore } from '$lib/stores.js';
     import { browser } from '$app/environment';
-    import { isTauri, isCapacitor, toApiUrl } from '$lib/config/api.js';
+    import { isTauri, isCapacitor, toApiUrl, isNative } from '$lib/config/api.js';
     import { HugeiconsIcon } from '@hugeicons/svelte';
+    import { sfx } from '$lib/sounds/index.js';
+    import {
+        soundsEnabled,
+        soundVolume,
+        soundMaterial,
+        MATERIALS,
+        setSoundEnabled,
+        setSoundVolume,
+        setSoundMaterial
+    } from '$lib/sounds/index.js';
     import { UploadCircle01Icon, McpServerIcon, Copy01Icon, CheckmarkCircle01Icon } from '@hugeicons/core-free-icons';
 
     let selectedTheme = 'system';
@@ -28,6 +38,7 @@
     let insightroomFeed = true;
     let cookiesAccepted = false;
     let notificationsEnabled = true;
+    let soundMaterialDropdownOpen = false;
 
     let selectedWallpaper = 'dynamic';
     let showWallpaperStore = false;
@@ -214,8 +225,18 @@
     const currentAppVersion = (typeof __MATERIO_APP_VERSION__ !== 'undefined' ? __MATERIO_APP_VERSION__ : '2.1.14').replace(/^v/, '');
     let checkingAppUpdate = false;
 
-    function showToastMessage(msg) {
+    // Toasts are the app's lightest-weight notification, so they stay subtle
+    // — native Android toasts are visual-only and this is the audio counterpart.
+    function playToastCue(kind) {
+        if (kind === 'error') sfx('error', { emphasis: 'subtle' });
+        else if (kind === 'warning') sfx('warning', { emphasis: 'subtle' });
+        else if (kind === 'success') sfx('success', { emphasis: 'subtle' });
+        else sfx('ready', { emphasis: 'subtle' });
+    }
+
+    function showToastMessage(msg, kind = 'info') {
         if (!browser) return;
+        playToastCue(kind);
         // 1. Android native bridge toast
         if (window.AndroidBridge?.showToast) {
             window.AndroidBridge.showToast(msg);
@@ -259,7 +280,7 @@
                     const winInfo = data.windows || {};
                     if (!isManual) return;
                     if (typeof window.__materioCheckUpdateModal !== 'function') {
-                        showToastMessage('Update check is unavailable in this build.');
+                        showToastMessage('Update check is unavailable in this build.', 'warning');
                         return;
                     }
                     try {
@@ -270,7 +291,7 @@
                             new Promise((r) => setTimeout(() => r(null), 8000))
                         ]);
                         if (!verdict) {
-                            showToastMessage('Update check timed out. Try again shortly.');
+                            showToastMessage('Update check timed out. Try again shortly.', 'warning');
                         } else if (verdict.status === 'update') {
                             showToastMessage(`Update available: v${String(verdict.remote || '').replace(/^v/, '')} (installed v${verdict.local})`);
                         } else if (verdict.status === 'current') {
@@ -282,7 +303,7 @@
                             showToastMessage(`Could not reach update server${verdict.error ? ': ' + verdict.error : '.'}`);
                         }
                     } catch {
-                        showToastMessage('Could not check for updates.');
+                        showToastMessage('Could not check for updates.', 'error');
                     }
                     return;
                 }
@@ -310,7 +331,7 @@
 
                 if (!apkAvailable) {
                     if (isManual) {
-                        showToastMessage('You are on the latest version!');
+                        showToastMessage('You are on the latest version!', 'success');
                     }
                     return;
                 }
@@ -323,7 +344,7 @@
                         && rawApkUrl.startsWith('https://')
                         && rawApkUrl.split('?')[0].toLowerCase().endsWith('.apk');
                     if (!apkUrlOk) {
-                        if (isManual) showToastMessage('Update not published for Android yet.');
+                        if (isManual) showToastMessage('Update not published for Android yet.', 'warning');
                         return;
                     }
                     // If the update nudge card is already showing (or was
@@ -358,18 +379,18 @@
                     // Android-gated block.
                 } else {
                     if (isManual) {
-                        showToastMessage('You are on the latest version!');
+                        showToastMessage('You are on the latest version!', 'success');
                     }
                 }
             } else {
                 if (isManual) {
-                    showToastMessage('Could not reach update server.');
+                    showToastMessage('Could not reach update server.', 'error');
                 }
             }
         } catch (e) {
             console.error('Update check failed:', e);
             if (isManual) {
-                showToastMessage('Failed to check for updates.');
+                showToastMessage('Failed to check for updates.', 'error');
             }
         } finally {
             checkingAppUpdate = false;
@@ -673,6 +694,7 @@
 
         const handleDocClick = (e) => {
             if (!e.target.closest('#themeModeSelector') && !e.target.closest('#themeDropdown')) themeDropdownOpen=false;
+            if (!e.target.closest('#soundMaterialSelector') && !e.target.closest('#soundMaterialDropdown')) soundMaterialDropdownOpen=false;
             if (!e.target.closest('#accentColorSelector') && !e.target.closest('#accentDropdown')) accentDropdownOpen=false;
             if (!e.target.closest('#viewStyleDropdownWrapper')) viewStyleDropdownOpen=false;
             if (!e.target.closest('#redirectStartSelector') && !e.target.closest('#redirectStartDropdown')) redirectDropdownOpen=false;
@@ -683,6 +705,7 @@
                 if (showWallpaperStore) showWallpaperStore=false;
                 if (showSereineModal) showSereineModal=false;
                 themeDropdownOpen=false; accentDropdownOpen=false;
+                soundMaterialDropdownOpen=false;
                 viewStyleDropdownOpen=false;
                 redirectDropdownOpen=false;
                 const pd=document.getElementById('paperTextureDropdown'); if(pd) pd.classList.remove('show');
@@ -1285,6 +1308,101 @@
             </label>
         </div>
     </div>
+
+    <!-- Interaction Sounds (native apps only; the website stays silent) -->
+    {#if isNative}
+    <div class="card-layout" id="soundsToggleCard">
+        <div class="toggle-container">
+            <div class="paper-mode-info">
+                <div class="paper-mode-title">Interaction Sounds</div>
+                <div class="paper-mode-description">Subtle audio cues for taps, toggles, loading and results</div>
+            </div>
+            <label class="switch">
+                <input type="checkbox" id="soundsToggle" class="setting-toggle" aria-label="Interaction Sounds"
+                    data-cuelume-toggle
+                    bind:checked={$soundsEnabled}
+                    on:change={(e)=>{ setSoundEnabled(e.target.checked); }}>
+                <span class="slider"></span>
+            </label>
+        </div>
+        {#if $soundsEnabled}
+            <div id="soundsOptions" class="sounds-options">
+                <!-- Material -->
+                <div class="sounds-option-row">
+                    <div class="paper-mode-info">
+                        <div class="paper-mode-title" style="font-size: 13px;">Material</div>
+                        <div class="paper-mode-description" style="font-size: 11px;">The character of every cue</div>
+                    </div>
+                    <div style="position: relative; display: inline-block;">
+                        <div class="accent-color-selector" id="soundMaterialSelector"
+                            data-cuelume-open="open" data-cuelume-emphasis="subtle"
+                            on:click={() => { soundMaterialDropdownOpen = !soundMaterialDropdownOpen; }}
+                            role="button" tabindex="0"
+                            on:keydown={(e)=>{ if (e.key==='Enter'||e.key===' ') { e.preventDefault(); soundMaterialDropdownOpen = !soundMaterialDropdownOpen; } }}
+                            aria-haspopup="listbox" aria-expanded={soundMaterialDropdownOpen}>
+                            <span id="soundMaterialSelectedText">{MATERIALS.find(m => m.id === $soundMaterial)?.label || 'Default'}</span>
+                            <span style="font-size:11px;margin-left:4px;color:var(--color-text-muted);"><HugeIcon name="arrow-down-01" /></span>
+                        </div>
+                        <div id="soundMaterialDropdown" class="accent-dropdown" class:show={soundMaterialDropdownOpen}
+                            style="left: 0; right: auto; top: calc(100% + 5px);" role="listbox">
+                            {#each MATERIALS as material (material.id)}
+                                <div class="theme-dropdown-item" class:active={$soundMaterial === material.id}
+                                    data-material={material.id} role="option" aria-selected={$soundMaterial === material.id}
+                                    data-cuelume-select="select"
+                                    on:click={() => { setSoundMaterial(material.id); soundMaterialDropdownOpen = false; }}>
+                                    <div class="theme-dropdown-item-left">
+                                        <span>{material.label}</span>
+                                    </div>
+                                    <HugeIcon name="tick-01" class="accent-check" />
+                                </div>
+                            {/each}
+                        </div>
+                    </div>
+                </div>
+                <!-- Volume -->
+                <div class="sounds-option-row">
+                    <div class="paper-mode-info">
+                        <div class="paper-mode-title" style="font-size: 13px;">Volume</div>
+                        <div class="paper-mode-description" style="font-size: 11px;">Overall loudness for all cues</div>
+                    </div>
+                    <div class="sounds-volume-control">
+                        <input type="range" id="soundVolumeSlider" min="0" max="100" step="5"
+                            value={Math.round($soundVolume * 100)} class="warmth-slider"
+                            aria-label="Sound volume" data-cuelume-select="select" data-cuelume-emphasis="subtle"
+                            on:input={(e)=>{ setSoundVolume(Number(e.target.value) / 100); }}
+                            on:change={(e)=>{ setSoundVolume(Number(e.target.value) / 100); sfx('tap', { emphasis: 'subtle' }); }}>
+                        <span class="sounds-volume-value" id="soundVolumeValue">{Math.round($soundVolume * 100)}%</span>
+                    </div>
+                </div>
+                <!-- Preview -->
+                <div class="sounds-option-row sounds-preview-row">
+                    <div class="paper-mode-info">
+                        <div class="paper-mode-title" style="font-size: 13px;">Preview</div>
+                        <div class="paper-mode-description" style="font-size: 11px;">Hear each cue in the current material</div>
+                    </div>
+                    <div class="sounds-preview-buttons">
+                        <button type="button" class="sounds-preview-btn" data-cuelume-tap title="Tap"
+                            on:click={() => sfx('tap')}>Tap</button>
+                        <button type="button" class="sounds-preview-btn" data-cuelume-toggle title="Toggle"
+                            on:click={() => sfx('toggle')}>Toggle</button>
+                        <button type="button" class="sounds-preview-btn" data-cuelume-navigate title="Navigate"
+                            on:click={() => sfx('navigate')}>Navigate</button>
+                        <button type="button" class="sounds-preview-btn" data-cuelume-open title="Open"
+                            on:click={() => sfx('open')}>Open</button>
+                        <button type="button" class="sounds-preview-btn" data-cuelume-close title="Close"
+                            on:click={() => sfx('close')}>Close</button>
+                        <button type="button" class="sounds-preview-btn" data-cuelume-tap="ready" title="Ready"
+                            on:click={() => sfx('ready')}>Ready</button>
+                        <button type="button" class="sounds-preview-btn" data-cuelume-tap="success" data-cuelume-emphasis="strong" title="Success"
+                            on:click={() => sfx('success', { emphasis: 'strong' })}>Success</button>
+                        <button type="button" class="sounds-preview-btn sounds-preview-btn-danger" data-cuelume-close="error" title="Error"
+                            on:click={() => sfx('error')}>Error</button>
+                    </div>
+                </div>
+            </div>
+        {/if}
+    </div>
+    {/if}
 
     <!-- Notifications -->
     <div class="card-layout" id="notificationsToggleCard">

@@ -1,6 +1,8 @@
 <script>
     import { onMount } from 'svelte';
     import HugeIcon from './HugeIcon.svelte';
+    import { sfx } from '$lib/sounds/index.js';
+    import { dialogOutcome, destructiveConfirmed } from '$lib/sounds/events.js';
 
     let visible = false;
     let title = '';
@@ -52,12 +54,24 @@
 
     function handleOk() {
         visible = false;
+        // The dialog reports an outcome, so it plays the cue for what it
+        // reported rather than a generic tap.
+        dialogOutcome(type);
         if (resolver) resolver();
         resolver = null;
     }
 
     function handleConfirm(val) {
         visible = false;
+        if (isConfirm) {
+            // Answering "are you sure?" is a different job from reading a
+            // message: agreeing to something destructive closes it out.
+            if (val && danger) destructiveConfirmed();
+            else if (val) sfx('tap', { emphasis: 'subtle' });
+            else sfx('close', { emphasis: 'subtle' });
+        } else {
+            dialogOutcome(type);
+        }
         if (resolver) resolver(val);
         resolver = null;
     }

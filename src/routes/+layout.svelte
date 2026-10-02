@@ -23,6 +23,7 @@
   import SplashScreen from '$lib/components/splash/SplashScreen.svelte';
   import OpenInAppBanner from '$lib/components/OpenInAppBanner.svelte';
   import NudgeCards from '$lib/components/NudgeCards.svelte';
+  import SoundEngine from '$lib/components/SoundEngine.svelte';
   import { installApiInterceptor, isTauri, isAndroidApp, isCapacitor } from '$lib/config/api.js';
   import { installExternalLinkHandler } from '$lib/utils/externalLinks.js';
   
@@ -415,6 +416,10 @@
     <link id="pricing-css" rel="stylesheet" href="/assets/style/pricing.css" />
   {/if}
 </svelte:head>
+<!-- Interaction sounds. Mounted outside every shell branch so one instance
+  covers the app chrome, the landing pages and all the global overlays. No-ops
+  on web; the audio module is never imported there. -->
+<SoundEngine />
 {#if !hideGlobalHeader}
 <ThemeManager />
 <Header />

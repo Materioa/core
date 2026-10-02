@@ -12709,3 +12709,113 @@ body.coffee-dark-mode .promo-secondary-btn, body.amoled-mode .promo-secondary-bt
 body.coffee-dark-mode .promo-secondary-btn:hover, body.amoled-mode .promo-secondary-btn:hover { background-color: var(--color-primary-light); border-color: var(--color-primary-border); }
 .dynamic-form-rating .star:hover, .dynamic-form-rating .star.active, .dynamic-form-rating .star.hovered { color: var(--color-primary, #ff8200); }
 
+
+/* ==========================================
+   Interaction Sounds settings (native apps)
+   Subordinate to the switch: flat rows on the
+   existing card, no extra panel chrome.
+   ========================================== */
+.sounds-options {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--color-border-light, rgba(0, 0, 0, 0.08));
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.sounds-option-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.sounds-volume-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 180px;
+}
+
+.sounds-volume-control .warmth-slider {
+    flex: 1;
+    min-width: 120px;
+}
+
+.sounds-volume-value {
+    font-family: var(--font-mono, monospace);
+    font-size: 11px;
+    color: var(--color-text-muted, #888);
+    min-width: 34px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.sounds-preview-row {
+    align-items: flex-start;
+}
+
+.sounds-preview-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+    max-width: 320px;
+}
+
+.sounds-preview-btn {
+    border: 1px solid var(--color-border-light, rgba(0, 0, 0, 0.12));
+    background: transparent;
+    color: var(--color-text-secondary, #555);
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.sounds-preview-btn:hover {
+    border-color: var(--color-primary-border, var(--color-primary, #ff8200));
+    color: var(--color-primary, #ff8200);
+    background: var(--color-primary-lighter, rgba(255, 130, 0, 0.05));
+}
+
+.sounds-preview-btn:active {
+    transform: translateY(1px);
+}
+
+.sounds-preview-btn-danger:hover {
+    border-color: var(--color-danger, #ef4444);
+    color: var(--color-danger, #ef4444);
+    background: transparent;
+}
+
+body.coffee-dark-mode .sounds-options,
+body.amoled-mode .sounds-options {
+    border-top-color: var(--color-border-light);
+}
+
+body.coffee-dark-mode .sounds-preview-btn,
+body.amoled-mode .sounds-preview-btn {
+    border-color: var(--color-border-light);
+    color: var(--color-text-secondary);
+}
+
+@media (max-width: 768px) {
+    .sounds-option-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+    .sounds-preview-buttons {
+        max-width: none;
+        justify-content: flex-start;
+    }
+    .sounds-volume-control {
+        min-width: 0;
+        width: 100%;
+    }
+}

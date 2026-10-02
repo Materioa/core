@@ -3,6 +3,7 @@
 	import { browser } from '$app/environment';
 	import { toApiUrl, isCapacitor } from '$lib/config/api.js';
 	import { getSignupUrl } from '$lib/utils/app-urls.js';
+	import * as cue from '$lib/sounds/events.js';
 
 	// Ports of the bottom-right nudge cards:
 	//   1. Offline nudge  — "You seem to be offline…" + View Downloads.
@@ -45,10 +46,16 @@
 			online = navigator.onLine;
 		} catch {}
 		if (!online) {
-			if (!dismissedOffline) card = 'offline';
+			if (!dismissedOffline) {
+				// Only on the transition: coming online is a result, but the
+				// browser fires `online` as often as it likes.
+				if (card !== 'offline') cue.wentOffline();
+				card = 'offline';
+			}
 		} else if (card === 'offline') {
 			card = null;
 			dismissedOffline = false;
+			cue.cameOnline();
 		}
 	}
 
@@ -115,6 +122,7 @@
 			mobileVersion = remoteVer;
 			mobileApkUrl = rawUrl;
 			card = 'upd';
+			cue.updateAvailable();
 			try {
 				window.__materioUpdateNudgeShown = true;
 			} catch {}

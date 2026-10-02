@@ -102,7 +102,9 @@
 
 <nav class="navbar">
     <div class="navbar-top-group">
-        <a href="/" class="tab-link" class:active={$activeTab === 'home'} data-tab="home" aria-label="Home" onclick={(e) => setTab('home', e)}>
+        <a href="/" class="tab-link" class:active={$activeTab === 'home'} data-tab="home" aria-label="Home"
+            data-cuelume-navigate="navigate" data-cuelume-emphasis="subtle"
+            onclick={(e) => setTab('home', e)}>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" color="currentColor"
                 fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path
@@ -112,7 +114,9 @@
             </svg>
         </a>
 
-        <a href="/notifications" class="tab-link" class:active={$activeTab === 'notifications'} data-tab="notifications" data-count={$notificationsStore.unreadCount || 0} aria-label="Notifications" onclick={(e) => setTab('notifications', e)}>
+        <a href="/notifications" class="tab-link" class:active={$activeTab === 'notifications'} data-tab="notifications" data-count={$notificationsStore.unreadCount || 0} aria-label="Notifications"
+            data-cuelume-navigate="navigate" data-cuelume-emphasis="subtle"
+            onclick={(e) => setTab('notifications', e)}>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" color="currentColor"
                 fill="none" stroke="#141B34" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M15.5 18C15.5 19.933 13.933 21.5 12 21.5C10.067 21.5 8.5 19.933 8.5 18" />
@@ -121,7 +125,9 @@
             </svg>
         </a>
 
-        <a href="/leaderboard" class="tab-link" class:active={$activeTab === 'leaderboard'} data-tab="leaderboard" aria-label="Leaderboard" onclick={(e) => setTab('leaderboard', e)}>
+        <a href="/leaderboard" class="tab-link" class:active={$activeTab === 'leaderboard'} data-tab="leaderboard" aria-label="Leaderboard"
+            data-cuelume-navigate="navigate" data-cuelume-emphasis="subtle"
+            onclick={(e) => setTab('leaderboard', e)}>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" color="currentColor"
                 fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path
@@ -136,7 +142,8 @@
             </svg>
         </a>
 
-        <a href="https://room.getmaterio.app" target="_blank" rel="noopener" aria-label="Insightroom" class="tab-link">
+        <a href="https://room.getmaterio.app" target="_blank" rel="noopener" aria-label="Insightroom" class="tab-link"
+                data-cuelume-tap="tap" data-cuelume-emphasis="subtle">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" color="currentColor"
                 fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path
@@ -151,15 +158,19 @@
 
     <div class="navbar-bottom-group">
         {#if isTauri && $desktopUpdateStore.available}
+            <!-- An update waiting on you: attention, not a tap. -->
             <a href="#" class="update-btn desktop-only has-update" id="desktopUpdateBtn" role="button"
-                aria-label="Update Available" title="Update Available" onclick={(e) => openUpdateCard(e)}>
+                aria-label="Update Available" title="Update Available"
+                data-cuelume-tap="attention" data-cuelume-emphasis="strong"
+                onclick={(e) => openUpdateCard(e)}>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" color="currentColor" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z"></path>
                     <path d="M16 11.5C16 11.5 13.054 7.50001 12 7.5C10.9459 7.49999 8 11.5 8 11.5M12 8V16.5"></path>
                 </svg>
             </a>
         {/if}
-        <a href="/changelog" class="changelog-btn desktop-only" role="button" aria-label="Changelog" title="Changelog">
+        <a href="/changelog" class="changelog-btn desktop-only" role="button" aria-label="Changelog" title="Changelog"
+            data-cuelume-tap="navigate" data-cuelume-emphasis="subtle">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" color="currentColor"
                 fill="none" stroke="#141B34" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path
@@ -174,7 +185,9 @@
         </a>
 
         <a href="#" class="keyboard-shortcuts-btn desktop-only" id="keyboardShortcutsBtn" role="button"
-            aria-label="Keyboard Shortcuts" title="Keyboard Shortcuts" onclick={(e) => openModal('shortcuts', e)}>
+            aria-label="Keyboard Shortcuts" title="Keyboard Shortcuts"
+            data-cuelume-open="open" data-cuelume-emphasis="subtle"
+            onclick={(e) => openModal('shortcuts', e)}>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" color="currentColor"
                 fill="none" stroke="#141B34" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10" />
@@ -195,7 +208,9 @@
         {/if}
 
         <div class="profile-icon-container">
-            <a href="/settings" class="tab-link profile-icon" class:active={$activeTab === 'notebooks' || $activeTab === 'settings'} data-tab="settings" role="button" aria-label="Profile and Settings" onclick={(e) => setTab("settings", e)}>
+            <a href="/settings" class="tab-link profile-icon" class:active={$activeTab === 'notebooks' || $activeTab === 'settings'} data-tab="settings" role="button" aria-label="Profile and Settings"
+                data-cuelume-open="open" data-cuelume-emphasis="subtle"
+                onclick={(e) => setTab("settings", e)}>
                 <HugeIcon name="settings-01" id="settings-icon" size="24" />
                 <img id="profile-image" src="/assets/img/default-avatar.svg" style="display: none;" alt="Profile Picture">
             </a>
@@ -221,7 +236,8 @@
                             <HugeIcon name="user-circle" class="dropdown-icon" />
                             <span>Profile</span>
                         </a>
-                        <a href="#" class="dropdown-item" id="logout-btn" onclick={(e) => { e.preventDefault(); if (window.handleLogout) window.handleLogout(); }}>
+                        <a href="#" class="dropdown-item" id="logout-btn" data-cuelume-close="close" data-cuelume-emphasis="strong"
+                                onclick={(e) => { e.preventDefault(); if (window.handleLogout) window.handleLogout(); }}>
                             <HugeIcon name="logout" class="dropdown-icon" />
                             <span>Log Out</span>
                         </a>

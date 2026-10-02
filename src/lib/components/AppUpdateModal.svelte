@@ -3,6 +3,8 @@
 	import { browser } from '$app/environment';
 	import { isTauri, toApiUrl } from '$lib/config/api.js';
 	import { desktopUpdateStore } from '$lib/stores.js';
+	import { sfx } from '$lib/sounds/index.js';
+	import * as cue from '$lib/sounds/events.js';
 
 	// Update nudge state (desktop app only; offline + top-50 cards live in NudgeCards).
 	let activeNudge = $state(null);
@@ -35,6 +37,7 @@
 					// the await never resolved, so the caller's finally block
 					// never ran and the spinner never cleared. Time-box it and
 					// fall through to the API-based check below.
+					cue.updateCheckStarted();
 					const update = await Promise.race([
 						Promise.resolve().then(() => check()),
 						new Promise((r) => setTimeout(() => r(null), 4000))
@@ -43,6 +46,7 @@
 						newVersion = update.version;
 						activeNudge = 'update';
 						desktopUpdateStore.set({ available: true, version: newVersion });
+						cue.updateAvailable();
 						return { status: 'update', remote: newVersion, local: currentVersion() };
 					}
 				} catch (e) {
@@ -70,6 +74,7 @@
 					newVersion = winInfo.version || data.version;
 					activeNudge = 'update';
 					desktopUpdateStore.set({ available: true, version: newVersion });
+					cue.updateAvailable();
 					return { status: 'update', remote: newVersion, local: localVer };
 				} else {
 					desktopUpdateStore.set({ available: false, version: '' });
@@ -95,6 +100,12 @@
 
 	async function handleInstallAndRestart() {
 		isInstalling = true;
+		cue.updateInstalling();
+		// Hoisted out of the try below: the catch handler needs it to offer the
+		// manual installer, but it was declared inside the try, so on ANY
+		// failure (including the mismatch throw right after it) it was out of
+		// scope — the recovery path threw ReferenceError instead of helping.
+		let resolvedUrl: string | null = null;
 		// The navbar update icon goes away once the update starts.
 		desktopUpdateStore.set({ available: false, version: '' });
 		try {
@@ -116,7 +127,7 @@
 					} catch {}
 					// Kept for the failure path so the user can still get the
 					// installer even when the in-app download fails.
-					const resolvedUrl = downloadUrl;
+					resolvedUrl = downloadUrl;
 					// Never install a versioned asset that doesn't match the
 					// release just resolved above.
 					if (downloadUrl && expectedVersion &&
@@ -125,6 +136,9 @@
 					}
 
 					await invoke('install_update_and_restart', { downloadUrl, expectedVersion });
+					// The app is about to be torn down; this is the last cue it
+					// will ever play.
+					cue.updateInstalled();
 					return;
 				}
 			}
@@ -133,6 +147,7 @@
 			window.location.href = '/downloads';
 		} catch (err) {
 			console.error('Failed to install update:', err);
+			cue.updateFailed();
 			const msg = String((err as any)?.message || err || 'Unknown error');
 			// Do NOT silently navigate to /downloads inside the app. That shows
 			// an in-app page the user cannot install anything from, with no
@@ -179,6 +194,7 @@
 
 	function handleDismiss() {
 		activeNudge = null;
+		sfx('close', { emphasis: 'subtle' });
 	}
 
 	onMount(() => {
