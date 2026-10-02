@@ -87,6 +87,8 @@
     // editor PDF.js refuses to serialize, so no restored editor can ever blank
     // the record again.
     var restoredFallback = {};
+    // One-shot flags so a polling snapshot cannot flood the diagnostic log.
+    var fallbackLogged = {};
 
     function app() {
         return window.PDFViewerApplication || null;
@@ -217,8 +219,14 @@
                     // destroys the saved record.
                     var fb = restoredFallback[k] || restoredFallback[(v && v.id) || ''];
                     if (fb) {
-                        diag('snap fallback used key=' + k, 'from=' +
-                            (restoredFallback[k] ? k : (v && v.id)), 'err=' + String(e && e.message || e));
+                        // Once per editor per document: snapshotPlain runs on a
+                        // poll, and an unconditional line here buried the real
+                        // signal under hundreds of identical entries.
+                        if (!fallbackLogged[k]) {
+                            fallbackLogged[k] = true;
+                            diag('snap fallback used key=' + k, 'from=' +
+                                (restoredFallback[k] ? k : (v && v.id)), 'err=' + String(e && e.message || e));
+                        }
                         out[k] = fb;
                     } else {
                         diag('snap DROPPED key=' + k, String(e && e.message || e));
@@ -420,6 +428,9 @@
                 // point loops) so freehand strokes restore instead of
                 // returning a bare, invisible editor.
                 var entry = data;
+                diag('restoreEntry key=' + key, 'page=' + pageIndex,
+                    'ctor=' + entryCtor(data),
+                    'fields=' + entryFields(data));
                 if (!data.quadPoints && !data.inkLists &&
                     Array.isArray(data.outlines) && data.outlines.length) {
                     entry = {};
@@ -428,6 +439,29 @@
                     }
                     entry.inkLists = data.outlines;
                 }
+                // Normalise the geometry before handing it to PDF.js.
+                //
+                // PDF.js indexes quadPoints directly (quadPoints[0]) and iterates
+                // paths.lines, so both must be real arrays. Any JSON hop that
+                // turns a typed array into {"0":..,"1":..} produces a record that
+                // deserialize() cannot consume at all:
+                //     TypeError: Cannot read properties of undefined (reading '0')
+                // and the entry is retried forever and never appears. Records
+                // written by older builds, or imported through anything that
+                // stringified them, look exactly like this - so repair them
+                // rather than refusing to restore them.
+                try {
+                    entry.quadPoints = toNumericArray(data.quadPoints);
+                    if (data.inkLists) entry.inkLists = data.inkLists.map(toNumericArray);
+                    if (data.paths && typeof data.paths === 'object') {
+                        if (data.paths.lines) entry.paths = Object.assign({}, data.paths, { lines: data.paths.lines.map(toNumericArray) });
+                        if (data.paths.points) {
+                            entry.paths = Object.assign({}, entry.paths || data.paths,
+                                { points: data.paths.points.map(toNumericArray) });
+                        }
+                    }
+                } catch (e6) { /* keep the original entry if repair fails */ }
+
                 var layer = null;
                 try {
                     var pageView = v.getPageView ? v.getPageView(pageIndex) : null;
@@ -501,18 +535,16 @@
                         // Unhide the container rather than forcing a tool mode: that
                         // keeps the toolbar and text-selection behaviour untouched,
                         // and render() will not re-hide a non-empty layer.
+                        //
+                        // Deliberately NOT calling layer.render() here. It is
+                        // redundant - add() already renders and positions the
+                        // editor - and it re-adds and rebuilds every editor on the
+                        // page, ending in updateMode(), which hides the layer again
+                        // while the tool is inactive.
                         try {
                             if (layer.div && layer.div.hidden) {
                                 diag('unhide layer key=' + key, 'page=' + pageIndex);
                                 layer.div.hidden = false;
-                            }
-                            if (typeof layer.render === 'function') {
-                                layer.render({
-                                    viewport: pageView && pageView.viewport,
-                                    div: layer.div,
-                                    intent: 'display',
-                                });
-                                if (layer.div && layer.div.hidden) layer.div.hidden = false;
                             }
                         } catch (e4) { /* visibility is best-effort */ }
                         appliedIds[key] = true;
@@ -541,6 +573,61 @@
             emitSynced();
         } else {
             scheduleRestore((attempt || 0) + 1, remaining);
+        }
+    }
+
+    // Restore a typed array that some earlier JSON hop flattened into
+    // {"0":..,"1":..}. Left alone, PDF.js reads undefined out of it and the
+    // annotation silently never renders.
+    function toNumericArray(v) {
+        if (v == null) return v;
+        if (Array.isArray(v)) return v;
+        if (typeof v === 'object' && typeof v.length === 'number') return Array.prototype.slice.call(v);
+        var keys = Object.keys(v);
+        if (keys.length && keys.every(function (n) { return /^\d+$/.test(n); })) {
+            keys.sort(function (a, b) { return +a - +b; });
+            var out = new Float32Array(keys.length);
+            for (var i = 0; i < keys.length; i++) out[i] = v[keys[i]];
+            return out;
+        }
+        return v;
+    }
+
+    // Geometry helpers for diagnostics. PDF.js keys an editor's deserialize on
+    // annotationType and reads very specific geometry fields, and the shape
+    // differs per editor type (highlight uses quadPoints, freehand uses
+    // paths.lines / paths.points). Knowing which one arrived is the difference
+    // between a guess and a diagnosis, so log the field list - never the
+    // coordinates themselves.
+    var EDITOR_TYPE_NAMES = {
+        0: 'NONE', 3: 'FREETEXT', 9: 'HIGHLIGHT', 13: 'STAMP', 15: 'INK', 101: 'SIGNATURE'
+    };
+    function entryCtor(v) {
+        var t = v && (v.annotationType != null ? v.annotationType : v.annotationEditorType);
+        return EDITOR_TYPE_NAMES[t] || String(t);
+    }
+    function entryFields(v) {
+        try {
+            var parts = [];
+            for (var k in v) {
+                if (!Object.prototype.hasOwnProperty.call(v, k)) continue;
+                var val = v[k];
+                var kind = val === null ? 'null' : Array.isArray(val) ? 'arr' + val.length : typeof val;
+                if (k === 'paths' && val) {
+                    var sub = [];
+                    for (var p in val) {
+                        if (Object.prototype.hasOwnProperty.call(val, p)) {
+                            var pv = val[p];
+                            sub.push(p + ':' + (pv === null ? 'null' : Array.isArray(pv) ? 'arr' + pv.length : typeof pv));
+                        }
+                    }
+                    kind = '{' + sub.join(',') + '}';
+                }
+                parts.push(k + '=' + kind);
+            }
+            return parts.join(' ');
+        } catch (e) {
+            return 'unreadable';
         }
     }
 
@@ -688,6 +775,7 @@
             initApplied = false;
             appliedIds = {};
             restoredFallback = {}; // annotationStorage is per-document
+            fallbackLogged = {};
             if (d) {
                 try {
                     var a = app();

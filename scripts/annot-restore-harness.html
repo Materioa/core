@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><title>annot harness</title>
 <style>body{margin:0;font:13px monospace}#log{white-space:pre-wrap;padding:8px;background:#111;color:#0f0}</style>
@@ -29,6 +29,7 @@ const SAVED = {
 };
 
 const lines = [];
+const STORAGE = window.__P || { [SAVED.id]: SAVED };
 const log = (...a) => { lines.push(a.join(' ')); out.textContent = lines.join('\n'); };
 const out = document.getElementById('log');
 const fr = document.getElementById('fr');
@@ -41,7 +42,7 @@ window.addEventListener('message', (e) => {
   const d = e.data;
   if (d.type === 'materioAnnotReady') {
     log('<- materioAnnotReady  (posting init)');
-    fr.contentWindow.postMessage({ type: 'materioAnnotInit', annotations: { storage: { [SAVED.id]: SAVED } } }, '*');
+    fr.contentWindow.postMessage({ type: 'materioAnnotInit', annotations: { storage: STORAGE } }, '*');
   } else if (d.type === 'materioAnnotSync' || d.type === 'materioAnnotSynced') {
     const st = (d.annotations && d.annotations.storage) || {};
     const n = Object.keys(st).length;

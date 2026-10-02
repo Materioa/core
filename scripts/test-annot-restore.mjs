@@ -148,7 +148,7 @@ try {
   // ---------------- PHASE 1: create a highlight like a user would ----------
   console.log('\nPHASE 1  create a highlight through the real UI');
   await send('Page.navigate', { url: VIEWER });
-  await sleep(10000);
+  await sleep(9000);
   check('AnnotationEditorUIManager reachable', (await ev('!!window.__ui')) === true);
   // ANNOT_MODE=ink reproduces the freehand "draw" tool, which serializes to
   // paths:{lines,points} - a different shape from a highlight's quadPoints.
@@ -202,18 +202,51 @@ try {
 
   // ---------------- PHASE 2: cold reopen, restore it ----------------------
   console.log('\nPHASE 2  cold reopen and restore the persisted payload');
+  // Restore must inject its payload BEFORE the harness script runs, otherwise
+  // the harness posts its own built-in sample on materioAnnotReady and the test
+  // silently measures that instead of what it was given.
+  //
+  // CDP hands values back as JSON, which turns PDF.js's Float32Array quadPoints
+  // into {"0":..,"1":..}. The app delivers these by structured clone
+  // (postMessage / IndexedDB), where they stay real typed arrays. Revive them so
+  // the payload under test matches what the reader actually gets - otherwise
+  // deserialize() dies on `quadPoints[0]` and the test measures a malformed
+  // payload rather than the product.
+  let injected = null;
+  const setPayload = async (storage) => {
+    if (injected) { try { await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: injected }); } catch { /* gone */ } }
+    const r = await send('Page.addScriptToEvaluateOnNewDocument', {
+      source: `window.__P = ${JSON.stringify(storage)};
+        (function reviveTypedArrays(o) {
+          if (!o || typeof o !== 'object') return o;
+          for (const k of Object.keys(o)) {
+            const v = o[k];
+            if (v && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Float32Array)) {
+              const keys = Object.keys(v);
+              if (keys.length && keys.every((n) => /^\\d+$/.test(n))) {
+                o[k] = new Float32Array(keys.map((n) => v[n]));
+                continue;
+              }
+            }
+            reviveTypedArrays(v);
+          }
+          return o;
+        })(window.__P);`,
+    });
+    injected = r.result?.identifier || null;
+  };
+
   const restore = async (storage, startPage) => {
+    await setPayload(storage);
     await send('Page.navigate', { url: `${ORIGIN}/scripts/annot-restore-harness.html` + (startPage ? `?page=${startPage}` : '') });
     await sleep(1500);
-    await ev(`window.__P = ${JSON.stringify(storage)};
-      const fr = document.getElementById('fr');
-      const post = () => fr.contentWindow.postMessage(
-        { type: 'materioAnnotInit', annotations: { storage: window.__P } }, '*');
-      window.addEventListener('message', (e) => { if (e.data && e.data.type === 'materioAnnotReady') post(); });
-      let n = 0; const iv = setInterval(() => { n++; if (n > 40) clearInterval(iv);
-        if (fr.contentWindow && fr.contentWindow.PDFViewerApplication && fr.contentWindow.PDFViewerApplication.pdfDocument) post(); }, 300);
-      return 1;`);
-    await sleep(22000);
+    await sleep(14000);
+    const harnessLog = await ev('document.getElementById("log") ? document.getElementById("log").textContent : "NO LOG"');
+    if (process.env.ANNOT_VERBOSE) {
+      console.log('  harness log:');
+      console.log(String(harnessLog).split('\n').filter((l) => !l.includes('snap fallback'))
+        .map((l) => '    ' + l).join('\n'));
+    }
     // Visibility, not DOM presence. A restored editor sitting inside the
     // layer's `hidden` container is present in the DOM and in
     // annotationStorage, serialises fine, and is completely invisible - which
@@ -238,14 +271,29 @@ try {
       for (let n = edDiv; n && n !== wd.body; n = n.parentElement) {
         if (n.hidden) { hiddenAncestor = n.className || n.tagName; break; }
       }
-      let onTop = null;
+      let onTop = null, onTopNote = '';
       if (r && r.width > 1 && r.height > 1) {
-        const t = wd.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-        if (t) {
-          const cls = typeof t.className === 'string' ? t.className : (t.className.baseVal || '');
-          onTop = t.tagName + (cls ? '.' + String(cls).split(' ')[0] : '');
-        } else onTop = 'null';
+        const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+        if (cx < 0 || cy < 0 || cx > wd.documentElement.clientWidth || cy > wd.documentElement.clientHeight) {
+          // Scrolled out of the iframe's visible area. "Is it on top at its own
+          // centre" is not a meaningful question for something nobody can see;
+          // geometry and hidden-ancestor checks already cover real visibility.
+          onTop = 'offscreen';
+          onTopNote = ' centre=(' + Math.round(cx) + ',' + Math.round(cy) + ') vp=' +
+            wd.documentElement.clientWidth + 'x' + wd.documentElement.clientHeight;
+        } else {
+          const t = wd.elementFromPoint(cx, cy);
+          if (t) {
+            const cls = typeof t.className === 'string' ? t.className : (t.className.baseVal || '');
+            onTop = t.tagName + (cls ? '.' + String(cls).split(' ')[0] : '');
+          } else onTop = 'nothing-here';
+        }
       }
+      let inLayer = 'n/a';
+      try { inLayer = w.__ui ? w.__ui.getEditors(e.pageIndex).size : 'no ui'; } catch (x) { inLayer = 'err'; }
+      let empty = 'n/a', rect = null;
+      try { empty = e.isEmpty(); } catch (x) { empty = 'threw'; }
+      try { const g = e.getRect(0, 0); rect = Array.from(g).map((n) => Math.round(n * 100) / 100); } catch (x) { /* n/a */ }
       return JSON.stringify({
         rendered: wd.querySelectorAll('.annotationEditorLayer div').length,
         storage: Object.keys(all).length,
@@ -258,6 +306,14 @@ try {
         editorVisibility: cs ? cs.visibility : null,
         editorOpacity: cs ? cs.opacity : null,
         elementAtEditorCentre: onTop,
+        onTopNote,
+        ctor: e ? e.constructor.name : null,
+        isEmpty: empty,
+        attachedToDom: e ? !!e.isAttachedToDOM : null,
+        parentIsLayer: e && layer ? e.parent === layer : null,
+        layerHasViewport: layer ? !!layer.viewport : null,
+        uiEditorsOnPage: inLayer,
+        editorGetRect: rect,
       });
     })()`);
   };
@@ -299,7 +355,49 @@ try {
     check('unrendered-page annotation is reported in the sync', r2b.synced === 1,
       `synced=${r2b.synced}`);
 
+    // PHASE 3 must run before the extra phases below, so move the ink phase
+    // after it. (declared here for clarity; executed further down)
+    console.log('\nPHASE 2c  freehand INK annotation');
+    console.log('\nPHASE 2c  freehand INK annotation');
+    // points-only: InkDrawOutliner.deserializeDraw() rebuilds its lines from
+    // points when `lines` is absent, and each row must hold 2 or 4 numbers -
+    // 6/12-wide rows are what PDF.js itself emits, padded with NaN, which JSON
+    // cannot carry. points-only avoids NaN and exercises the same builder.
+    const ink = {
+      annotationType: 15,
+      color: [0, 0, 0],
+      opacity: 1,
+      thickness: 2,
+      paths: { points: [[100, 300], [220, 340], [400, 300]] },
+      pageIndex: 0,
+      rect: [100, 300, 400, 340],
+      rotation: 0,
+      structTreeParentId: null,
+      id: null,
+    };
+    const ri = JSON.parse(await restore({ pdfjs_internal_editor_0: ink }));
+    console.log('  ' + JSON.stringify(ri));
+    check('ink annotation restores into storage', ri.storage > 0, `storage=${ri.storage}`);
+    check('ink editor is not empty', ri.isEmpty === false, `isEmpty=${ri.isEmpty} ctor=${ri.ctor}`);
+    check('ink editor is attached to the DOM', ri.attachedToDom === true, `attached=${ri.attachedToDom}`);
+    check('ink editor belongs to the layer', ri.parentIsLayer === true, `parentIsLayer=${ri.parentIsLayer}`);
+    check('ink layer has a viewport', ri.layerHasViewport === true, `viewport=${ri.layerHasViewport}`);
+    check('ink layer is not hidden', ri.layerDivHidden === false, `layerDivHidden=${ri.layerDivHidden}`);
+    check('ink editor has real geometry', !!ri.editorRect && ri.editorRect.w > 1 && ri.editorRect.h > 1,
+      JSON.stringify(ri.editorRect));
+    check('ink editor is the top element at its own centre',
+      !!ri.elementAtEditorCentre && ri.elementAtEditorCentre !== 'nothing-here',
+      `topEl=${ri.elementAtEditorCentre}${ri.onTopNote || ''}`);
+    check('ink editor is serializable', ri.serializeThrew === null, ri.serializeThrew || 'ok');
+    check('ink annotation is reported in the sync', ri.synced === 1, `synced=${ri.synced}`);
+    // The synthetic ink payload must actually produce an InkEditor. If it does
+    // not, this phase is measuring a leftover editor from an earlier phase and
+    // every check above is meaningless.
+    check('ink payload produced an InkEditor (not a leftover)', ri.ctor === 'InkEditor',
+      `ctor=${ri.ctor}`);
+
     // ---------------- PHASE 3: the cycle must be stable -------------------
+    // Read phase 2's result now, before later phases overwrite __lastSync.
     console.log('\nPHASE 3  reopen using the payload phase 2 reported');
     const round2 = JSON.parse(await ev('JSON.stringify(window.__lastSync || null)'));
     check('phase 2 handed the parent a non-empty record', !!round2 && Object.keys(round2).length > 0,
@@ -326,3 +424,4 @@ try {
 
 console.log(failures.length ? `\n${failures.length} check(s) failed` : '\nall checks passed');
 process.exit(failures.length ? 1 : 0);
+
