@@ -561,6 +561,7 @@
                                 layer.div.hidden = false;
                             }
                         } catch (e4) { /* visibility is best-effort */ }
+                        diag('vis key=' + key, editorVisibilityReport(editor, layer));
                         appliedIds[key] = true;
                     } else if (editor) {
                         appliedIds[key] = true;
@@ -587,6 +588,41 @@
             emitSynced();
         } else {
             scheduleRestore((attempt || 0) + 1, remaining);
+        }
+    }
+
+    // Why is a restored editor still not on screen?
+    //
+    // Every previous check looked at div.hidden alone, which is necessary but
+    // nowhere near sufficient: PDF.js also gates editor visibility on mode-
+    // specific CSS classes, and an editor can sit in a visible container and
+    // still paint nothing. Report the full chain so the next log names the cause
+    // instead of requiring another guess - class chain, computed style, and the
+    // geometry that actually gets laid out.
+    function editorVisibilityReport(editor, layer) {
+        try {
+            var ed = editor && editor.div;
+            var ld = layer && layer.div;
+            var cs = null;
+            if (ed && typeof window.getComputedStyle === 'function') {
+                cs = window.getComputedStyle(ed);
+            }
+            var r = ed && ed.getBoundingClientRect ? ed.getBoundingClientRect() : null;
+            var cls = ed ? (typeof ed.className === 'string' ? ed.className : String(ed.className)) : 'none';
+            return [
+                'edCls=' + cls,
+                'edInDom=' + !!(ed && ed.isConnected),
+                'rect=' + (r ? Math.round(r.width) + 'x' + Math.round(r.height) : 'null'),
+                'pos=' + (r ? Math.round(r.left) + ',' + Math.round(r.top) : 'null'),
+                'disp=' + (cs ? cs.display : '?'),
+                'vis=' + (cs ? cs.visibility : '?'),
+                'opac=' + (cs ? cs.opacity : '?'),
+                'zIdx=' + (cs ? cs.zIndex : '?'),
+                'layerHidden=' + (ld ? ld.hidden : 'no-layer'),
+                'layerCls=' + (ld ? ld.className : '?'),
+            ].join(' ');
+        } catch (e) {
+            return 'report failed: ' + String(e && e.message || e);
         }
     }
 
