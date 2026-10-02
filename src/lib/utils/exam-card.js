@@ -465,9 +465,14 @@ function findSemesterData(data, semester) {
 
             const daysUntilExam = Math.ceil((startDateOnly - today) / (1000 * 60 * 60 * 24));
             const isVivaExam = semData.exams && semData.exams.some(e => e.type === 'viva');
-            const showBeforeDays = isVivaExam 
-                ? (data.showBeforeDaysViva || SHOW_BEFORE_DAYS_VIVA) 
-                : (data.showBeforeDays || SHOW_BEFORE_DAYS);
+            // `||` discarded an admin-set 0 and fell back to the default, so
+            // "show 0 days before" silently became 3 (viva) / 7, and the card
+            // appeared days early. Fall back only on a genuinely missing value.
+            const showBeforeDays = Number(
+                isVivaExam
+                    ? (data.showBeforeDaysViva ?? SHOW_BEFORE_DAYS_VIVA)
+                    : (data.showBeforeDays ?? SHOW_BEFORE_DAYS)
+            );
 
             if ((daysUntilExam <= showBeforeDays && daysUntilExam >= 0) ||
                 (today >= startDateOnly && (!endDate || now <= endDate))) {
@@ -512,9 +517,12 @@ function shouldDisplayExamCard(data, semesterData) {
     const daysUntilExam = Math.ceil((startDateOnly - today) / (1000 * 60 * 60 * 24));
     
     const isVivaExam = semesterData.exams && semesterData.exams.some(e => e.type === 'viva');
-    const showBeforeDays = isVivaExam 
-        ? (data.showBeforeDaysViva || SHOW_BEFORE_DAYS_VIVA) 
-        : (data.showBeforeDays || SHOW_BEFORE_DAYS);
+    // Same falsy-zero fix as above.
+    const showBeforeDays = Number(
+        isVivaExam
+            ? (data.showBeforeDaysViva ?? SHOW_BEFORE_DAYS_VIVA)
+            : (data.showBeforeDays ?? SHOW_BEFORE_DAYS)
+    );
 
     if (daysUntilExam <= showBeforeDays && daysUntilExam >= 0) return true;
     if (today >= startDateOnly && (!endDate || now <= endDate)) return true;
