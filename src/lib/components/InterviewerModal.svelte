@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
 	import { activeModalStore, overlayLockStore } from '$lib/stores.js';
+import { get } from 'svelte/store';
 	import { page } from '$app/stores';
 	import { getSkipLanding, isForceApp } from '$lib/utils/landingPrefs.js';
 	import InterviewerCore from './InterviewerCore.svelte';
@@ -46,7 +47,13 @@
 	// card mid-animation, the PDF reader, search). This is the half that was
 	// missing: the interviewer respected other modals, but nothing respected
 	// the interviewer, so a promo could open on top of it.
-	let isOverlayLocked = $derived($overlayLockStore !== null);
+	//
+	// MUST ignore our own lock. isOpen reads this, and the effect below writes
+	// overlayLockStore — so including our own value here created a cycle:
+	// claim -> isOpen invalidates -> cleanup releases -> isOpen flips true ->
+	// claim again, forever. That shipped as effect_update_depth_exceeded and
+	// froze the whole page.
+	let isOtherOverlayLocked = $derived($overlayLockStore !== null && $overlayLockStore !== 'interviewer');
 
 	// Claim the screen while we are up. Kept out of activeModalStore because
 	// that store drives URL-hash routing in +layout.svelte.
@@ -54,7 +61,7 @@
 		if (!isOpen) return;
 		overlayLockStore.set('interviewer');
 		return () => {
-			if ($overlayLockStore === 'interviewer') overlayLockStore.set(null);
+			if (get(overlayLockStore) === 'interviewer') overlayLockStore.set(null);
 		};
 	});
 
@@ -72,7 +79,7 @@
 	// Shows only when no other modal is open, and only when a viva/practical exam has started to show up (or explicitly opened)
 	let isOpen = $derived(
 		!isOtherModalOpen &&
-		!isOverlayLocked &&
+		!isOtherOverlayLocked &&
 		$page.url.pathname !== '/interviewer' &&
 		!isLanding && (
 			isExplicitlyTriggered ||
