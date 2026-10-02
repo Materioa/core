@@ -65,25 +65,42 @@ import { get } from 'svelte/store';
 		};
 	});
 
-	let isExplicitlyTriggered = $derived(
-		INTERVIEW_MODAL_KEYS.includes($activeModalStore) ||
+	// A ?interview= param or an interview hash is a deliberate, developer- or
+	// user-authored trigger: open regardless of exam state.
+	let isUrlTriggered = $derived(
 		($page.url.searchParams.get('interview') !== null) ||
 		(typeof window !== 'undefined' && INTERVIEW_MODAL_KEYS.some(k => window.location.hash.includes(k)))
 	);
+
+	// activeModalStore is NOT necessarily deliberate. AutoShowPopups sets it
+	// from admin popup rules (activeModalStore.set(popup.id)), so lumping it in
+	// with the URL check let an autoshow rule open the viva box with no
+	// showBefore check and no practical/viva exam at all. It still bypasses
+	// isDismissed, because clicking "Prepare" on a visible exam card should
+	// reopen a box dismissed earlier in the session.
+	let isStoreTriggered = $derived(INTERVIEW_MODAL_KEYS.includes($activeModalStore));
 
 	const isVivaBoxForm = $derived(
 		formId === 'viva-question-bank' ||
 		INTERVIEW_MODAL_KEYS.includes(formId)
 	);
 
-	// Shows only when no other modal is open, and only when a viva/practical exam has started to show up (or explicitly opened)
+	// Single source of truth for "may the viva box appear": a practical or
+	// viva exam configured in Mongo whose exam period is inside its
+	// showBeforeDaysViva window (or already running). Every path must clear
+	// this — the card being hidden is not the same as the interview being off.
+	let examGatePassed = $derived(isAppHome && hasVivaExam && isVivaBoxForm);
+
+	// Shows only when no other modal is open, and only when a viva/practical
+	// exam has started to show up (or explicitly opened).
 	let isOpen = $derived(
 		!isOtherModalOpen &&
 		!isOtherOverlayLocked &&
 		$page.url.pathname !== '/interviewer' &&
 		!isLanding && (
-			isExplicitlyTriggered ||
-			(!isDismissed && isAppHome && hasVivaExam && isVivaBoxForm)
+			isUrlTriggered ||
+			(isStoreTriggered && examGatePassed) ||
+			(!isDismissed && examGatePassed)
 		)
 	);
 
@@ -190,10 +207,13 @@ import { get } from 'svelte/store';
 
 		const onPrefChange = () => { prefVersion += 1; };
 		const onExamVivaStatus = (e) => {
-			if (e.detail?.hasViva) {
-				hasVivaExam = true;
-				activeVivaExam = e.detail?.exam || null;
-			}
+			// Must also clear. This only ever assigned true before, so once an
+			// exam had qualified, switching it off in admin (or the window
+			// closing) left hasVivaExam true for the rest of the session and the
+			// box stayed open on stale state.
+			const has = !!e.detail?.hasViva;
+			hasVivaExam = has;
+			activeVivaExam = has ? (e.detail?.exam || null) : null;
 		};
 
 		window.addEventListener('landingPrefsChanged', onPrefChange);
