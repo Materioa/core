@@ -1,5 +1,5 @@
 <script>
-    import { onMount } from 'svelte';
+    import { onMount, onDestroy } from 'svelte';
     import { get } from 'svelte/store';
     import { activeModalStore, pdfModalStore, activeTab } from '$lib/stores.js';
     import { pushState } from '$app/navigation';
@@ -7,10 +7,20 @@
     import HugeIcon from './HugeIcon.svelte';
     import { HugeiconsIcon } from '@hugeicons/svelte';
     import { LoaderIcon } from '@hugeicons/core-free-icons';
+    import { sfx } from '$lib/sounds/index.js';
+    import { NOTEBOOK_COVERS, DEFAULT_COVER, randomCover, getCover, getRibbon, coverStyle } from '$lib/utils/notebookCover.js';
 
     // Lazy load KaTeX, Highlight.js, and Mermaid when the notebook modal opens
     $: if ($activeModalStore === 'notebook') {
         loadNotebookAssets();
+    }
+
+    // Every open starts in edit mode. Read mode is a deliberate per-session
+    // choice, so reopening a note should never drop the user into a view pane
+    // they cannot type in.
+    $: if ($activeModalStore !== 'notebook') {
+        isViewMode = false;
+        showCoverPicker = false;
     }
 
     export let noteId = null;
@@ -23,16 +33,101 @@
     let notebooks = [];
     let currentNotebookId = null;
     let currentLinkedPdf = null;
+    // Read mode. The editor and the view pane are mutually exclusive surfaces —
+    // the view pane is never mounted alongside a live contenteditable, which
+    // is what previously left the editor underneath a read-only overlay.
     let isViewMode = false;
+    let viewEl;
     let showLinkPdfModal = false;
-    let showPreviewModal = false;
     let showExportModal = false;
     let linkedPdfName = '';
     let showAiOverlay = false;
     let aiPrompt = '';
     let showDelete = false;
+    let currentCover = DEFAULT_COVER;
+    let createdAt = null;
+    let updatedAt = null;
+    let showCoverPicker = false;
 
     let editorEl;
+    // Named so onDestroy can remove it — it used to be an anonymous listener
+    // that accumulated one entry per mount.
+    let onNotebookUpdate = null;
+
+    // --- read mode ------------------------------------------------------
+
+    /**
+     * Renders the note into the read pane. KaTeX/highlight.js are loaded
+     * asynchronously, so this has to run after they resolve — calling it
+     * synchronously is why formulas never appeared: the renderers simply were
+     * not on `window` yet. The pane deliberately lacks the `notebook-editor`
+     * class, which renderMathInElement ignores by design.
+     */
+    async function renderView() {
+        if (!viewEl) return;
+        viewEl.innerHTML = contentHtml || '';
+        try {
+            await loadNotebookAssets();
+        } catch {}
+        // KaTeX swaps the raw text for rendered nodes, so the saved HTML must
+        // still be the source of truth. Re-read the model, not the DOM.
+        renderFormulasAndCode(viewEl);
+    }
+
+    function setViewMode(next) {
+        if (isViewMode === next) return;
+        if (next) {
+            // Commit whatever is in the editor before reading it back.
+            if (editorEl) contentHtml = editorEl.innerHTML;
+            isViewMode = true;
+            updateWordCount();
+            // The pane mounts on the next tick; render once it exists.
+            tick().then(() => renderView());
+        } else {
+            isViewMode = false;
+            // Returning to edit: put the raw HTML back in a live editor so the
+            // caret has something to work with.
+            tick().then(() => {
+                if (editorEl) {
+                    editorEl.innerHTML = contentHtml || '';
+                    editorEl.focus();
+                }
+            });
+        }
+        sfx(next ? 'open' : 'tap', { emphasis: 'subtle' });
+    }
+
+    // svelte 4-compatible tick
+    function tick() {
+        return new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    // Renders read mode whenever the pane mounts or its content changes.
+    // The `{@html}`-free view is written imperatively because KaTeX swaps raw
+    // text for rendered nodes; a reactive `{@html}` would fight that.
+    $: if (isViewMode && viewEl !== undefined && contentHtml !== undefined) {
+        renderView();
+    }
+
+    // --- cover / title --------------------------------------------------
+
+    function setCover(coverId) {
+        currentCover = coverId;
+        showCoverPicker = false;
+        sfx('toggle', { emphasis: 'subtle' });
+        saveNote(false);
+    }
+
+    function formatDate(value) {
+        if (!value) return '';
+        try {
+            return new Date(value).toLocaleDateString(undefined, {
+                year: 'numeric', month: 'short', day: 'numeric'
+            });
+        } catch {
+            return '';
+        }
+    }
 
     onMount(() => {
         if (typeof localStorage !== 'undefined') {
@@ -49,17 +144,22 @@
                 currentNotebookId = existing.id;
                 currentLinkedPdf = existing.linkedPdf || null;
                 linkedPdfName = existing.linkedPdf?.name || '';
+                currentCover = existing.cover || DEFAULT_COVER;
+                createdAt = existing.createdAt || null;
+                updatedAt = existing.updatedAt || null;
                 showDelete = true;
+                isViewMode = false;
                 setTimeout(()=> { if(editorEl) editorEl.innerHTML = contentHtml; updateWordCount(); }, 0);
             }
         }
         if (typeof window !== 'undefined') {
-            window.addEventListener('notebook:update', () => {
+            onNotebookUpdate = () => {
                 try {
                     const saved = localStorage.getItem('materio_notebooks');
                     if (saved) notebooks = JSON.parse(saved);
                 } catch (e) {}
-            });
+            };
+            window.addEventListener('notebook:update', onNotebookUpdate);
 
             window.createNewNotebook = (isGeneral) => {
                 try {
@@ -77,7 +177,11 @@
                         currentNotebookId = existing.id;
                         currentLinkedPdf = existing.linkedPdf;
                         linkedPdfName = existing.linkedPdf?.name || '';
+                        currentCover = existing.cover || DEFAULT_COVER;
+                        createdAt = existing.createdAt || null;
+                        updatedAt = existing.updatedAt || null;
                         showDelete = true;
+                        isViewMode = false;
                         if (editorEl) { editorEl.innerHTML = contentHtml; updateWordCount(); }
                         activeModalStore.set('notebook');
                         return;
@@ -88,6 +192,9 @@
                     currentLinkedPdf = { url: pdfState.pdfUrl, name: pdfState.topic || pdfState.title, subject: pdfState.subject, semester: pdfState.semester, category: pdfState.category };
                     linkedPdfName = currentLinkedPdf.name;
                     showDelete = false;
+                    isViewMode = false;
+                    createdAt = null;
+                    updatedAt = null;
                     if (editorEl) { editorEl.innerHTML = ''; updateWordCount(); }
                     activeModalStore.set('notebook');
                     return;
@@ -98,6 +205,9 @@
                 currentLinkedPdf = null;
                 linkedPdfName = '';
                 showDelete = false;
+                isViewMode = false;
+                createdAt = null;
+                updatedAt = null;
                 if (editorEl) { editorEl.innerHTML = ''; updateWordCount(); }
                 activeModalStore.set('notebook');
             };
@@ -114,8 +224,27 @@
                     currentNotebookId = id;
                     currentLinkedPdf = existing.linkedPdf || null;
                     linkedPdfName = existing.linkedPdf?.name || '';
+                    currentCover = existing.cover || DEFAULT_COVER;
+                    createdAt = existing.createdAt || null;
+                    updatedAt = existing.updatedAt || null;
                     showDelete = true;
+                    isViewMode = false;
                     setTimeout(()=> { if(editorEl) { editorEl.innerHTML = contentHtml; updateWordCount(); } }, 0);
+                } else {
+                    // A stale id used to open the modal anyway, presenting
+                    // whatever was last in the editor as if it were the note
+                    // that was asked for. Clear instead.
+                    title = 'Untitled Note';
+                    contentHtml = '';
+                    currentNotebookId = null;
+                    currentLinkedPdf = null;
+                    linkedPdfName = '';
+                    currentCover = DEFAULT_COVER;
+                    createdAt = null;
+                    updatedAt = null;
+                    showDelete = false;
+                    isViewMode = false;
+                    setTimeout(()=> { if(editorEl) { editorEl.innerHTML = ''; updateWordCount(); } }, 0);
                 }
                 activeModalStore.set('notebook');
             };
@@ -129,12 +258,24 @@
         activeModalStore.subscribe(val => {
             try {
                 if (val === 'notebook') {
-                    setTimeout(()=> { if(editorEl && !editorEl.innerHTML && contentHtml) editorEl.innerHTML = contentHtml; updateWordCount(); }, 50);
+                    setTimeout(()=> {
+                        if (editorEl && !editorEl.innerHTML && contentHtml) editorEl.innerHTML = contentHtml;
+                        updateWordCount();
+                    }, 50);
                 }
             } catch (err) {
                 console.error('Notebook open sync failed:', err);
             }
         });
+
+        return () => {
+            if (typeof window === 'undefined') return;
+            if (onNotebookUpdate) window.removeEventListener('notebook:update', onNotebookUpdate);
+        };
+    });
+
+    onDestroy(() => {
+        clearTimeout(saveTimeout);
     });
 
     function getAuthToken() {
@@ -149,12 +290,27 @@
         return null;
     }
 
-    function closeModal() { activeModalStore.set(null); showLinkPdfModal=false; showPreviewModal=false; showExportModal=false; showAiOverlay=false; }
+    function closeModal() { activeModalStore.set(null); showLinkPdfModal=false; showExportModal=false; showAiOverlay=false; showCoverPicker=false; }
 
     function updateWordCount() {
-        const text = editorEl ? editorEl.innerText : '';
+        // In read mode the live editor is unmounted, so the model HTML is the
+        // only source — reading editorEl here reported 0 words the moment the
+        // user switched to reading view.
+        const text = editorEl ? editorEl.innerText : stripTags(contentHtml || '');
         const words = text.trim() ? text.trim().split(/\s+/).length : 0;
         wordCount = words;
+    }
+
+    function stripTags(html) {
+        return String(html || '')
+            .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+            .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/\s+/g, ' ');
     }
 
     function handleEditorInput() {
@@ -170,11 +326,20 @@
         saveTimeout = setTimeout(()=> saveNote(false), 800);
     }
 
+    function assignCoverForNewNote() {
+        // A brand-new note gets its own colour instead of every blank note
+        // sharing the default slate. Only runs when the note has never been
+        // saved, so reopening an existing note never reshuffles its cover.
+        currentCover = randomCover();
+    }
+
     function saveNote(closeAfter=false) {
         isSaving = true;
         const id = currentNotebookId || `note_${Date.now()}`;
         const now = new Date().toISOString();
         const existsIdx = notebooks.findIndex(n => n.id === id);
+        // First save of a new note: give it its own cover.
+        if (existsIdx < 0 && (!currentCover || currentCover === DEFAULT_COVER)) assignCoverForNewNote();
         // Prefer currentLinkedPdf (from linked creation) else fallback to linkedPdfName
         let linked = currentLinkedPdf;
         if (!linked && linkedPdfName) linked = { name: linkedPdfName };
@@ -182,8 +347,11 @@
         const nb = {
             id,
             title: title.trim() || 'Untitled Note',
+            // The editor is unmounted in read mode; saving a cover or the title
+            // from there must not blank the note's content.
             content: editorEl ? editorEl.innerHTML : contentHtml,
             tag: 'General',
+            cover: currentCover || DEFAULT_COVER,
             updatedAt: now,
             createdAt: existsIdx>=0 ? notebooks[existsIdx].createdAt : now,
             linkedPdf: linked,
@@ -192,6 +360,8 @@
         if (existsIdx>=0) notebooks[existsIdx]=nb;
         else notebooks.unshift(nb);
         currentNotebookId = id;
+        createdAt = nb.createdAt;
+        updatedAt = now;
         showDelete = true;
         try { localStorage.setItem('materio_notebooks', JSON.stringify(notebooks)); } catch {}
 
@@ -269,6 +439,8 @@
             case 'code': document.execCommand('formatBlock', false, '<pre>'); break;
             case 'math': {
                 const expr = prompt('Enter LaTeX:');
+                // \( \) is what renderMathInElement is now configured to accept
+                // alongside $...$, so toolbar formulas actually render.
                 if (expr) document.execCommand('insertHTML', false, `<span class="math-inline">\\(${expr}\\)</span>`);
                 break;
             }
@@ -331,13 +503,21 @@
         closeModal();
     }
 
-    function doPreview() { showPreviewModal = true; }
     function doExport(format) {
-        const data = editorEl ? editorEl.innerText : contentHtml;
-        const blob = new Blob([format==='html' ? (editorEl?.innerHTML||'') : data], { type: format==='html'?'text/html':'text/markdown' });
+        // Export must read the model, not the live editor: in read mode the
+        // editor is unmounted, so `editorEl?.innerHTML` was an empty export.
+        const html = editorEl ? editorEl.innerHTML : contentHtml;
+        const data = editorEl ? editorEl.innerText : stripTags(contentHtml);
+        const blob = new Blob([format==='html' ? html : data], { type: format==='html'?'text/html':'text/markdown' });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href=url; a.download=`${title.replace(/[^a-z0-9]/gi,'_')}.${format==='html'?'html':format==='txt'?'txt':'md'}`; a.click(); URL.revokeObjectURL(url);
-        showExportModal=false;
+        const ext = format === 'html' ? 'html' : format === 'txt' ? 'txt' : 'md';
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${(title || 'note').replace(/[^a-z0-9]/gi,'_')}.${ext}`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showExportModal = false;
+        sfx('ready', { emphasis: 'subtle' });
     }
 </script>
 
@@ -351,23 +531,67 @@
     <div class="notebook-modal visible" id="notebookModal" role="dialog" aria-modal="true">
         <div class="notebook-backdrop" id="notebookBackdrop" on:click={closeModal}></div>
         <div class="notebook-dialog">
-            <button type="button" class="notebook-close-btn" id="notebookCloseBtn" aria-label="Close Notebook" on:click={closeModal}>
+            <button type="button" class="notebook-close-btn" id="notebookCloseBtn" aria-label="Close Notebook" data-cuelume-close="close" data-cuelume-emphasis="subtle" on:click={closeModal}>
                 <HugeIcon name="cancel-01" />
             </button>
 
+            <!-- Cover spine: a thin colour bar carrying this note's cover, so the note
+                 is identifiable at a glance even while the editor is open. -->
+            <div class="notebook-spine" style={coverStyle(currentCover)} aria-hidden="true"></div>
+
             <div class="notebook-header">
                 <div class="notebook-title-section">
-                    <span class="notebook-icon"><HugeIcon name="book-open-02"  /></span>
-                    <input type="text" id="notebookTitleInput" class="notebook-title-input" placeholder="Untitled Note" bind:value={title} on:blur={()=>saveNote(false)} maxlength="100" autocomplete="off">
+                    <span class="notebook-icon" style={coverStyle(currentCover)}><HugeIcon name="book-open-02" /></span>
+                    <input type="text" id="notebookTitleInput" class="notebook-title-input" placeholder="Untitled Note"
+                        data-cuelume-type
+                        bind:value={title} on:blur={()=>saveNote(false)} maxlength="100" autocomplete="off">
                 </div>
                 <div class="notebook-meta">
-                    <span class="notebook-date" id="notebookDate">{new Date().toLocaleDateString()}</span>
+                    <!-- The real created date, not today's date rendered on every open. -->
+                    <span class="notebook-date" id="notebookDate">{formatDate(updatedAt || createdAt) || formatDate(new Date().toISOString())}</span>
                     {#if linkedPdfName}
                         <span class="notebook-link" id="notebookLinkBadge" style="display: inline-flex;"><HugeIcon name="link-01" /><span id="notebookLinkText">{linkedPdfName}</span></span>
                     {/if}
                 </div>
+                <div class="notebook-header-actions">
+                    <!-- Read / write is a switch between two exclusive surfaces. -->
+                    <button type="button" class="notebook-mode-btn" id="notebookModeBtn"
+                        data-cuelume-toggle="toggle"
+                        aria-pressed={isViewMode}
+                        title={isViewMode ? 'Switch to editing' : 'Read this note'}
+                        on:click={()=> setViewMode(!isViewMode)}>
+                        <HugeIcon name={isViewMode ? 'edit-02' : 'eye'} />
+                        <span>{isViewMode ? 'Edit' : 'Read'}</span>
+                    </button>
+                    <div class="notebook-cover-picker-wrap">
+                        <button type="button" class="notebook-mode-btn" id="notebookCoverBtn"
+                            data-cuelume-open="open" data-cuelume-emphasis="subtle"
+                            aria-expanded={showCoverPicker} title="Change cover"
+                            on:click={()=> { showCoverPicker = !showCoverPicker; }}>
+                            <span class="notebook-cover-swatch" style={coverStyle(currentCover)}></span>
+                            <span>Cover</span>
+                        </button>
+                        {#if showCoverPicker}
+                            <div class="notebook-cover-picker" role="listbox" aria-label="Cover colour">
+                                {#each NOTEBOOK_COVERS as cover (cover.id)}
+                                    <button type="button" class="notebook-cover-option"
+                                        class:selected={currentCover === cover.id}
+                                        style={coverStyle(cover.id)}
+                                        data-cuelume-select="select"
+                                        role="option" aria-selected={currentCover === cover.id}
+                                        title={cover.label} aria-label={cover.label}
+                                        on:click={()=> setCover(cover.id)}></button>
+                                {/each}
+                            </div>
+                        {/if}
+                    </div>
+                </div>
             </div>
 
+            <!-- Formatting belongs to writing. In read mode the whole strip is
+                 replaced by nothing at all rather than left enabled over a pane
+                 that cannot be typed into. -->
+            {#if !isViewMode}
             <div class="notebook-toolbar" id="notebookToolbar">
                 <div class="toolbar-group toolbar-formatting">
                     <button type="button" class="toolbar-btn" data-action="bold" title="Bold" on:click={()=>handleToolbar('bold')}><HugeIcon name="text-bold" /></button>
@@ -404,33 +628,49 @@
                 </div>
                 <div class="toolbar-group toolbar-ai" id="notebookAiToolbar" style="display: flex;">
                     <div class="toolbar-divider"></div>
-                    <button type="button" class="toolbar-btn toolbar-btn-ai" data-action="aiWrite" on:click={()=>handleToolbar('aiWrite')}><HugeIcon name="magic-wand-01" /><span>AI</span></button>
+                    <button type="button" class="toolbar-btn toolbar-btn-ai" data-action="aiWrite" data-cuelume-open="open" data-cuelume-emphasis="subtle" on:click={()=>handleToolbar('aiWrite')}><HugeIcon name="magic-wand-01" /><span>AI</span></button>
                 </div>
             </div>
+            {/if}
 
-            <div class="notebook-editor-container">
-                <div class="notebook-editor" id="notebookEditor" contenteditable="true" data-placeholder="Start writing your note..." bind:this={editorEl} on:input={handleEditorInput}></div>
+            <div class="notebook-editor-container" class:reading={isViewMode}>
+                {#if isViewMode}
+                    <!-- Read mode. A separate surface, not an overlay: the
+                         contenteditable is not in the DOM while this is up. It
+                         also deliberately does NOT carry the `notebook-editor`
+                         class, which renderMathInElement ignores — that is what
+                         lets KaTeX render here. -->
+                    <div class="notebook-view" id="notebookView" bind:this={viewEl}></div>
+                    {#if !contentHtml}
+                        <div class="notebook-view-empty">
+                            <HugeIcon name="note-01" size="28" />
+                            <p>This note is empty.</p>
+                        </div>
+                    {/if}
+                {:else}
+                    <div class="notebook-editor" id="notebookEditor" contenteditable="true" data-placeholder="Start writing your note..." data-cuelume-type bind:this={editorEl} on:input={handleEditorInput}></div>
 
-                {#if showAiOverlay}
+                    {#if showAiOverlay}
                     <div class="ai-input-overlay" id="aiInputOverlay" style="display: flex;">
                         <div class="ai-input-container">
                             <div class="ai-sparkle-indicator"><HugeIcon name="magic-wand-01" /></div>
-                            <input type="text" id="aiPromptInput" class="ai-prompt-input" placeholder="Describe what you want AI to write..." bind:value={aiPrompt} on:keydown={(e)=> e.key==='Enter' && submitAi()}>
-                            <button type="button" class="ai-submit-btn" id="aiSubmitBtn" on:click={submitAi}><HugeIcon name="arrow-right-01" /></button>
-                            <button type="button" class="ai-cancel-btn" id="aiCancelBtn" on:click={()=> showAiOverlay=false}><HugeIcon name="cancel-01" /></button>
+                            <input type="text" id="aiPromptInput" class="ai-prompt-input" placeholder="Describe what you want AI to write..." data-cuelume-type bind:value={aiPrompt} on:keydown={(e)=> e.key==='Enter' && submitAi()}>
+                            <button type="button" class="ai-submit-btn" id="aiSubmitBtn" data-cuelume-tap="tap" data-cuelume-emphasis="subtle" on:click={submitAi}><HugeIcon name="arrow-right-01" /></button>
+                            <button type="button" class="ai-cancel-btn" id="aiCancelBtn" data-cuelume-close="close" data-cuelume-emphasis="subtle" on:click={()=> showAiOverlay=false}><HugeIcon name="cancel-01" /></button>
                         </div>
                         <div class="ai-suggestions">
-                            <span class="ai-suggestion" data-prompt="Summarize the linked PDF" on:click={()=> {aiPrompt='Summarize the linked PDF'; submitAi();}}>Summarize PDF</span>
-                            <span class="ai-suggestion" data-prompt="Create a study guide" on:click={()=> {aiPrompt='Create a study guide'; submitAi();}}>Study Guide</span>
-                            <span class="ai-suggestion" data-prompt="Generate key takeaways" on:click={()=> {aiPrompt='Generate key takeaways'; submitAi();}}>Key Takeaways</span>
+                            <span class="ai-suggestion" data-prompt="Summarize the linked PDF" data-cuelume-select="select" on:click={()=> {aiPrompt='Summarize the linked PDF'; submitAi();}}>Summarize PDF</span>
+                            <span class="ai-suggestion" data-prompt="Create a study guide" data-cuelume-select="select" on:click={()=> {aiPrompt='Create a study guide'; submitAi();}}>Study Guide</span>
+                            <span class="ai-suggestion" data-prompt="Generate key takeaways" data-cuelume-select="select" on:click={()=> {aiPrompt='Generate key takeaways'; submitAi();}}>Key Takeaways</span>
                         </div>
                     </div>
+                    {/if}
                 {/if}
             </div>
 
             <div class="notebook-footer">
                 <div class="notebook-status">
-                    <a href="/notebooks" class="notebook-manage-link" id="notebookManageBtn" on:click|preventDefault={() => {
+                    <a href="/notebooks" class="notebook-manage-link" id="notebookManageBtn" data-cuelume-navigate="navigate" data-cuelume-emphasis="subtle" on:click|preventDefault={() => {
                         try {
                             activeModalStore.set(null);
                         } catch (e) {
@@ -473,11 +713,14 @@
                 </div>
                 <div class="notebook-footer-actions">
                     {#if showDelete}
-                    <button type="button" class="notebook-btn notebook-btn-secondary" id="notebookDeleteBtn" style="display:inline-flex;color:var(--notebook-error);" on:click={deleteCurrent}><HugeIcon name="delete-02" /><span>Delete</span></button>
+                    <button type="button" class="notebook-btn notebook-btn-secondary" id="notebookDeleteBtn" style="display:inline-flex;color:var(--notebook-error);" data-cuelume-close="close" data-cuelume-emphasis="strong" on:click={deleteCurrent}><HugeIcon name="delete-02" /><span>Delete</span></button>
                     {/if}
-                    <button type="button" class="notebook-btn notebook-btn-secondary" id="notebookPreviewBtn" on:click={doPreview}><HugeIcon name="eye" /><span>Preview</span></button>
-                    <button type="button" class="notebook-btn notebook-btn-secondary" id="notebookExportBtn" on:click={()=>showExportModal=true}><HugeIcon name="download-01" /><span>Export</span></button>
-                    <button type="button" class="notebook-btn notebook-btn-primary" id="notebookSaveBtn" on:click={()=>saveNote(true)}><HugeIcon name="disk" /><span>Save</span></button>
+                    {#if !isViewMode}
+                    <button type="button" class="notebook-btn notebook-btn-secondary" id="notebookExportBtn" data-cuelume-open="open" data-cuelume-emphasis="subtle" on:click={()=>showExportModal=true}><HugeIcon name="download-01" /><span>Export</span></button>
+                    <button type="button" class="notebook-btn notebook-btn-primary" id="notebookSaveBtn" data-cuelume-tap="tap" on:click={()=>saveNote(true)}><HugeIcon name="disk" /><span>Save</span></button>
+                    {:else}
+                    <button type="button" class="notebook-btn notebook-btn-primary" id="notebookEditBtn" data-cuelume-toggle="toggle" on:click={()=> setViewMode(false)}><HugeIcon name="edit-02" /><span>Edit</span></button>
+                    {/if}
                 </div>
             </div>
         </div>
@@ -500,15 +743,6 @@
                         <button class="link-pdf-select-btn" on:click={()=>showLinkPdfModal=false}>Link</button>
                     </div>
                 </div>
-            </div>
-        </div>
-    {/if}
-
-    {#if showPreviewModal}
-        <div class="notebook-preview-modal" id="notebookPreviewModal" style="display:flex" on:click|self={()=>showPreviewModal=false}>
-            <div class="notebook-preview-dialog">
-                <div class="notebook-preview-header"><h3><HugeIcon name="eye" /> Preview</h3><button type="button" class="notebook-preview-close" id="notebookPreviewCloseBtn" on:click={()=>showPreviewModal=false}><HugeIcon name="cancel-01" /></button></div>
-                <div class="notebook-preview-content" id="notebookPreviewContent">{@html editorEl ? editorEl.innerHTML : ''}</div>
             </div>
         </div>
     {/if}

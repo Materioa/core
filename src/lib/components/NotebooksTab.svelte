@@ -4,6 +4,8 @@
     import { HugeiconsIcon } from "@hugeicons/svelte";
     import { LoaderIcon } from "@hugeicons/core-free-icons";
     import { activeModalStore, activeTab } from '$lib/stores.js';
+    import { sfx } from '$lib/sounds/index.js';
+    import { NOTEBOOK_COVERS, DEFAULT_COVER, coverLabel } from '$lib/utils/notebookCover.js';
 
     let notebooks = [];
     let filter = 'all';
@@ -11,6 +13,63 @@
     let loading = true;
     let isSyncing = false;
     let isLoggedIn = false;
+
+    // Which card is showing its cover editor. One at a time — a picker open on
+    // every card would turn the shelf back into a wall of boxes.
+    let coverPickerFor = null;
+    let renamingFor = null;
+    let renameDraft = '';
+
+    function toggleCoverPicker(id) {
+        coverPickerFor = coverPickerFor === id ? null : id;
+        if (coverPickerFor) renamingFor = null;
+    }
+
+    function pickCover(id, coverId) {
+        const list = notebooks.map(n => (n.id === id ? { ...n, cover: coverId, updatedAt: new Date().toISOString() } : n));
+        notebooks = list;
+        try {
+            localStorage.setItem('materio_notebooks', JSON.stringify(list));
+        } catch {}
+        window.dispatchEvent(new CustomEvent('notebook:update', { detail: { action: 'cover', notebook: list.find(n => n.id === id) } }));
+        sfx('toggle', { emphasis: 'subtle' });
+    }
+
+    function startRename(note) {
+        renamingFor = note.id;
+        renameDraft = note.title || '';
+        coverPickerFor = null;
+    }
+
+    function commitRename(note) {
+        const next = (renameDraft || '').trim() || 'Untitled Note';
+        renamingFor = null;
+        if (next === (note.title || 'Untitled Note')) return;
+        const list = notebooks.map(n => (n.id === note.id ? { ...n, title: next, updatedAt: new Date().toISOString() } : n));
+        notebooks = list;
+        try {
+            localStorage.setItem('materio_notebooks', JSON.stringify(list));
+        } catch {}
+        window.dispatchEvent(new CustomEvent('notebook:update', { detail: { action: 'rename', notebook: list.find(n => n.id === note.id) } }));
+        sfx('success', { emphasis: 'subtle' });
+    }
+
+    function cycleCover(note) {
+        // Cycles through the palette rather than opening a picker: the fastest
+        // path to "give this one a different cover" is one more click.
+        const current = note.cover || DEFAULT_COVER;
+        const index = NOTEBOOK_COVERS.findIndex(c => c.id === current);
+        const next = NOTEBOOK_COVERS[(index + 1) % NOTEBOOK_COVERS.length];
+        pickCover(note.id, next.id);
+    }
+
+    function createNoteWithCover() {
+        // The editor owns note creation (it resets title/content and assigns the
+        // id). Creating a stub note here just to stamp a cover produced TWO
+        // notes per click — a blank shelf entry plus the real one. The editor
+        // now assigns a cover itself on first save, so this just delegates.
+        window.createNewNotebook?.(true);
+    }
 
     function getAuthToken() {
         if (typeof localStorage !== 'undefined') {
@@ -170,15 +229,22 @@
         }
     }
 
+    // window.materioToast has never existed, so every toast here was a
+    // silent no-op on the success path and an alert() on the failure path.
+    // materioAlert (MaterioModal) is the app's real notification channel.
+    function notify(message, type = 'info') {
+        if (typeof window !== 'undefined' && window.materioAlert) {
+            window.materioAlert(message, { type });
+        } else {
+            console.info('[notebooks]', message);
+        }
+    }
+
     async function syncNotebooks() {
         checkLoginStatus();
         const token = getAuthToken();
         if (!token) {
-            if (typeof window !== 'undefined' && window.materioToast) {
-                window.materioToast('Please log in to sync notebooks with cloud', 'warning');
-            } else {
-                alert('Please log in to sync notebooks with cloud');
-            }
+            notify('Please log in to sync notebooks with cloud', 'warning');
             return;
         }
 
@@ -202,11 +268,12 @@
 
             // Then fetch all cloud notes
             await fetchCloudNotebooks();
-            if (typeof window !== 'undefined' && window.materioToast) {
-                window.materioToast('Notebooks synced successfully', 'success');
-            }
+            notify('Notebooks synced successfully', 'success');
+            sfx('success', { emphasis: 'subtle' });
         } catch (e) {
             console.error('Sync failed:', e);
+            notify('Sync failed. Please try again.', 'danger');
+            sfx('error', { emphasis: 'subtle' });
         } finally {
             isSyncing = false;
         }
@@ -219,6 +286,15 @@
 
     function toggleFilterDropdown() {
         filterDropdownOpen = !filterDropdownOpen;
+    }
+
+    // Closes any open cover picker / rename field when the user clicks away,
+    // otherwise the popover stays floating over the shelf.
+    function handleShelfKeydown(e) {
+        if (e.key === 'Escape') {
+            coverPickerFor = null;
+            renamingFor = null;
+        }
     }
 
     async function deleteNote(id) {
@@ -237,6 +313,8 @@
         if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('notebook:update', { detail: { id, action: 'delete' } }));
         }
+        coverPickerFor = null;
+        renamingFor = null;
 
         const token = getAuthToken();
         if (token) {
@@ -259,10 +337,12 @@
         try {
             const d = document.createElement('div');
             d.innerHTML = html;
-            const t = (d.innerText || d.textContent || '').trim();
-            return t.substring(0, 120) || 'Empty note';
+            // textContent, not innerText: innerText is layout-dependent and
+            // returns '' for a detached node, so previews silently vanished.
+            const t = (d.textContent || '').replace(/\s+/g, ' ').trim();
+            return t.substring(0, 140) || 'Empty note';
         } catch {
-            return String(html).replace(/<[^>]*>/g, '').substring(0, 120) || 'Empty note';
+            return String(html).replace(/<[^>]*>/g, '').substring(0, 140) || 'Empty note';
         }
     }
 
@@ -277,7 +357,10 @@
     $: filteredNotebooks = filter === 'all'
         ? notebooks
         : notebooks.filter(n => n.linkedPdf);
-</script>
+
+    </script>
+
+<svelte:window onkeydown={handleShelfKeydown} />
 
 <svelte:head>
     {#if $activeTab === 'notebooks'}
@@ -285,29 +368,36 @@
     {/if}
 </svelte:head>
 
-<!-- Matches _includes/main.html lines 861-916 -->
-<div class="notebooks-tab-header">
-    <h1>My Notebooks</h1>
+<div class="notebooks-tab-header notebooks-shelf-header">
+    <div class="notebooks-shelf-heading">
+        <h1>Notebook</h1>
+        <span class="notebooks-count">{filteredNotebooks.length} {filteredNotebooks.length === 1 ? 'entry' : 'entries'}</span>
+    </div>
     <div class="notebooks-tab-actions">
         <select id="notebookFilter" class="notebook-filter-select" aria-label="Filter Notebooks" style="display: none;"
+            data-cuelume-select
             bind:value={filter}>
             <option value="all">All Notes</option>
             <option value="linked">Linked to PDFs</option>
         </select>
         <div style="position: relative; display: inline-block;">
-            <div class="accent-color-selector" id="notebookFilterSelector" on:click={toggleFilterDropdown}>
+            <div class="accent-color-selector" id="notebookFilterSelector"
+                data-cuelume-select="select" role="button" tabindex="0"
+                aria-haspopup="listbox" aria-expanded={filterDropdownOpen}
+                onclick={toggleFilterDropdown}
+                onkeydown={(e)=>{ if (e.key==='Enter'||e.key===' ') { e.preventDefault(); toggleFilterDropdown(); } }}>
                 <span id="currentNotebookFilterText">{filter === 'all' ? 'All Notes' : 'Linked to PDFs'}</span>
-                <span style="font-size:11px;margin-left:4px;color:#666;"><HugeIcon name="arrow-down-01" /></span>
+                <span style="font-size:11px;margin-left:4px;color:var(--color-text-muted, #666);"><HugeIcon name="arrow-down-01" /></span>
             </div>
-            <div id="notebookFilterDropdown" class="accent-dropdown" class:show={filterDropdownOpen}
+            <div id="notebookFilterDropdown" class="accent-dropdown" class:show={filterDropdownOpen} role="listbox"
                 style="left: 0; right: auto; top: calc(100% + 5px);">
-                <div class="theme-dropdown-item" class:active={filter === 'all'} data-filter="all" on:click={() => setFilter('all')}>
+                <div class="theme-dropdown-item" class:active={filter === 'all'} data-filter="all" role="option" aria-selected={filter==='all'} data-cuelume-select="select" onclick={() => setFilter('all')}>
                     <div class="theme-dropdown-item-left">
                         <span>All Notes</span>
                     </div>
                     <HugeIcon name="tick-01" class="accent-check" />
                 </div>
-                <div class="theme-dropdown-item" class:active={filter === 'linked'} data-filter="linked" on:click={() => setFilter('linked')}>
+                <div class="theme-dropdown-item" class:active={filter === 'linked'} data-filter="linked" role="option" aria-selected={filter==='linked'} data-cuelume-select="select" onclick={() => setFilter('linked')}>
                     <div class="theme-dropdown-item-left">
                         <span>Linked to PDFs</span>
                     </div>
@@ -315,57 +405,126 @@
                 </div>
             </div>
         </div>
-        <button class="site-button" on:click={createNewNotebook}>
+        <button class="site-button" data-cuelume-tap="tap" onclick={createNoteWithCover}>
             <HugeIcon name="plus" /> New Note
         </button>
         {#if isLoggedIn}
             <button class="site-button secondary" id="syncBtnInTab"
-                style="display: inline-flex;" on:click={syncNotebooks} disabled={isSyncing}>
+                data-cuelume-tap="loading" data-cuelume-emphasis="subtle"
+                style="display: inline-flex;" onclick={syncNotebooks} disabled={isSyncing}>
                 <HugeIcon name="refresh" class={isSyncing ? "fa-spin" : ""} /> {isSyncing ? "Syncing..." : "Sync"}
             </button>
         {/if}
     </div>
 </div>
 
-<!-- Notebooks Grid -->
-<div id="notebooksGridInTab" class="notebooks-grid">
+<!-- Shelf of entries. Each card is one flat surface: a colour spine, the title
+     on the page background, and a single hover-revealed action row. No nested
+     panels, no gradients — the depth comes from the cover colour and a hairline. -->
+<div id="notebooksGridInTab" class="notebooks-grid notebooks-shelf">
     {#if loading}
         <div class="notebook-loading">
             <HugeiconsIcon icon={LoaderIcon} size="1em" class="hgi spin" /> Loading notebooks...
         </div>
     {:else if filteredNotebooks.length > 0}
         {#each filteredNotebooks as note (note.id || note.updatedAt)}
-            <div class="notebook-card" on:click={() => openNote(note)}>
-                <div class="notebook-card-content">
-                    <h3 class="notebook-card-title"><HugeIcon name="file-02" /> {note.title || 'Untitled Note'}</h3>
-                    <p class="notebook-card-preview">{stripHtml(note.content)}...</p>
-                    <div class="notebook-card-meta">
-                        {#if note.linkedPdf}
-                            <span class="notebook-card-link"><HugeIcon name="link-01" /> PDF</span>
+            <div class="notebook-card notebook-entry"
+                style={coverStyle(note.cover)}
+                role="button" tabindex="0"
+                data-cuelume-navigate="navigate" data-cuelume-emphasis="subtle"
+                onclick={() => openNote(note)}
+                onkeydown={(e)=>{ if (e.key==='Enter') { e.preventDefault(); openNote(note); } }}>
+                <div class="notebook-entry-spine" aria-hidden="true"></div>
+
+                {#if getRibbon(note.ribbon)}
+                    <span class="notebook-ribbon" data-ribbon={note.ribbon} title={getRibbon(note.ribbon).label} aria-label={getRibbon(note.ribbon).label}></span>
+                {/if}
+
+                <div class="notebook-entry-body">
+                    <div class="notebook-entry-head">
+                        {#if renamingFor === note.id}
+                            <!-- Inline rename: the title is already on screen, so
+                                 it becomes an input in place rather than opening a
+                                 dialog to ask for a string that is already visible. -->
+                            <input class="notebook-entry-title-input" type="text" maxlength="100"
+                                data-cuelume-type
+                                bind:value={renameDraft}
+                                onclick={(e)=> e.stopPropagation()}
+                                onblur={()=> commitRename(note)}
+                                onkeydown={(e)=>{ if (e.key==='Enter') { e.preventDefault(); commitRename(note); } if (e.key==='Escape') { renamingFor = null; } }}
+                                aria-label="Note title" />
+                        {:else}
+                            <h3 class="notebook-entry-title">{note.title || 'Untitled Note'}</h3>
                         {/if}
-                        {#if note.syncedToCloud}
-                            <span class="notebook-card-link" style="margin-left: 6px; background: var(--notebook-accent-light, rgba(255, 130, 0, 0.15)); color: var(--notebook-accent, #ff8200);"><HugeIcon name="cloud" /></span>
-                        {/if}
-                        <span>{note.updatedAt ? new Date(note.updatedAt).toLocaleDateString() : ''}</span>
+                        <span class="notebook-entry-cover-name">{coverLabel(note.cover)}</span>
+                    </div>
+
+                    <p class="notebook-entry-preview">{stripHtml(note.content)}</p>
+
+                    <div class="notebook-entry-meta">
+                        <span class="notebook-entry-date">{note.updatedAt ? new Date(note.updatedAt).toLocaleDateString(undefined, { month:'short', day:'numeric' }) : ''}</span>
+                        <span class="notebook-entry-flags">
+                            {#if note.linkedPdf}
+                                <span class="notebook-entry-flag" title={note.linkedPdf.name || 'Linked to a PDF'}><HugeIcon name="link-01" /></span>
+                            {/if}
+                            {#if note.syncedToCloud}
+                                <span class="notebook-entry-flag is-synced" title="Synced"><HugeIcon name="cloud-check" /></span>
+                            {/if}
+                        </span>
                     </div>
                 </div>
-                <div class="notebook-card-actions-quick">
-                    <button class="card-action-btn delete" on:click|stopPropagation={() => deleteNote(note.id)} title="Delete"><HugeIcon name="delete-02" /></button>
-                    <button class="card-action-btn" on:click|stopPropagation={() => openNote(note)} title="Open"><HugeIcon name="eye" /></button>
+
+                <div class="notebook-entry-actions">
+                    <button class="notebook-entry-btn" data-cuelume-select="select" title="Change cover"
+                        aria-label="Change cover of {note.title || 'Untitled Note'}"
+                        onclick={(e)=> { e.stopPropagation(); toggleCoverPicker(note.id); }}>
+                        <span class="notebook-cover-swatch" style={coverStyle(note.cover)}></span>
+                    </button>
+                    <button class="notebook-entry-btn" data-cuelume-select="select" title="Rename"
+                        aria-label="Rename {note.title || 'Untitled Note'}"
+                        onclick={(e)=> { e.stopPropagation(); startRename(note); }}>
+                        <HugeIcon name="pencil-edit-02" />
+                    </button>
+                    <button class="notebook-entry-btn" data-cuelume-tap="navigate" data-cuelume-emphasis="subtle" title="Open"
+                        aria-label="Open {note.title || 'Untitled Note'}"
+                        onclick={(e)=> { e.stopPropagation(); openNote(note); }}>
+                        <HugeIcon name="eye" />
+                    </button>
+                    <button class="notebook-entry-btn is-danger" data-cuelume-close="close" data-cuelume-emphasis="strong" title="Delete"
+                        aria-label="Delete {note.title || 'Untitled Note'}"
+                        onclick={(e)=> { e.stopPropagation(); deleteNote(note.id); }}>
+                        <HugeIcon name="delete-02" />
+                    </button>
                 </div>
+
+                {#if coverPickerFor === note.id}
+                    <div class="notebook-entry-covers" role="listbox" aria-label="Cover colour"
+                        onclick={(e)=> e.stopPropagation()}>
+                        {#each NOTEBOOK_COVERS as cover (cover.id)}
+                            <button type="button" class="notebook-entry-cover-option"
+                                class:selected={(note.cover || DEFAULT_COVER) === cover.id}
+                                style={coverStyle(cover.id)}
+                                data-cuelume-select="select"
+                                role="option" aria-selected={(note.cover || DEFAULT_COVER) === cover.id}
+                                title={cover.label} aria-label={cover.label}
+                                onclick={()=> pickCover(note.id, cover.id)}></button>
+                        {/each}
+                    </div>
+                {/if}
             </div>
         {/each}
     {/if}
 </div>
 
-<!-- Empty State -->
 {#if !loading && filteredNotebooks.length === 0}
     <div id="emptyStateInTab" class="notebooks-empty">
-        <div class="empty-icon" style="font-size:48px; margin-bottom:16px; opacity:0.5;">
-            <HugeIcon name="book-open-02" size="48" />
-        </div>
-        <h3>No notebooks yet</h3>
-        <p>Create your first note to get started.</p>
-        <button class="site-button" on:click={createNewNotebook}>Create Note</button>
+        <div class="empty-icon"><HugeIcon name="book-open-02" size="34" /></div>
+        <h3>{filter === 'linked' ? 'Nothing linked yet' : 'No notes yet'}</h3>
+        <p>{filter === 'linked' ? 'Notes you create from inside a PDF will collect here.' : 'Create your first note to get started.'}</p>
+        {#if filter === 'all'}
+            <button class="site-button" data-cuelume-tap="tap" onclick={createNoteWithCover}>Create Note</button>
+        {:else}
+            <button class="site-button secondary" data-cuelume-close="close" data-cuelume-emphasis="subtle" onclick={()=> setFilter('all')}>Show all notes</button>
+        {/if}
     </div>
 {/if}
