@@ -85,8 +85,14 @@ jobs:
             echo "$FILES"
             ANDROID=false
             WINDOWS=false
-            echo "$FILES" | grep -Eq '^(android/|capacitor\.config\.json)' && ANDROID=true || true
-            if echo "$FILES" | grep -Eq '^(src-tauri/|\.github/workflows/build-and-release\.yml)'; then
+            # The app bundles are built from src/ (npm run build:static), so a
+            # change there only reaches users if the apps are rebuilt. This
+            # filter used to trigger on android/, src-tauri/ and this workflow
+            # file alone, which meant src/ changes produced NO app build at
+            # all — every web-side fix silently stopped at the web.
+            APP_PATHS='^(src/|packages/|package\.json$|package-lock\.json$|capacitor\.config\.json|vite\.config\.|svelte\.config\.|tailwind\.config\.|postcss\.config\.)'
+            echo "$FILES" | grep -Eq "$APP_PATHS" && ANDROID=true || true
+            if echo "$FILES" | grep -Eq '^(src-tauri/|android/|\.github/workflows/build-and-release\.yml)'; then
               ANDROID=true
               WINDOWS=true
             fi
