@@ -328,12 +328,21 @@ async function getMergedNotifications() {
       5000,
       'notifications find'
     );
-    mongoItems.sort((a, b) => {
-      const ta = Date.parse(a?.timestamp || a?.date || '') || 0;
-      const tb = Date.parse(b?.timestamp || b?.date || '') || 0;
-      if (ta !== tb) return tb - ta;
-      return String(b?._id || '').localeCompare(String(a?._id || ''));
+    // Decorate-sort-undecorate: same ordering as the previous inline
+    // comparator, but Date.parse runs once per document instead of twice per
+    // comparison (~1500 parses for 200 docs before). The dispatch already
+    // wraps this in a 60s edge cache; a per-request Date.parse storm on top of
+    // that was a real slice of the CPU budget.
+    const decorated = mongoItems.map((n) => ({
+      n,
+      ts: Date.parse(n?.timestamp || n?.date || '') || 0,
+      id: String(n?._id || '')
+    }));
+    decorated.sort((a, b) => {
+      if (a.ts !== b.ts) return b.ts - a.ts;
+      return b.id.localeCompare(a.id);
     });
+    mongoItems = decorated.map((d) => d.n);
   } catch (err) {
     console.warn('Could not read notifications from MongoDB:', err.message);
   }
@@ -865,7 +874,15 @@ async function handleForms(request, url) {
         );
         let activity = null;
         try {
-          activity = await collection.db.collection('form_activity').findOne({});
+          // Was an unbounded, untimed read: no projection and no timeout, so a
+          // sick pool could hold this invocation open indefinitely and get the
+          // whole request killed on CPU/wall limits. Bound it like its
+          // neighbours.
+          activity = await withMongoTimeout(
+            collection.db.collection('form_activity').findOne({}, { projection: { _id: 0 } }),
+            5000,
+            'form activity find'
+          );
           if (activity) {
             const { _id, ...rest } = activity;
             activity = rest;
@@ -1915,17 +1932,25 @@ async function handleReleasesFeature(request, url) {
           return serveLocalReleases();
         }
 
-        releases.sort((a, b) => {
-          const dateB = parseBuildDate(b.build);
-          const dateA = parseBuildDate(a.build);
-          if (dateB.getTime() !== dateA.getTime()) {
-            return dateB - dateA;
-          }
-          return (b.version || '').localeCompare(a.version || '', undefined, {
+        // Decorate-sort-undecorate. The comparator used to call parseBuildDate
+        // on both operands on every comparison, so each release's date was
+        // re-parsed O(n log n) times (~2n log n Date allocations for a few
+        // hundred docs). Parsing once per document is the same ordering for a
+        // fraction of the CPU, which matters against the free tier's 10ms
+        // per-invocation budget.
+        const decorated = releases.map((r) => ({
+          r,
+          ts: parseBuildDate(r.build).getTime(),
+          ver: String(r?.version || '')
+        }));
+        decorated.sort((a, b) => {
+          if (a.ts !== b.ts) return b.ts - a.ts;
+          return b.ver.localeCompare(a.ver, undefined, {
             numeric: true,
             sensitivity: 'base'
           });
         });
+        releases = decorated.map((d) => d.r);
 
         return json(releases);
       }
@@ -2160,7 +2185,13 @@ async function handleNotificationsFeature(request, url) {
     switch (method) {
       case 'GET': {
         const merged = await getMergedNotifications();
-        return json(merged, { headers: { 'Cache-Control': 'no-store' } });
+        // No Cache-Control: no-store here. This response is already wrapped in
+        // a 60s edge cache by the dispatcher, and an inner no-store overrode
+        // it — so every poll re-read Mongo, re-merged, re-sorted and
+        // re-serialised the full notification list, which is the single
+        // largest repeated CPU cost in this handler. Letting the outer cache
+        // do its job is the cheapest available saving.
+        return json(merged);
       }
 
       case 'POST': {
