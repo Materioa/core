@@ -88,6 +88,9 @@ jobs:
         with:
           node-version: 22
 
+      - name: Install
+        run: npm install
+
       - name: Build
         run: npm run build
 
@@ -96,6 +99,34 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # A wrangler upload that dies partway through (network reset, DNS
+      # failure) leaves the new HTML manifest pointing at asset files that were
+      # never uploaded, and every entry chunk 404s — a white page. That is not
+      # atomic and wrangler has no rollback, so verify the deployed bundle is
+      # actually reachable and fail the run loudly instead of quietly.
+      - name: Verify deployment
+        run: |
+          set -euo pipefail
+          URL="https://beta.getmaterio.app/"
+          HTML=$(curl -fsS --retry 5 --retry-all-errors --retry-delay 10 "$URL")
+          echo "$HTML" | grep -o '/_app/immutable/[^"]*' | sort -u > /tmp/assets.txt
+          COUNT=$(wc -l < /tmp/assets.txt)
+          echo "referenced assets: $COUNT"
+          BROKEN=0
+          while read -r asset; do
+            [ -z "$asset" ] && continue
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' --retry 3 --retry-all-errors "$URL$asset")
+            if [ "$CODE" != "200" ]; then
+              echo "BROKEN $CODE $asset"
+              BROKEN=$((BROKEN + 1))
+            fi
+          done < /tmp/assets.txt
+          if [ "$BROKEN" -ne 0 ]; then
+            echo "::error::$BROKEN asset(s) 404 — the deploy applied HTML without its assets. Re-run this job."
+            exit 1
+          fi
+          echo "all assets OK"
 
       - name: Push env secrets
         # Secrets already live in the Worker, so this is a no-op unless .env
