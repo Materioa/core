@@ -5186,16 +5186,21 @@ body.thinkletResizing #thinkletResizeHandle::before {
   content: none;
 }
 
-#dictSettingsButton .materio-dict-toggle-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
+/* The icon is a direct <svg> child, NOT wrapped in a span. PDF.js collapses
+   every direct span child of a toolbar button
+   (.toolbarButton>span { width:0; height:0; overflow:hidden }) to hide its l10n
+   labels, so the earlier span wrapper made this render at 0x0 — invisible, and
+   before that it looked like a solid square because the unmasked ::before was
+   the only thing still painting. Keep the svg unwrapped.
 
-#dictSettingsButton .materio-dict-toggle-icon > svg {
+   ::before is suppressed because this button draws a real svg instead of using
+   PDF.js's mask-image technique, and an unmasked ::before paints an opaque
+   --icon-size square behind it. */
+#dictSettingsButton > svg.materio-dict-toggle-icon {
   width: 17px;
   height: 17px;
   display: block;
+  flex: none;
   pointer-events: none;
 }
 
