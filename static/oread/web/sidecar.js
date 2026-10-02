@@ -87,6 +87,11 @@
     // editor PDF.js refuses to serialize, so no restored editor can ever blank
     // the record again.
     var restoredFallback = {};
+    // key -> { editor, layer, pageIndex } for editors we restored, so
+    // healEditors() can re-assert the ones PDF.js's #cleanup() destroys.
+    var trackedEditors = {};
+    // key -> attempts, for editors that restored but came back empty.
+    var emptyRetries = {};
     // One-shot flags so a polling snapshot cannot flood the diagnostic log.
     var fallbackLogged = {};
 
@@ -341,10 +346,53 @@
         } catch (e) { /* ignore */ }
     }
 
+    // Re-assert restored editors that PDF.js has dropped.
+    //
+    // AnnotationEditorLayer.#cleanup() runs on every ordinary page draw and on
+    // updateMode(), and it DESTROYS any editor whose isEmpty() is true:
+    //
+    //     #cleanup() { for (const e of this.#editors.values())
+    //                     if (e.isEmpty()) e.remove(); }
+    //
+    //     remove(editor) { this.detach(editor); this.#uiManager.removeEditor(editor);
+    //                      editor.div.remove(); editor.isAttachedToDOM = false; }
+    //
+    // That is unrecoverable on its own: the div is gone AND the editor is
+    // de-registered from the uiManager, so even a later layer.render() - which
+    // re-adds from uiManager.getEditors(pageIndex) - will not bring it back.
+    // Meanwhile appliedIds says this entry is done, so applyPending never
+    // revisits it. Net effect: the annotation is restored, visible for a
+    // moment, then vanishes and is never retried. That is the difference
+    // between "deserialize returned true" and "the reader sees it".
+    //
+    // healEditors() re-adds via layer.add(editor), which re-registers with the
+    // uiManager and re-appends the div. Cheap: it is a no-op for healthy editors.
+    function healEditors() {
+        var keys = Object.keys(trackedEditors);
+        for (var i = 0; i < keys.length; i++) {
+            var k = keys[i];
+            var rec = trackedEditors[k];
+            var ed = rec && rec.editor;
+            if (!ed) { delete trackedEditors[k]; continue; }
+            var dropped = !ed.isAttachedToDOM || !ed.div || !ed.div.isConnected;
+            if (!dropped) continue;
+            try {
+                if (rec.layer && typeof rec.layer.add === 'function') {
+                    rec.layer.add(ed);
+                    if (rec.layer.div && rec.layer.div.hidden) rec.layer.div.hidden = false;
+                    var r = ed.div && ed.div.getBoundingClientRect ? ed.div.getBoundingClientRect() : null;
+                    diag('heal key=' + k, 'page=' + rec.pageIndex,
+                        'rect=' + (r ? Math.round(r.width) + 'x' + Math.round(r.height) : 'null'));
+                }
+            } catch (e) { /* leave it for the next tick */ }
+        }
+    }
+
     function ensurePoll() {
         if (pollTimer) return;
         pollTimer = setInterval(function () {
             if (applying || !pdfDoc()) return;
+            try { healEditors(); } catch (e) { /* ignore */ }
             try {
                 var snap = snapshotPlain();
                 if (!snap) return;
@@ -562,6 +610,27 @@
                             }
                         } catch (e4) { /* visibility is best-effort */ }
                         diag('vis key=' + key, editorVisibilityReport(editor, layer));
+                        trackedEditors[key] = { editor: editor, layer: layer, pageIndex: pageIndex };
+                        // An EMPTY editor is the thing that makes annotations
+                        // vanish: #cleanup() destroys any editor whose
+                        // isEmpty() is true, and it does so on the next ordinary
+                        // page draw. Emptiness here is usually transient - the
+                        // layer existed but its viewport/geometry was not ready
+                        // yet - so do NOT mark it applied. Retry instead, a few
+                        // times, then accept it so a genuinely unreadable
+                        // payload cannot spin forever.
+                        var isEmptyNow = false;
+                        try { isEmptyNow = !!(editor && editor.isEmpty && editor.isEmpty()); } catch (e7) { }
+                        if (isEmptyNow) {
+                            emptyRetries[key] = (emptyRetries[key] || 0) + 1;
+                            if (emptyRetries[key] <= 5) {
+                                diag('empty retry key=' + key, 'attempt=' + emptyRetries[key],
+                                    'page=' + pageIndex);
+                                remaining.push(key);
+                                continue;
+                            }
+                            diag('empty gave up key=' + key, 'attempts=' + emptyRetries[key]);
+                        }
                         appliedIds[key] = true;
                     } else if (editor) {
                         appliedIds[key] = true;
@@ -609,7 +678,10 @@
             }
             var r = ed && ed.getBoundingClientRect ? ed.getBoundingClientRect() : null;
             var cls = ed ? (typeof ed.className === 'string' ? ed.className : String(ed.className)) : 'none';
+            var empty = '?';
+            try { empty = String(editor.isEmpty()); } catch (e2) { empty = 'threw'; }
             return [
+                'EMPTY=' + empty,
                 'edCls=' + cls,
                 'edInDom=' + !!(ed && ed.isConnected),
                 'rect=' + (r ? Math.round(r.width) + 'x' + Math.round(r.height) : 'null'),
@@ -826,6 +898,8 @@
             appliedIds = {};
             restoredFallback = {}; // annotationStorage is per-document
             fallbackLogged = {};
+            trackedEditors = {};
+            emptyRetries = {};
             if (d) {
                 try {
                     var a = app();
