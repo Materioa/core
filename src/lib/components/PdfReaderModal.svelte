@@ -121,8 +121,35 @@
         annotInitFor = '';
         annotDirty = false;
         try {
-            pdfHash = (buffer ? await hashPdfBuffer(buffer) : null) || await hashPdfUrl(url);
-            const existing = await getPdfAnnotations(pdfHash);
+            // Which key the sidecar is stored under depends on which branch ran:
+            // the offline copy, a fresh fetch, or (when fetch is unavailable) a
+            // hash of the URL. Those live in DIFFERENT namespaces — a byte hash
+            // is 64 hex chars, a URL hash is "url-…" — so if one session can
+            // read the bytes and the next cannot, the lookup silently misses
+            // even though the record is sitting right there in IndexedDB. That
+            // is exactly the "saved (N)" but never-restored symptom.
+            //
+            // So compute both and read whichever has the record, preferring the
+            // byte hash (stable across sessions). Saving still writes under the
+            // byte hash, so this only ever adds a fallback lookup.
+            const byteHash = buffer ? await hashPdfBuffer(buffer) : null;
+            const urlHash = url ? await hashPdfUrl(url) : null;
+
+            let existing = null;
+            for (const candidate of [byteHash, urlHash]) {
+                if (!candidate) continue;
+                const found = await getPdfAnnotations(candidate);
+                if (found && found.storage && Object.keys(found.storage).length) {
+                    existing = found;
+                    break;
+                }
+            }
+
+            // Always save under the byte hash when we have one: it is the only
+            // form that is stable for the same file across opens.
+            pdfHash = byteHash || urlHash;
+            if (!pdfHash) throw new Error('no usable annotation identity');
+
             pendingAnnotStorage = (existing && existing.storage) || {};
             lastSavedSnapshot = annotSnapshot(pendingAnnotStorage);
         } catch {

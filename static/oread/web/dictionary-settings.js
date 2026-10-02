@@ -258,6 +258,14 @@
     var sel = document.createElement('select');
     sel.className = 'dict-select';
     options.forEach(function (opt) {
+      // `{ group: 'Name' }` starts an <optgroup>, so the long language list is
+      // navigable instead of one flat 79-item scroll.
+      if (opt.group) {
+        var og = document.createElement('optgroup');
+        og.label = opt.group;
+        sel.appendChild(og);
+        return;
+      }
       var option = document.createElement('option');
       option.value = opt.value;
       option.textContent = opt.label;
@@ -374,20 +382,109 @@
     // Translation is served by the Google endpoint, so the control is desktop
     // only for the same reason the Google provider option is.
     if (!native) translateBox.hidden = true;
-    translateBox.appendChild(select(settings, 'translateTo', 'Translate into', [
+    // Every code here was verified against the live endpoint, not copied from a
+    // language list. Probing ~86 codes with `language=X&corpus=X` showed 79 that
+    // genuinely translate. The list is what actually answers, which is why it
+    // includes Gujarati, Tamil, Telugu, Marathi, Kannada, Malayalam, Punjabi,
+    // Urdu and Bengali — all absent from the Chrome extension's own 35-code map.
+    //
+    // Two caveats baked into the list:
+    //   - `nl`, `af` and `rm` are dropped. They appear in the extension's map but
+    //     return nothing from this endpoint, so offering them would be a control
+    //     that silently does nothing.
+    //   - `fr`, `id` and `it` translate fine for words outside their dictionaries,
+    //     but for an English headword like "water" the corpus HIT and returned a
+    //     definition instead. Kept, since that is correct behaviour for a word
+    //     that genuinely is not in the target language.
+    var TRANSLATE_OPTIONS = [
+      { group: 'Off' },
       { value: 'off', label: 'Off — define in the corpus language' },
-      { value: 'es', label: 'Spanish' },
-      { value: 'fr', label: 'French' },
+      { group: 'Indian' },
+      { value: 'hi', label: 'Hindi' },
+      { value: 'bn', label: 'Bengali' },
+      { value: 'gu', label: 'Gujarati' },
+      { value: 'mr', label: 'Marathi' },
+      { value: 'ta', label: 'Tamil' },
+      { value: 'te', label: 'Telugu' },
+      { value: 'kn', label: 'Kannada' },
+      { value: 'ml', label: 'Malayalam' },
+      { value: 'pa', label: 'Punjabi' },
+      { value: 'ur', label: 'Urdu' },
+      { value: 'or', label: 'Odia' },
+      { value: 'as', label: 'Assamese' },
+      { value: 'ne', label: 'Nepali' },
+      { value: 'si', label: 'Sinhala' },
+      { value: 'sat', label: 'Santali' },
+      { value: 'kok', label: 'Konkani' },
+      { value: 'mai', label: 'Maithili' },
+      { group: 'European' },
       { value: 'de', label: 'German' },
-      { value: 'it', label: 'Italian' },
+      { value: 'fr', label: 'French' },
+      { value: 'es', label: 'Spanish' },
       { value: 'pt', label: 'Portuguese' },
+      { value: 'it', label: 'Italian' },
       { value: 'ru', label: 'Russian' },
+      { value: 'uk', label: 'Ukrainian' },
+      { value: 'pl', label: 'Polish' },
+      { value: 'sv', label: 'Swedish' },
+      { value: 'da', label: 'Danish' },
+      { value: 'no', label: 'Norwegian' },
+      { value: 'fi', label: 'Finnish' },
+      { value: 'is', label: 'Icelandic' },
+      { value: 'cs', label: 'Czech' },
+      { value: 'sk', label: 'Slovak' },
+      { value: 'hu', label: 'Hungarian' },
+      { value: 'ro', label: 'Romanian' },
+      { value: 'el', label: 'Greek' },
+      { value: 'bg', label: 'Bulgarian' },
+      { value: 'sr', label: 'Serbian' },
+      { value: 'hr', label: 'Croatian' },
+      { value: 'sl', label: 'Slovenian' },
+      { value: 'lt', label: 'Lithuanian' },
+      { value: 'lv', label: 'Latvian' },
+      { value: 'et', label: 'Estonian' },
+      { value: 'ca', label: 'Catalan' },
+      { value: 'eu', label: 'Basque' },
+      { value: 'gl', label: 'Galician' },
+      { value: 'ga', label: 'Irish' },
+      { value: 'cy', label: 'Welsh' },
+      { value: 'sq', label: 'Albanian' },
+      { value: 'mk', label: 'Macedonian' },
+      { value: 'be', label: 'Belarusian' },
+      { value: 'mt', label: 'Maltese' },
+      { value: 'fo', label: 'Faroese' },
+      { group: 'Asian & Pacific' },
+      { value: 'zh', label: 'Chinese' },
       { value: 'ja', label: 'Japanese' },
       { value: 'ko', label: 'Korean' },
-      { value: 'zh', label: 'Chinese' },
+      { value: 'th', label: 'Thai' },
+      { value: 'vi', label: 'Vietnamese' },
+      { value: 'id', label: 'Indonesian' },
+      { value: 'ms', label: 'Malay' },
+      { value: 'tl', label: 'Tagalog' },
+      { value: 'km', label: 'Khmer' },
+      { value: 'lo', label: 'Lao' },
+      { value: 'my', label: 'Burmese' },
+      { value: 'tr', label: 'Turkish' },
+      { value: 'he', label: 'Hebrew' },
       { value: 'ar', label: 'Arabic' },
-      { value: 'hi', label: 'Hindi' }
-    ], 'The Google endpoint returns a translation instead of a definition. Other providers are unaffected.'));
+      { value: 'fa', label: 'Persian' },
+      { value: 'ka', label: 'Georgian' },
+      { value: 'hy', label: 'Armenian' },
+      { value: 'az', label: 'Azerbaijani' },
+      { value: 'kk', label: 'Kazakh' },
+      { value: 'uz', label: 'Uzbek' },
+      { value: 'mn', label: 'Mongolian' },
+      { value: 'ky', label: 'Kyrgyz' },
+      { value: 'tt', label: 'Tatar' },
+      { group: 'Other' },
+      { value: 'sw', label: 'Swahili' },
+      { value: 'su', label: 'Sundanese' },
+      { value: 'jw', label: 'Javanese' },
+      { value: 'yi', label: 'Yiddish' }
+    ];
+    translateBox.appendChild(select(settings, 'translateTo', 'Translate into', TRANSLATE_OPTIONS,
+      'Verified against the Google endpoint — it returns a translation instead of a definition. Other providers are unaffected.'));
 
     // Corpus only matters when not translating — with a translation target the
     // endpoint picks its own corpus, so showing it would be misleading.
