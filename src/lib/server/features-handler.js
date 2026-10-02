@@ -27,7 +27,9 @@ import { getContributionNotificationTemplate } from '$lib/server/email-templates
 // the snapshot cron + deploy). Live Mongo data still wins whenever reachable.
 import bundledPromo from '../../../static/assets/data/promo.json';
 import bundledReleases from '../../../static/assets/data/releases.json';
-import bundledExamdata from '../../../static/assets/data/examdata.json';
+// No bundled examdata snapshot on purpose: see handleExamdataFeature. A
+// committed examdata.json is stale the moment it lands, and exam config gates
+// live UI, so a snapshot must never be served as if Mongo had said so.
 
 // ==========================================
 // Google Drive Configuration
@@ -2039,11 +2041,17 @@ async function handleReleasesFeature(request, url) {
 // 15. Examdata Feature (Full CRUD)
 // ==========================================
 async function handleExamdataFeature(request, url) {
-  const serveLocalExamdata = () => {
-    const fallback = getLocalDataFile('examdata.json') || bundledExamdata;
-    if (fallback) return markDegraded(json(fallback));
-    return json({ enabled: false, semesters: [] });
-  };
+  // Exam config is a LIVE, scheduled thing — a semester's practical/viva dates
+  // and the show-before windows are what gate real UI (the exam card, the viva
+  // interviewer box). The bundled snapshot is a build-time artifact that goes
+  // stale the moment it is committed: it still carried a Practical/Viva period
+  // whose dates fell inside the window, so the interviewer kept auto-opening
+  // with no Mongo config saying so.
+  //
+  // "Mongo unreachable" and "Mongo has no config" both mean the same thing to
+  // the client: we do not know, so show nothing. Serving the snapshot instead
+  // is how a stale file silently became a source of truth.
+  const noConfig = () => markDegraded(json({ enabled: false, semesters: [], degraded: true, reason: 'no-live-config' }));
   let db = null;
   try {
     db = await getMongoDb();
@@ -2051,7 +2059,7 @@ async function handleExamdataFeature(request, url) {
     console.warn('Examdata Mongo unavailable, using local fallback:', err.message);
   }
   if (!db) {
-    if (request.method === 'GET') return serveLocalExamdata();
+    if (request.method === 'GET') return noConfig();
     return json({ error: 'Database temporarily unavailable', details: 'MongoDB not reachable' }, { status: 503 });
   }
   try {
@@ -2097,7 +2105,7 @@ async function handleExamdataFeature(request, url) {
         if (mongoAnswered) {
           return json({ enabled: false, semesters: [] });
         }
-        return serveLocalExamdata();
+        return noConfig();
       }
 
       case 'POST': {
@@ -2167,7 +2175,7 @@ async function handleExamdataFeature(request, url) {
   } catch (error) {
     console.error('ExamData Feature Error:', error);
     if (request.method === 'GET') {
-      return serveLocalExamdata();
+      return noConfig();
     }
     return json({ error: 'Database temporarily unavailable', details: error.message }, { status: 503 });
   }
@@ -2360,6 +2368,22 @@ function isAllowedAnalyticsHost(host) {
   return host.startsWith('localhost:') || host.startsWith('127.0.0.1:');
 }
 
+// App-shell origins. These are app-bound and unreachable as a page origin for
+// any website, so a browser can never be talked into sending them by a
+// third-party page — the same trust level as the old `tauri:`/`capacitor:`
+// custom-scheme check, just covering the origins the shells ACTUALLY use:
+//   Tauri v2 on Windows  -> http://tauri.localhost (protocol is http:, not tauri:)
+//   Capacitor androidScheme=https -> https://localhost
+// Checking only the custom schemes silently missed both, and the sec-fetch-site
+// gate below then rejected every desktop/mobile flush with 403 — which is why
+// the Windows and Android apps logged zero reading time and zero PDFs while the
+// website logged fine.
+function isAppShellAnalyticsHost(host) {
+  if (!host) return false;
+  const bare = host.split(':')[0].toLowerCase();
+  return bare === 'tauri.localhost' || bare === 'capacitor.localhost' || bare === 'localhost' || bare === '127.0.0.1';
+}
+
 function resolveHeaderUrlHost(value) {
   const raw = toTrimmedString(value, 512);
   if (!raw) return '';
@@ -2384,6 +2408,12 @@ function validateAnalyticsRequestOrigin(request) {
   const originHost = resolveHeaderUrlHost(request.headers.get('origin'));
   const refererHost = resolveHeaderUrlHost(request.headers.get('referer'));
   const secFetchSite = String(request.headers.get('sec-fetch-site') || '').toLowerCase();
+
+  // Order matters. The app-shell allowance has to be consulted BEFORE the
+  // sec-fetch-site gate: a webview posting to the remote backend is legitimately
+  // cross-site, so gating first rejected every desktop and mobile flush. The
+  // gate stays in force for real web origins, which is what it is protecting.
+  if (originHost && isAppShellAnalyticsHost(originHost)) return { ok: true };
 
   if (secFetchSite && !['same-origin', 'same-site', 'none'].includes(secFetchSite)) {
     return { ok: false, reason: 'Cross-site analytics submission blocked' };

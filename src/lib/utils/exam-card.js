@@ -2,6 +2,8 @@
 // Handles the exam card in InsightRoom with 3 dynamic views and exam modal
 // Supports multiple semesters with semester-based filtering
 
+import { isExamPeriodActive, showBeforeDaysFor, isUsableExamConfig } from './exam-gate.js';
+
 let examData = null;
 let currentSemesterData = null;
 let examViewRotationTimer = null;
@@ -316,9 +318,14 @@ export async function loadAndDisplayExamCard() {
             examData = cachedData;
         }
 
+        // ONLY the live admin config. The build-time /assets/data/examdata.json was
+        // removed as a candidate: it is a committed snapshot that goes stale
+        // the moment it lands, and it kept declaring a practical/viva period
+        // whose dates sat inside the show-before window — so the card and the
+        // interviewer appeared with no Mongo config saying so. If the API is
+        // unreachable or reports no config, the honest answer is "show none".
         const candidateRequests = [
-            { url: '/api/v2/examdata', options: { cache: 'no-store' } },
-            { url: '/assets/data/examdata.json', options: { cache: 'force-cache' } }
+            { url: '/api/v2/examdata', options: { cache: 'no-store' } }
         ];
 
         let loaded = false;
@@ -329,14 +336,12 @@ export async function loadAndDisplayExamCard() {
                 const freshData = await response.json();
                 if (!freshData || typeof freshData !== 'object') continue;
                 // Any OK response is authoritative — including
-                // { enabled: false }. Treating "admin switched it off" as "no
-                // data" let this loop fall through to the build-time snapshot,
-                // so the card came back after being disabled. Only a request
-                // that genuinely failed may fall back.
-                if (freshData.enabled === false) {
+                // { enabled: false } and the degraded "no live config" shape.
+                if (!isUsableExamConfig(freshData)) {
                     hideExamCards();
                     isExamDataLoading = false;
                     hasExamDataProcessed = true;
+                    examData = null;
                     return;
                 }
                 if (Array.isArray(freshData.semesters) && freshData.semesters.length > 0) {
@@ -459,23 +464,14 @@ function findSemesterData(data, semester) {
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
         for (const semData of data.semesters) {
-            const startDate = new Date(semData.examPeriod.startDate);
-            const startDateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
-            const endDate = semData.examPeriod.endDate ? new Date(semData.examPeriod.endDate) : null;
-
-            const daysUntilExam = Math.ceil((startDateOnly - today) / (1000 * 60 * 60 * 24));
-            const isVivaExam = semData.exams && semData.exams.some(e => e.type === 'viva');
-            // `||` discarded an admin-set 0 and fell back to the default, so
-            // "show 0 days before" silently became 3 (viva) / 7, and the card
-            // appeared days early. Fall back only on a genuinely missing value.
-            const showBeforeDays = Number(
-                isVivaExam
-                    ? (data.showBeforeDaysViva ?? SHOW_BEFORE_DAYS_VIVA)
-                    : (data.showBeforeDays ?? SHOW_BEFORE_DAYS)
-            );
-
-            if ((daysUntilExam <= showBeforeDays && daysUntilExam >= 0) ||
-                (today >= startDateOnly && (!endDate || now <= endDate))) {
+            // Shared gate (exam-gate.js). The inline test here read
+            // `!endDate` as "still ongoing forever", so a practical period from
+            // a past semester with no configured endDate kept the card — and
+            // the viva box gated on it — on screen indefinitely.
+            if (isExamPeriodActive(semData, showBeforeDaysFor(semData, data, {
+                viva: SHOW_BEFORE_DAYS_VIVA,
+                standard: SHOW_BEFORE_DAYS
+            }), now)) {
                 return semData;
             }
         }
@@ -490,10 +486,14 @@ function findSemesterData(data, semester) {
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
     const ongoing = matches.find(semData => {
+        // Bounded: a period with no endDate is not "ongoing" indefinitely.
         const startDate = new Date(semData.examPeriod.startDate);
         const startDateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
-        const endDate = semData.examPeriod.endDate ? new Date(semData.examPeriod.endDate) : null;
-        return today >= startDateOnly && (!endDate || now <= endDate);
+        if (!(today >= startDateOnly)) return false;
+        return isExamPeriodActive(semData, showBeforeDaysFor(semData, data, {
+            viva: SHOW_BEFORE_DAYS_VIVA,
+            standard: SHOW_BEFORE_DAYS
+        }), now);
     });
     if (ongoing) return ongoing;
 
@@ -512,7 +512,6 @@ function shouldDisplayExamCard(data, semesterData) {
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startDate = new Date(semesterData.examPeriod.startDate);
     const startDateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
-    const endDate = semesterData.examPeriod.endDate ? new Date(semesterData.examPeriod.endDate) : null;
 
     const daysUntilExam = Math.ceil((startDateOnly - today) / (1000 * 60 * 60 * 24));
     
@@ -525,7 +524,12 @@ function shouldDisplayExamCard(data, semesterData) {
     );
 
     if (daysUntilExam <= showBeforeDays && daysUntilExam >= 0) return true;
-    if (today >= startDateOnly && (!endDate || now <= endDate)) return true;
+    // Same unbounded-end bug as above: a missing endDate used to mean
+    // "ongoing forever". isExamPeriodActive derives a bound from the exam
+    // dates instead.
+    if (today >= startDateOnly) {
+        return isExamPeriodActive(semesterData, showBeforeDays, now);
+    }
 
     return false;
 }

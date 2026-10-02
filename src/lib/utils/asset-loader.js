@@ -113,12 +113,21 @@ export function renderFormulasAndCode(container) {
 
     if (window.renderMathInElement) {
         try {
+            // The live editor keeps its raw text on purpose — typing into
+            // rendered KaTeX output would fight the caret — so it is skipped
+            // here. The read-only view pane deliberately does NOT carry that
+            // class, which is what lets LaTeX render when reading a note.
             window.renderMathInElement(container, {
                 delimiters: [
                     { left: '$$', right: '$$', display: true },
-                    { left: '$', right: '$', display: false }
+                    // The notebook toolbar inserts \( \) (KaTeX's own default),
+                    // while prose written by hand tends to use $.
+                    { left: '\\(', right: '\\)', display: false },
+                    { left: '$', right: '$', display: false },
+                    { left: '\\[', right: '\\]', display: true }
                 ],
                 ignoredClasses: ['notebook-editor'],
+                ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
                 throwOnError: false
             });
         } catch {}

@@ -5,6 +5,7 @@
 import { get } from 'svelte/store';
 	import { page } from '$app/stores';
 	import { getSkipLanding, isForceApp } from '$lib/utils/landingPrefs.js';
+import { isExamPeriodActive, findVivaOrPracticalExam, isUsableExamConfig } from '$lib/utils/exam-gate.js';
 	import InterviewerCore from './InterviewerCore.svelte';
 
 	const INTERVIEW_MODAL_KEYS = ['interview', 'viva', 'viva-box', 'viva-question-bank'];
@@ -67,10 +68,19 @@ import { get } from 'svelte/store';
 
 	// A ?interview= param or an interview hash is a deliberate, developer- or
 	// user-authored trigger: open regardless of exam state.
-	let isUrlTriggered = $derived(
-		($page.url.searchParams.get('interview') !== null) ||
-		(typeof window !== 'undefined' && INTERVIEW_MODAL_KEYS.some(k => window.location.hash.includes(k)))
-	);
+	//
+	// Read from $page.url, NOT window.location.hash. The hash was read raw off
+	// `window`, which is not a reactive dependency, so this latched onto a
+	// stale value and kept the box open after the hash was long gone.
+	//
+	// The match is exact rather than substring: `hash.includes('viva')` also
+	// matched an unrelated hash that merely contained the word.
+	let isUrlTriggered = $derived.by(() => {
+		const params = $page.url.searchParams;
+		if (params.get('interview') !== null && params.get('materio_interview_done') !== '1') return true;
+		const hash = ($page.url.hash || '').replace(/^#/, '').trim();
+		return !!hash && INTERVIEW_MODAL_KEYS.includes(hash);
+	});
 
 	// activeModalStore is NOT necessarily deliberate. AutoShowPopups sets it
 	// from admin popup rules (activeModalStore.set(popup.id)), so lumping it in
@@ -93,12 +103,18 @@ import { get } from 'svelte/store';
 
 	// Shows only when no other modal is open, and only when a viva/practical
 	// exam has started to show up (or explicitly opened).
+	//
+	// isDismissed gates the URL branch too. handleClose() clears the trigger
+	// with history.replaceState, which SvelteKit's page store does not observe,
+	// so $page.url can still report the old ?interview= for the rest of the
+	// session — and isUrlTriggered would re-open the box with no exam gate at
+	// all, every time. The store flag is the authoritative record.
 	let isOpen = $derived(
 		!isOtherModalOpen &&
 		!isOtherOverlayLocked &&
 		$page.url.pathname !== '/interviewer' &&
 		!isLanding && (
-			isUrlTriggered ||
+			(isUrlTriggered && !isDismissed) ||
 			(isStoreTriggered && examGatePassed) ||
 			(!isDismissed && examGatePassed)
 		)
@@ -124,39 +140,59 @@ import { get } from 'svelte/store';
 		if (INTERVIEW_MODAL_KEYS.includes($activeModalStore)) {
 			activeModalStore.set(null);
 		}
-		if (typeof window !== 'undefined' && window.location.hash && INTERVIEW_MODAL_KEYS.some(k => window.location.hash.includes(k))) {
-			window.history.replaceState(null, '', window.location.pathname + window.location.search);
+		// Clear the URL trigger, not just the hash. This used to rewrite to
+		// `pathname + search`, which PRESERVED ?interview=… — so isUrlTriggered
+		// stayed true, the box reopened on the next render, and the exam gate
+		// was bypassed on every single load. A marker param records that the
+		// deep link has already been consumed.
+		if (typeof window !== 'undefined') {
+			try {
+				const url = new URL(window.location.href);
+				let changed = false;
+				if (INTERVIEW_MODAL_KEYS.some((k) => url.hash.replace(/^#/, '').trim() === k)) {
+					url.hash = '';
+					changed = true;
+				}
+				if (url.searchParams.has('interview') || url.searchParams.has('exam') || url.searchParams.has('subject')) {
+					url.searchParams.delete('interview');
+					url.searchParams.delete('exam');
+					url.searchParams.delete('subject');
+					url.searchParams.set('materio_interview_done', '1');
+					changed = true;
+				}
+				if (changed) {
+					window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+				}
+			} catch {}
 		}
 	}
 
 	async function checkExamForVivaOrPractical() {
-		if (typeof window !== 'undefined' && window.__materioExamHasVivaOrPractical) {
-			hasVivaExam = true;
-			activeVivaExam = window.__materioActiveVivaExam || null;
-			return;
-		}
+		// NOTE: window.__materioExamHasVivaOrPractical is deliberately NOT
+		// trusted as an answer here. ExamCard.svelte used to publish it, but
+		// that component is no longer mounted (BlogPosts renders its own exam
+		// card markup), and nothing ever reset the flag — so a single stale
+		// `true` short-circuited every date check below and pinned the box open
+		// regardless of exam type or show-before window. The date logic is now
+		// the only thing that can turn this on.
 
 		try {
-			// Live admin-managed examdata first (same source the exam card
-			// uses), static file only as fallback — the static copy goes
-			// stale and used to permanently suppress the viva auto-show.
+			// Live admin config ONLY. There is deliberately no
+			// /assets/data/examdata.json fallback: that committed snapshot still
+			// carried a Practical/Viva period whose dates fell inside the
+			// show-before window, so this box auto-opened with no Mongo config
+			// saying so. The API answers { enabled:false, degraded:true } when
+			// there is no live config — that means show nothing.
+			hasVivaExam = false;
+			activeVivaExam = null;
 			let data = null;
-			for (const url of ['/api/v2/examdata', '/assets/data/examdata.json']) {
-				try {
-					const res = await fetch(url);
-					if (!res.ok) continue;
-					const j = await res.json();
-					// An OK response is authoritative, including
-					// { enabled: false }. Reading "admin switched exam cards
-					// off" as "no data" fell through to the stale snapshot, so
-					// the viva auto-show came back anyway.
-					if (j && Array.isArray(j.semesters)) {
-						data = j;
-						break;
-					}
-				} catch {}
-			}
-			if (!data || data.enabled === false) return;
+			try {
+				const res = await fetch('/api/v2/examdata', { cache: 'no-store' });
+				if (res.ok) data = await res.json();
+			} catch {}
+			// An unreachable API or a non-authoritative answer means "unknown",
+			// and unknown must render as nothing rather than as a stale guess.
+			if (!isUsableExamConfig(data)) return;
 
 			let savedSem = null;
 			try {
@@ -165,29 +201,25 @@ import { get } from 'svelte/store';
 
 			// Scan every semester entry (not just saved/first): admin keeps
 			// separate Mid/End/Practical-Viva periods and the viva entry is
-			// rarely semesters[0]. Same threshold logic as the exam card.
+			// rarely semesters[0]. Same gate as the exam card, via exam-gate.js.
 			const now = new Date();
-			const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-			// `||` discarded an admin-set 0 and fell back to 3, so "don't show
-			// early" showed 3 days early. Same fix as ExamCard.
+			// `??` so an admin-set 0 survives; `||` turned "don't show early"
+			// into "show 3 days early".
 			const showBefore = Number(data.showBeforeDaysViva ?? 3);
+			// No saved semester means "consider them all" — restricting to the
+			// saved one hid a genuinely active practical/viva period.
 			const candidates = (data.semesters || []).filter(s =>
-				savedSem == null || String(s.semester) === String(savedSem)
+				!savedSem || String(s.semester) === String(savedSem)
 			);
 			for (const semester of candidates) {
 				if (!semester || !Array.isArray(semester.exams) || !semester.examPeriod?.startDate) continue;
-				const vivaOrPracticalExam = semester.exams.find(e => e.type === 'viva' || e.type === 'practical');
+				const vivaOrPracticalExam = findVivaOrPracticalExam(semester);
 				if (!vivaOrPracticalExam) continue;
-				const startDate = new Date(semester.examPeriod.startDate);
-				const startDateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
-				const endDate = semester.examPeriod.endDate ? new Date(semester.examPeriod.endDate) : null;
-				const daysUntilExam = Math.ceil((startDateOnly - today) / (1000 * 60 * 60 * 24));
-
-				// Active within showBeforeDaysViva before start OR ongoing once the period starts
-				const isVivaCardActive = (daysUntilExam <= showBefore && daysUntilExam >= 0) ||
-					(today >= startDateOnly && (!endDate || now <= endDate));
-
-				if (isVivaCardActive) {
+				// The shared gate owns the date maths. The inline version this
+				// replaced read `!endDate` as "ongoing forever", so a practical
+				// period from a past semester with no endDate kept the box open
+				// indefinitely — long outside the show-before window.
+				if (isExamPeriodActive(semester, showBefore, now)) {
 					hasVivaExam = true;
 					activeVivaExam = vivaOrPracticalExam;
 					break;
