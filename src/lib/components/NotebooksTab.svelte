@@ -5,7 +5,13 @@
     import { LoaderIcon } from "@hugeicons/core-free-icons";
     import { activeModalStore, activeTab } from '$lib/stores.js';
     import { sfx } from '$lib/sounds/index.js';
-    import { NOTEBOOK_COVERS, DEFAULT_COVER, coverLabel } from '$lib/utils/notebookCover.js';
+    // coverStyle and getRibbon are called from the template for every entry. They
+// were missing here, so rendering the list threw `ReferenceError` and the whole
+// panel died — the URL changed to /notebooks but the tab never rendered.
+// coverStyle and getRibbon are called from the template for every entry. They
+// were missing here, so rendering the list threw `ReferenceError` and the whole
+// panel died — the URL changed to /notebooks but the tab never rendered.
+import { NOTEBOOK_COVERS, DEFAULT_COVER, coverLabel, coverStyle, getRibbon } from '$lib/utils/notebookCover.js';
 
     let notebooks = [];
     let filter = 'all';
