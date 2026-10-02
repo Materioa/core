@@ -348,17 +348,32 @@
     // reader never sees or supplies a key for it. Wiktionary and Custom stay
     // available; Custom is the BYO slot for a different provider or a personal
     // key.
-    c2.body.appendChild(select(settings, 'provider', 'Provider', [
-      { value: 'auto', label: 'Google Dictionary' },
-      { value: 'wiktionary', label: 'Wiktionary only' },
-      { value: 'custom', label: 'Custom endpoint' }
-    ]));
+    // Google is a desktop-only provider (see isNativeShell in dictionary.js:
+    // its credential is a borrowed, referrer-restricted key, and routing web
+    // visitors through it would spend that quota for a feature they cannot own).
+    // Offering it on the web would be a control that silently does nothing, so
+    // the option is omitted there rather than shown-and-ignored.
+    var native = isNativeShell();
+    var providerOptions = native
+      ? [
+        { value: 'auto', label: 'Google Dictionary' },
+        { value: 'wiktionary', label: 'Wiktionary' },
+        { value: 'custom', label: 'Custom endpoint' }
+      ]
+      : [
+        { value: 'wiktionary', label: 'Wiktionary' },
+        { value: 'custom', label: 'Custom endpoint' }
+      ];
+    c2.body.appendChild(select(settings, 'provider', 'Provider', providerOptions));
 
     // Translation controls. These apply to the Google provider, so they live
     // OUTSIDE the Custom box — previously language/corpus existed only in the
     // Custom slot, which is hidden unless provider === 'custom', and dictionary.js
     // never sent them anyway. So there was no way to reach translation at all.
     var translateBox = el('div', 'dict-translate');
+    // Translation is served by the Google endpoint, so the control is desktop
+    // only for the same reason the Google provider option is.
+    if (!native) translateBox.hidden = true;
     translateBox.appendChild(select(settings, 'translateTo', 'Translate into', [
       { value: 'off', label: 'Off — define in the corpus language' },
       { value: 'es', label: 'Spanish' },

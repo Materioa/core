@@ -63,6 +63,30 @@
   var selectionStartedAt = 0;
 
   /**
+   * True inside the native desktop / Android shells, false on the web build.
+   *
+   * The dictionary is a desktop feature: the Google provider's credential lives
+   * in the app server's environment, and every lookup spends it. Serving the web
+   * build would have anonymous site visitors burn that borrowed quota, for a
+   * feature they did not ask for, so the web routes to the keyless providers
+   * instead. Detection mirrors dictionaryUrl() and external-links.js.
+   */
+  function isNativeShell() {
+    try {
+      var h = window.location.hostname || '';
+      var p = window.location.protocol || '';
+      return Boolean(
+        window.__TAURI_INTERNALS__ || window.__TAURI__ || window.Capacitor ||
+        p === 'tauri:' || p === 'capacitor:' ||
+        h === 'tauri.localhost' || h === 'capacitor.localhost' ||
+        (h === 'localhost' && window.location.port !== '5173')
+      );
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /**
    * Settings come from dictionary-settings.js when it is present (it owns the
    * panel), and fall back to the same defaults inline so the tooltip still
    * works if that script is ever absent.
@@ -739,6 +763,29 @@
     // one. Credentials stay out of the browser's hands beyond the request.
     if (cfg.provider === 'custom' && cfg.custom && cfg.custom.baseUrl) {
       return lookupCustom(word, cfg.custom);
+    }
+
+    // On the web build, go straight to the keyless providers.
+    //
+    // Our /api/v2/dictionary would consult the Google provider, and that spends
+    // the borrowed, referrer-restricted key on every lookup. Letting anonymous
+    // site visitors drive that quota is not worth it for a desktop feature, so
+    // the web races dictionaryapi.dev + Wiktionary directly — both send
+    // Access-Control-Allow-Origin: *, so this works with no proxy. The card
+    // renders identically because the server already normalises the shape.
+    //
+    // Only applies to the DEFAULT provider path: an explicitly configured Custom
+    // source is the reader's own credential and their own choice, so it is left
+    // alone above.
+    if (!isNativeShell() && cfg.provider !== 'wiktionary') {
+      return lookupDirectly(word).then(function (payload) {
+        if (cache.size >= MAX_CACHE_ENTRIES) {
+          var oldest = cache.keys().next().value;
+          if (oldest !== undefined) cache.delete(oldest);
+        }
+        cache.set(key, payload);
+        return payload;
+      });
     }
 
     // Collapse concurrent lookups of the same word onto one request.

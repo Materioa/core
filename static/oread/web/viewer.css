@@ -3022,16 +3022,16 @@
   background-color: var(--editor-toolbar-hover-fg-color);
 }
 
+/* NOTE: `.editToolbar .buttons .delete` below is upstream CSS for a control
+   PDF.js 5.1.91 no longer creates — the only deleteButton in viewer.mjs is the
+   signature-dialog one, which uses the .deleteButton class. Verified by search:
+   there is no `classList.add("delete")` and no annotation-editor delete action
+   anywhere in the bundle. So the trash icon is missing because the control is
+   gone, not because it is mis-styled. Re-adding it needs the 5.1 editor API
+   (annotationEditorUIManager surface), which is not reachable from here without
+   a live editor to introspect. */
 :is(:is(:is(.annotationEditorLayer :is(.freeTextEditor, .inkEditor, .stampEditor, .highlightEditor, .signatureEditor), .textLayer) .editToolbar) .buttons) .delete {
   width: var(--editor-toolbar-height);
-  /* Only the width was set. The icon is a ::before with width:100%/height:100%,
-     so with no height on the button that collapsed to 0 and the trash glyph had
-     no box to paint into — which is why the delete control in the highlight /
-     annotation toolbar rendered as nothing at all. */
-  height: var(--editor-toolbar-height);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 :is(:is(:is(:is(.annotationEditorLayer :is(.freeTextEditor, .inkEditor, .stampEditor, .highlightEditor, .signatureEditor), .textLayer) .editToolbar) .buttons) .delete)::before {
@@ -5176,6 +5176,16 @@ body.thinkletResizing #thinkletResizeHandle::before {
 /* Toolbar toggle. The button was text-only ("Dictionary"), which is why the icon
    slot looked empty; it now carries the inline SVG and sits like its neighbours
    in #toolbarViewerRight. Sized to match the other PDF.js toolbar icons. */
+/* The square box in the toolbar was this rule, not the SVG. Every
+   .toolbarButton paints a ::before sized --icon-size with a solid
+   background-color; the icon shape comes from a mask-image. #dictSettingsButton
+   draws its icon as a real inline SVG instead, so the ::before had no mask and
+   rendered as an opaque square behind the glyph. Suppress it, exactly as
+   #thinkletSettingsButton does. */
+#dictSettingsButton::before {
+  content: none;
+}
+
 #dictSettingsButton .materio-dict-toggle-icon {
   display: inline-flex;
   align-items: center;
@@ -5410,7 +5420,14 @@ body.thinkletResizing #thinkletResizeHandle::before {
 
 /* The text inputs need the full row: a credential has no natural side-by-side
    layout with its label at this width. */
-.dict-row:has(.dict-input) {
+/* Stack the label above the control whenever the control is full-width anyway.
+   This previously matched only .dict-input, so a <select> kept the
+   side-by-side layout: a long hint wrapped over five lines beside a
+   fixed-width dropdown, and the option text got clipped ("Off — define in the
+   cor…"). The select is a block control like the text input, so it reads
+   better full-width regardless. */
+.dict-row:has(.dict-input),
+.dict-row:has(.dict-select) {
   flex-direction: column;
   align-items: stretch;
   gap: 6px;
