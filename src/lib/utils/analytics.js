@@ -96,6 +96,20 @@ function readUserId() {
   return null;
 }
 
+// Native shells post cross-origin to the remote backend. The fetch
+// interceptor only rewrites RELATIVE /api urls, and analytics already calls
+// toApiUrl(), so the absolute url never picked up the Bearer token — the
+// server then had to fall back to trusting the client-supplied id. Send the
+// token explicitly so attribution is proven rather than asserted.
+function authHeaders() {
+  const headers = { 'Content-Type': 'application/json' };
+  try {
+    const token = localStorage.getItem('token') || localStorage.getItem('materio_auth_token');
+    if (token) headers.Authorization = `Bearer ${token}`;
+  } catch {}
+  return headers;
+}
+
 function normalizePdfTitle(title) {
   return String(title || 'unknown')
     .trim()
@@ -558,16 +572,30 @@ class ExodusAnalytics {
         p_usermeta_diff: payload.usermeta,
         p_user_id: this.userId
       };
-      if (isBeacon && navigator.sendBeacon) {
+      // sendBeacon cannot carry custom headers, and a Blob typed
+      // application/json forces a CORS preflight that a beacon can never
+      // finish — so from a native shell it was a guaranteed silent drop on
+      // every exit. Only use it same-origin, where no preflight is needed.
+      const useBeacon =
+        isBeacon &&
+        typeof navigator.sendBeacon === 'function' &&
+        typeof window !== 'undefined' &&
+        window.location?.origin === new URL(url, 'https://getmaterio.app').origin;
+      if (useBeacon) {
         navigator.sendBeacon(url, new Blob([JSON.stringify(data)], { type: 'application/json' }));
       } else {
         try {
-          await fetch(url, {
+          const res = await fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders(),
             body: JSON.stringify(data),
             keepalive: true
           });
+          // The old code never looked at the status, so a 403/429/500 was
+          // indistinguishable from success: the diff had already been cleared,
+          // so those reading seconds and PDF opens were gone for good. Keep the
+          // payload for the retry slot whenever the server refused it.
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
         } catch {
           try {
             localStorage.setItem(STORAGE_PENDING, JSON.stringify(data));
@@ -583,12 +611,13 @@ class ExodusAnalytics {
       if (!raw) return;
       const data = JSON.parse(raw);
       if (!data || typeof data !== 'object') return;
-      await fetch(toApiUrl(ANALYTICS_URL), {
+      const res = await fetch(toApiUrl(ANALYTICS_URL), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify(data),
         keepalive: true
       });
+      if (!res.ok) return;
       localStorage.removeItem(STORAGE_PENDING);
     } catch {}
   }
