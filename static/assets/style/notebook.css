@@ -366,6 +366,17 @@ body.dark-mode .notebook-editor::-webkit-scrollbar-thumb {
     pointer-events: none;
 }
 
+/* Read mode: no rules, and the pane scrolls inside the flex column.
+   (The editor pane gets its height from `height:100%` + an explicit
+   max-height; `.notebook-editor-container` is a plain block, so without this
+   the read pane grew to full content height, the dialog clipped it, and the
+   footer — Manage / Save / Export — was pushed out of view.) */
+.notebook-editor-container.reading {
+    background: var(--notebook-editor-bg);
+    display: flex;
+    flex-direction: column;
+}
+
 /* Editor content styling */
 .notebook-editor h1 {
     font-size: 2em;
@@ -1931,16 +1942,106 @@ body.coffee-dark-mode .notebook-editor hr {
    ignores that class so the caret keeps raw text while
    typing, which means LaTeX can only render here.
    ================================================ */
-.notebook-editor-container.reading {
+/* ================================================
+   RULED PAPER
+   Real notebook lines. A repeating-linear-gradient rather than borders:
+   one paint, and `background-attachment: local` makes the lines SCROLL WITH
+   the text, so they stay a fixed writing rhythm instead of a fixed screen
+   grid. It reads as ruled paper without touching the markup.
+   ================================================ */
+.notebook-editor-container:not(.reading) {
+    --notebook-line: 30px;
+    --notebook-rule-color: var(--notebook-border);
+    /* Layer 1 = margin rule, drawn once and fixed to the page. */
+    /* Layer 2 = the writing lines themselves, scrolling with content. */
+    background-image:
+        linear-gradient(to right, transparent 0, transparent 0),
+        repeating-linear-gradient(
+            to bottom,
+            transparent 0,
+            transparent calc(var(--notebook-line) - 1px),
+            var(--notebook-rule-color) calc(var(--notebook-line) - 1px),
+            var(--notebook-rule-color) var(--notebook-line)
+        );
+    background-repeat: no-repeat, repeat;
+    background-position: 0 0, 0 0;
+    background-size: 100% 100%, 100% var(--notebook-line);
+    background-attachment: local, local;
+}
+
+.notebook-editor {
+    /* The line rhythm only lines up if the text box is an exact multiple of
+       it, so the first baseline starts a full line down. */
+    padding-top: 24px;
+    padding-bottom: 24px;
+    line-height: var(--notebook-line);
+    font-size: 15px;
+}
+
+/* Blocks must not straddle a rule: each starts on its own line and its
+   margin is a whole number of lines. */
+.notebook-editor > *,
+.notebook-editor-container:not(.reading) .notebook-editor > * {
+    margin-top: 0;
+    margin-bottom: var(--notebook-line);
+    line-height: var(--notebook-line);
+}
+
+.notebook-editor > :last-child { margin-bottom: 0; }
+
+.notebook-editor h1,
+.notebook-editor h2,
+.notebook-editor h3 {
+    line-height: calc(var(--notebook-line) * 2);
+    margin-bottom: var(--notebook-line);
+    /* Tall elements still get their own rhythm, so the rules behind them
+       are covered by the element's own background. */
     background: var(--notebook-editor-bg);
-    /* The editor pane gets its height from `height:100%` + an explicit
-       max-height. `.notebook-editor-container` is a plain block, so `flex:1`
-       on the read pane did nothing and the pane grew to full content height —
-       the dialog clipped it and pushed the footer (Manage / Save / Export)
-       out of view. Making the container a flex column gives the pane a real
-       height to fill. */
-    display: flex;
-    flex-direction: column;
+}
+
+/* Nested blocks sit inside a line rather than on a new one. */
+.notebook-editor ul,
+.notebook-editor ol,
+.notebook-editor blockquote,
+.notebook-editor pre {
+    background: var(--notebook-editor-bg);
+}
+
+.notebook-editor ul,
+.notebook-editor ol {
+    margin: 0 0 var(--notebook-line) 0;
+    padding-left: 1.4em;
+}
+
+.notebook-editor ul li,
+.notebook-editor ol li {
+    line-height: var(--notebook-line);
+    margin: 0;
+}
+
+.notebook-editor blockquote {
+    margin: 0 0 var(--notebook-line) 0;
+    padding-left: 14px;
+}
+
+.notebook-editor pre {
+    margin: 0 0 var(--notebook-line) 0;
+    padding: 10px 14px;
+    line-height: 1.55;
+}
+
+.notebook-editor hr {
+    margin: var(--notebook-line) 0;
+    background: var(--notebook-editor-bg);
+}
+
+/* Empty-state text must not sit on top of a rule. */
+.notebook-editor:empty::before {
+    content: attr(data-placeholder);
+    color: var(--notebook-text-muted);
+    line-height: var(--notebook-line);
+    background: var(--notebook-editor-bg);
+    display: block;
 }
 
 .notebook-view {
@@ -1949,10 +2050,10 @@ body.coffee-dark-mode .notebook-editor hr {
     /* Must mirror .notebook-editor's cap, or the pane outgrows the dialog. */
     max-height: calc(90vh - 280px);
     overflow-y: auto;
-    padding: 28px 40px 48px;
+    padding: 24px 40px;
     font-family: var(--font-primary, -apple-system, sans-serif);
     font-size: 15px;
-    line-height: 1.75;
+    line-height: 1.7;
     color: var(--notebook-text);
     outline: none;
     box-sizing: border-box;
@@ -1961,6 +2062,8 @@ body.coffee-dark-mode .notebook-editor hr {
     margin: 0 auto;
     width: 100%;
     cursor: var(--f-cursor-default, default);
+    /* No rules in read mode — they are a writing affordance. */
+    background-image: none;
 }
 
 .notebook-view > :first-child { margin-top: 0; }
@@ -2111,7 +2214,9 @@ body.coffee-dark-mode .notebook-editor hr {
 
 .notebook-cover-picker {
     position: absolute;
-    top: calc(100% + 6px);
+    /* The trigger sits in the footer, so the palette opens UPWARD to stay
+       inside the dialog instead of off the bottom edge. */
+    bottom: calc(100% + 6px);
     right: 0;
     z-index: 20;
     display: grid;
@@ -2141,10 +2246,11 @@ body.coffee-dark-mode .notebook-editor hr {
 }
 
 /* ================================================
-   NOTEBOOK SHELF (manage page)
-   A shelf of flat entries. Depth comes from the cover
-   colour and a hairline — no gradients, no nested
-   panels, no shadow stacking.
+   NOTEBOOK COVERS (manage page)
+   A4 portrait covers. The cover IS the object: flat fill, title and
+   date printed on it in its own ink, and a ribbon strap over the top
+   edge. No gradients, no nested panels, no shadow stacking — depth comes
+   from one hairline plus the cover colour.
    ================================================ */
 .notebooks-shelf-header {
     display: flex;
@@ -2167,200 +2273,207 @@ body.coffee-dark-mode .notebook-editor hr {
     letter-spacing: 0.02em;
 }
 
+/* Wrapping shelf. Covers keep A4 proportion and shrink to fit. */
 .notebooks-shelf {
     display: flex;
-    flex-direction: column;
-    gap: 1px;
-    border-top: 1px solid var(--color-border-light, rgba(0, 0, 0, 0.08));
+    flex-wrap: wrap;
+    gap: 22px 18px;
+    align-items: flex-start;
+    border-top: 0;
 }
 
-.notebook-entry {
+.notebook-cover {
     position: relative;
-    display: grid;
-    grid-template-columns: 3px 1fr auto;
-    align-items: center;
-    gap: 16px;
-    padding: 14px 12px 14px 0;
-    border-bottom: 1px solid var(--color-border-light, rgba(0, 0, 0, 0.08));
-    cursor: pointer;
-    background: transparent;
-    transition: background var(--notebook-transition);
-}
-
-.notebook-entry:hover {
-    background: var(--color-primary-lighter, rgba(255, 130, 0, 0.04));
-}
-
-.notebook-entry:focus-visible {
-    outline: 2px solid var(--notebook-accent);
-    outline-offset: -2px;
-}
-
-/* The spine IS the cover. Flat fill, no gradient. */
-.notebook-entry-spine {
-    align-self: stretch;
+    /* A4 portrait: 1 : 1.414 */
+    flex: 0 1 190px;
+    width: 190px;
+    aspect-ratio: 1 / 1.414;
     background: var(--cover, #5c6470);
-    border-radius: 2px;
-}
-
-.notebook-ribbon {
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 26px;
-    height: 34px;
-    background: var(--notebook-accent);
-    /* Bookmark tail: a notched rectangle, drawn with one clip-path. */
-    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 76%, 0 100%);
-    pointer-events: none;
-}
-.notebook-ribbon[data-ribbon="revision"] { background: var(--color-secondary, #8dac49); }
-.notebook-ribbon[data-ribbon="exam"] { background: var(--color-danger, #ef4444); }
-
-.notebook-entry-body {
-    min-width: 0;
-    display: grid;
-    gap: 3px;
-}
-
-.notebook-entry-head {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-    min-width: 0;
-}
-
-.notebook-entry-title {
-    margin: 0;
-    font-family: var(--font-heading, Georgia, serif);
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--color-text-primary, #1a1a1a);
-    letter-spacing: -0.01em;
-    /* One line, ellipsised: a shelf is a list, not a preview grid. */
-    white-space: nowrap;
+    color: var(--cover-ink, #fff);
+    border-radius: 3px 8px 8px 3px;
+    border: 1px solid rgba(0, 0, 0, 0.14);
+    /* The spine of a bound book: a darker strip down the left edge. */
+    box-shadow: inset 3px 0 0 rgba(0, 0, 0, 0.16);
+    cursor: pointer;
     overflow: hidden;
-    text-overflow: ellipsis;
-    min-width: 0;
+    display: flex;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 
-.notebook-entry-title-input {
-    font-family: var(--font-heading, Georgia, serif);
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--color-text-primary, #1a1a1a);
-    background: var(--color-bg-body, transparent);
-    border: 0;
-    border-bottom: 1px solid var(--notebook-accent);
-    padding: 1px 0;
-    outline: none;
+.notebook-cover:hover {
+    transform: translateY(-3px);
+    box-shadow: inset 3px 0 0 rgba(0, 0, 0, 0.16), 0 6px 16px rgba(0, 0, 0, 0.18);
+}
+
+.notebook-cover:focus-visible {
+    outline: 2px solid var(--notebook-accent);
+    outline-offset: 3px;
+}
+
+/* Printed area. Everything inherits --cover-ink so it stays legible on
+   any cover colour without per-theme overrides. */
+.notebook-cover-face {
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 20px 16px 14px 22px;
 }
 
-.notebook-entry-cover-name {
-    font-family: var(--font-mono, monospace);
-    font-size: 10px;
-    color: var(--color-text-muted, #999);
-    text-transform: lowercase;
-    flex-shrink: 0;
-}
-
-.notebook-entry-preview {
+.notebook-cover-title {
     margin: 0;
-    font-size: 12px;
-    color: var(--color-text-secondary, #666);
-    white-space: nowrap;
+    font-family: var(--font-heading, Georgia, serif);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+    color: inherit;
+    /* A cover carries a short title: two lines, then ellipsis. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
 }
 
-.notebook-entry-meta {
+.notebook-cover-title-input {
+    font-family: var(--font-heading, Georgia, serif);
+    font-size: 15px;
+    font-weight: 600;
+    color: inherit;
+    background: rgba(0, 0, 0, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 4px;
+    padding: 3px 6px;
+    outline: none;
+    width: 100%;
+}
+.notebook-cover-title-input::placeholder { color: inherit; opacity: 0.6; }
+
+.notebook-cover-preview {
+    margin: 8px 0 0;
+    font-size: 11.5px;
+    line-height: 1.45;
+    opacity: 0.78;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.notebook-cover-foot {
+    margin-top: auto;
+    padding-top: 10px;
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 8px;
-    font-size: 11px;
-    color: var(--color-text-muted, #999);
+    font-family: var(--font-mono, monospace);
+    font-size: 10px;
+    letter-spacing: 0.03em;
+    opacity: 0.7;
 }
 
-.notebook-entry-date { font-family: var(--font-mono, monospace); }
-
-.notebook-entry-flags {
+.notebook-cover-flags {
     display: inline-flex;
     align-items: center;
     gap: 6px;
 }
 
-.notebook-entry-flag {
-    display: inline-flex;
-    color: var(--color-text-muted, #999);
-}
-.notebook-entry-flag.is-synced { color: var(--notebook-accent); }
+.notebook-cover-flag { display: inline-flex; }
+.notebook-cover-flag.is-synced { opacity: 1; }
 
-/* Actions stay out of the way until the row is hovered or focused. */
-.notebook-entry-actions {
+/* Ribbon: a bookmark strap hanging over the top edge, drawn as one
+   clipped rectangle. Straps sit near the right edge like a real book. */
+.notebook-cover-ribbon {
+    position: absolute;
+    top: 0;
+    right: 14px;
+    width: 16px;
+    height: 44px;
+    background: rgba(255, 255, 255, 0.9);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%);
+    z-index: 2;
+    pointer-events: none;
+}
+.notebook-cover-ribbon[data-ribbon="none"] { display: none; }
+.notebook-cover-ribbon[data-ribbon="exam"] { background: #e2574c; }
+.notebook-cover-ribbon[data-ribbon="revision"] { background: #7ea84f; }
+
+/* Hover-only, so the shelf reads as books at rest. */
+.notebook-cover-actions {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
     display: flex;
     align-items: center;
+    justify-content: flex-end;
     gap: 2px;
+    padding: 6px 8px;
+    background: rgba(0, 0, 0, 0.28);
     opacity: 0;
-    transition: opacity var(--notebook-transition);
+    transition: opacity 0.16s ease;
+    z-index: 3;
 }
 
-.notebook-entry:hover .notebook-entry-actions,
-.notebook-entry:focus-within .notebook-entry-actions {
+.notebook-cover:hover .notebook-cover-actions,
+.notebook-cover:focus-within .notebook-cover-actions {
     opacity: 1;
 }
 
-.notebook-entry-btn {
+.notebook-cover-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
     border: 0;
     background: transparent;
-    color: var(--color-text-secondary, #666);
-    border-radius: 6px;
+    color: #fff;
+    border-radius: 5px;
     cursor: pointer;
     padding: 0;
-    transition: background var(--notebook-transition), color var(--notebook-transition);
 }
-.notebook-entry-btn:hover {
-    background: var(--color-primary-light, rgba(255, 130, 0, 0.1));
-    color: var(--notebook-accent);
-}
-.notebook-entry-btn.is-danger:hover {
-    background: transparent;
-    color: var(--color-danger, #ef4444);
+.notebook-cover-btn:hover { background: rgba(255, 255, 255, 0.2); }
+.notebook-cover-btn.is-danger:hover { background: rgba(226, 87, 76, 0.9); }
+
+.notebook-cover-swatch {
+    width: 11px;
+    height: 11px;
+    border-radius: 3px;
+    background: var(--cover, #5c6470);
+    flex-shrink: 0;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
 }
 
-.notebook-entry-covers {
+.notebook-cover-palette {
     position: absolute;
-    top: calc(100% - 4px);
-    right: 44px;
-    z-index: 20;
+    top: 8px;
+    left: 22px;
+    right: 12px;
+    z-index: 4;
     display: grid;
     grid-template-columns: repeat(5, 1fr);
-    gap: 6px;
-    padding: 8px;
+    gap: 5px;
+    padding: 7px;
     background: var(--notebook-bg);
-    border: 1px solid var(--color-border-light, rgba(0, 0, 0, 0.1));
-    border-radius: 10px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+    border: 1px solid var(--color-border-light, rgba(0, 0, 0, 0.12));
+    border-radius: 8px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
 }
 
-.notebook-entry-cover-option {
-    width: 22px;
-    height: 22px;
-    border-radius: 5px;
+.notebook-cover-swatch-option {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
     background: var(--cover);
     border: 1px solid transparent;
     cursor: pointer;
     padding: 0;
     transition: transform 0.12s ease;
 }
-.notebook-entry-cover-option:hover { transform: scale(1.12); }
-.notebook-entry-cover-option.selected {
+.notebook-cover-swatch-option:hover { transform: scale(1.12); }
+.notebook-cover-swatch-option.selected {
     border-color: var(--notebook-accent);
     box-shadow: 0 0 0 2px var(--notebook-accent-light);
 }
@@ -2389,11 +2502,11 @@ body.coffee-dark-mode .notebook-editor hr {
 .notebooks-empty p { margin: 0; font-size: 13px; }
 
 @media (max-width: 768px) {
-    /* Actions stay visible on touch: there is no hover to reveal them. */
-    .notebook-entry-actions { opacity: 1; }
-    .notebook-view { padding: 20px 18px 40px; }
-    .notebook-entry { gap: 12px; }
-    .notebook-entry-covers { right: 8px; }
+    /* No hover on touch, so the controls stay visible. */
+    .notebook-cover-actions { opacity: 1; }
+    .notebook-cover { flex: 0 1 150px; width: 150px; }
+    .notebook-cover-face { padding: 16px 12px 12px 18px; }
+    .notebook-cover-palette { left: 18px; }
 }
 
 /* ================================================
@@ -2402,10 +2515,12 @@ body.coffee-dark-mode .notebook-editor hr {
    so they need no per-theme overrides. Everything else
    reads the shared tokens and follows automatically.
    ================================================ */
-body.dark-mode .notebook-entry,
-body.coffee-dark-mode .notebook-entry,
-body.amoled-mode .notebook-entry {
-    border-bottom-color: var(--color-border-light);
+/* Covers carry their own fixed fill and ink, so they need no per-theme
+   override — the border just has to match the page in dark themes. */
+body.dark-mode .notebook-cover,
+body.coffee-dark-mode .notebook-cover,
+body.amoled-mode .notebook-cover {
+    border-color: rgba(255, 255, 255, 0.14);
 }
 
 body.dark-mode .notebook-view pre,

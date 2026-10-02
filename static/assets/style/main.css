@@ -12712,8 +12712,9 @@ body.coffee-dark-mode .promo-secondary-btn:hover, body.amoled-mode .promo-second
 
 /* ==========================================
    Interaction Sounds settings (native apps)
-   Subordinate to the switch: flat rows on the
-   existing card, no extra panel chrome.
+   Flat and quiet: a 1px track with a small square
+   thumb, no gradient fill, and preview chips that
+   read as text buttons rather than as tiles.
    ========================================== */
 .sounds-options {
     margin-top: 14px;
@@ -12721,7 +12722,7 @@ body.coffee-dark-mode .promo-secondary-btn:hover, body.amoled-mode .promo-second
     border-top: 1px solid var(--color-border-light, rgba(0, 0, 0, 0.08));
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 16px;
 }
 
 .sounds-option-row {
@@ -12731,66 +12732,128 @@ body.coffee-dark-mode .promo-secondary-btn:hover, body.amoled-mode .promo-second
     gap: 12px;
 }
 
+/* --- Volume ---------------------------------------------------------- */
 .sounds-volume-control {
     display: flex;
     align-items: center;
     gap: 10px;
-    min-width: 180px;
+    min-width: 190px;
 }
 
-.sounds-volume-control .warmth-slider {
+/* Minimal slider. The old markup borrowed .warmth-slider, which fills the
+   track with an accent gradient — far too loud for a level control. This
+   is a hairline track with a flat accent thumb and no fill at all. */
+.sounds-slider {
+    -webkit-appearance: none;
+    appearance: none;
     flex: 1;
-    min-width: 120px;
+    min-width: 130px;
+    height: 18px;
+    background: transparent;
+    cursor: pointer;
+    margin: 0;
+}
+
+.sounds-slider::-webkit-slider-runnable-track {
+    height: 2px;
+    background: var(--color-border-medium, #d1d1d1);
+    border-radius: 1px;
+}
+
+.sounds-slider::-moz-range-track {
+    height: 2px;
+    background: var(--color-border-medium, #d1d1d1);
+    border-radius: 1px;
+}
+
+.sounds-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    margin-top: -5px;
+    border-radius: 3px;
+    background: var(--color-primary, #ff8200);
+    border: none;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    transition: transform 0.12s ease;
+}
+
+.sounds-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    background: var(--color-primary, #ff8200);
+    border: none;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.sounds-slider:hover::-webkit-slider-thumb { transform: scale(1.15); }
+.sounds-slider:active::-webkit-slider-thumb { transform: scale(0.95); }
+.sounds-slider:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 3px var(--color-primary-light, rgba(255, 130, 0, 0.2));
 }
 
 .sounds-volume-value {
     font-family: var(--font-mono, monospace);
     font-size: 11px;
     color: var(--color-text-muted, #888);
-    min-width: 34px;
+    min-width: 32px;
     text-align: right;
     font-variant-numeric: tabular-nums;
 }
 
-.sounds-preview-row {
-    align-items: flex-start;
-}
+/* --- Preview chips --------------------------------------------------- */
+.sounds-preview-row { align-items: flex-start; }
 
 .sounds-preview-buttons {
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-end;
-    gap: 6px;
-    max-width: 320px;
+    gap: 4px;
+    max-width: 300px;
 }
 
 .sounds-preview-btn {
-    border: 1px solid var(--color-border-light, rgba(0, 0, 0, 0.12));
-    background: transparent;
+    border: 1px solid transparent;
+    background: var(--color-bg-input, rgba(0, 0, 0, 0.04));
     color: var(--color-text-secondary, #555);
-    border-radius: 8px;
-    padding: 4px 10px;
+    border-radius: 6px;
+    padding: 3px 9px;
     font-family: inherit;
     font-size: 11px;
     font-weight: 500;
+    line-height: 1.5;
     cursor: pointer;
-    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+    transition: border-color 0.14s ease, color 0.14s ease, background 0.14s ease;
 }
 
 .sounds-preview-btn:hover {
     border-color: var(--color-primary-border, var(--color-primary, #ff8200));
     color: var(--color-primary, #ff8200);
-    background: var(--color-primary-lighter, rgba(255, 130, 0, 0.05));
+    background: transparent;
 }
 
-.sounds-preview-btn:active {
-    transform: translateY(1px);
+.sounds-preview-btn:active { transform: translateY(1px); }
+
+.sounds-preview-btn:focus-visible {
+    outline: 2px solid var(--color-primary, #ff8200);
+    outline-offset: 1px;
 }
 
 .sounds-preview-btn-danger:hover {
     border-color: var(--color-danger, #ef4444);
     color: var(--color-danger, #ef4444);
     background: transparent;
+}
+
+/* One quiet line explaining the behaviour instead of a second box. */
+.sounds-preview-note {
+    margin: 6px 0 0;
+    font-size: 10.5px;
+    color: var(--color-text-muted, #999);
+    text-align: right;
+    max-width: 300px;
 }
 
 body.coffee-dark-mode .sounds-options,
@@ -12800,7 +12863,7 @@ body.amoled-mode .sounds-options {
 
 body.coffee-dark-mode .sounds-preview-btn,
 body.amoled-mode .sounds-preview-btn {
-    border-color: var(--color-border-light);
+    background: var(--color-bg-input);
     color: var(--color-text-secondary);
 }
 
@@ -12810,9 +12873,11 @@ body.amoled-mode .sounds-preview-btn {
         align-items: stretch;
         gap: 8px;
     }
-    .sounds-preview-buttons {
+    .sounds-preview-buttons,
+    .sounds-preview-note {
         max-width: none;
         justify-content: flex-start;
+        text-align: left;
     }
     .sounds-volume-control {
         min-width: 0;

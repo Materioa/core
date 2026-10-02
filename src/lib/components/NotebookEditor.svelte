@@ -577,39 +577,6 @@
                         <span class="notebook-link" id="notebookLinkBadge" style="display: inline-flex;"><HugeIcon name="link-01" /><span id="notebookLinkText">{linkedPdfName}</span></span>
                     {/if}
                 </div>
-                <div class="notebook-header-actions">
-                    <!-- Read / write is a switch between two exclusive surfaces. -->
-                    <button type="button" class="notebook-mode-btn" id="notebookModeBtn"
-                        data-cuelume-toggle="toggle"
-                        aria-pressed={isViewMode}
-                        title={isViewMode ? 'Switch to editing' : 'Read this note'}
-                        on:click={()=> setViewMode(!isViewMode)}>
-                        <HugeIcon name={isViewMode ? 'edit-02' : 'eye'} />
-                        <span>{isViewMode ? 'Edit' : 'Read'}</span>
-                    </button>
-                    <div class="notebook-cover-picker-wrap">
-                        <button type="button" class="notebook-mode-btn" id="notebookCoverBtn"
-                            data-cuelume-open="open" data-cuelume-emphasis="subtle"
-                            aria-expanded={showCoverPicker} title="Change cover"
-                            on:click={()=> { showCoverPicker = !showCoverPicker; }}>
-                            <span class="notebook-cover-swatch" style={coverStyle(currentCover)}></span>
-                            <span>Cover</span>
-                        </button>
-                        {#if showCoverPicker}
-                            <div class="notebook-cover-picker" role="listbox" aria-label="Cover colour">
-                                {#each NOTEBOOK_COVERS as cover (cover.id)}
-                                    <button type="button" class="notebook-cover-option"
-                                        class:selected={currentCover === cover.id}
-                                        style={coverStyle(cover.id)}
-                                        data-cuelume-select="select"
-                                        role="option" aria-selected={currentCover === cover.id}
-                                        title={cover.label} aria-label={cover.label}
-                                        on:click={()=> setCover(cover.id)}></button>
-                                {/each}
-                            </div>
-                        {/if}
-                    </div>
-                </div>
             </div>
 
             <!-- Formatting belongs to writing. In read mode the whole strip is
@@ -736,6 +703,39 @@
                     <span class="word-count" id="notebookWordCount">{wordCount} words</span>
                 </div>
                 <div class="notebook-footer-actions">
+                    <!-- Read / write and cover live down here, not in the title
+                         bar: the header stays a title and a date, and these two
+                         stay reachable however long the note gets. -->
+                    <button type="button" class="notebook-mode-btn" id="notebookModeBtn"
+                        data-cuelume-toggle="toggle"
+                        aria-pressed={isViewMode}
+                        title={isViewMode ? 'Switch to editing' : 'Read this note'}
+                        on:click={()=> setViewMode(!isViewMode)}>
+                        <HugeIcon name={isViewMode ? 'edit-02' : 'eye'} />
+                        <span>{isViewMode ? 'Edit' : 'Read'}</span>
+                    </button>
+                    <div class="notebook-cover-picker-wrap">
+                        <button type="button" class="notebook-mode-btn" id="notebookCoverBtn"
+                            data-cuelume-open="open" data-cuelume-emphasis="subtle"
+                            aria-expanded={showCoverPicker} title="Change cover colour"
+                            on:click={()=> { showCoverPicker = !showCoverPicker; }}>
+                            <span class="notebook-cover-swatch" style={coverStyle(currentCover)}></span>
+                            <span>Cover</span>
+                        </button>
+                        {#if showCoverPicker}
+                            <div class="notebook-cover-picker" role="listbox" aria-label="Cover colour">
+                                {#each NOTEBOOK_COVERS as cover (cover.id)}
+                                    <button type="button" class="notebook-cover-option"
+                                        class:selected={currentCover === cover.id}
+                                        style={coverStyle(cover.id)}
+                                        data-cuelume-select="select"
+                                        role="option" aria-selected={currentCover === cover.id}
+                                        title={cover.label} aria-label={cover.label}
+                                        on:click={()=> setCover(cover.id)}></button>
+                                {/each}
+                            </div>
+                        {/if}
+                    </div>
                     {#if showDelete}
                     <button type="button" class="notebook-btn notebook-btn-secondary" id="notebookDeleteBtn" style="display:inline-flex;color:var(--notebook-error);" data-cuelume-close="close" data-cuelume-emphasis="strong" on:click={deleteCurrent}><HugeIcon name="delete-02" /><span>Delete</span></button>
                     {/if}

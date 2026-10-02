@@ -5,13 +5,11 @@
     import { LoaderIcon } from "@hugeicons/core-free-icons";
     import { activeModalStore, activeTab } from '$lib/stores.js';
     import { sfx } from '$lib/sounds/index.js';
-    // coverStyle and getRibbon are called from the template for every entry. They
-// were missing here, so rendering the list threw `ReferenceError` and the whole
-// panel died — the URL changed to /notebooks but the tab never rendered.
-// coverStyle and getRibbon are called from the template for every entry. They
-// were missing here, so rendering the list threw `ReferenceError` and the whole
-// panel died — the URL changed to /notebooks but the tab never rendered.
-import { NOTEBOOK_COVERS, DEFAULT_COVER, coverLabel, coverStyle, getRibbon } from '$lib/utils/notebookCover.js';
+    // coverStyle and getRibbon are called from the template for every cover.
+// They were missing here, so rendering the shelf threw `ReferenceError` and
+    // the whole panel died — the URL changed to /notebooks but the tab never
+// rendered.
+import { NOTEBOOK_COVERS, DEFAULT_COVER, coverStyle, getRibbon } from '$lib/utils/notebookCover.js';
 
     let notebooks = [];
     let filter = 'all';
@@ -443,9 +441,9 @@ import { NOTEBOOK_COVERS, DEFAULT_COVER, coverLabel, coverStyle, getRibbon } fro
     </div>
 </div>
 
-<!-- Shelf of entries. Each card is one flat surface: a colour spine, the title
-     on the page background, and a single hover-revealed action row. No nested
-     panels, no gradients — the depth comes from the cover colour and a hairline. -->
+<!-- A shelf of notebooks, each drawn as an A4 cover: portrait card, flat
+     colour, the title ON the cover, and a ribbon strap. The cover is the
+     object, not a row in a list — so nothing sits beside a colour chip. -->
 <div id="notebooksGridInTab" class="notebooks-grid notebooks-shelf">
     {#if loading}
         <div class="notebook-loading">
@@ -453,69 +451,63 @@ import { NOTEBOOK_COVERS, DEFAULT_COVER, coverLabel, coverStyle, getRibbon } fro
         </div>
     {:else if filteredNotebooks.length > 0}
         {#each filteredNotebooks as note (note.id || note.updatedAt)}
-            <div class="notebook-card notebook-entry"
+            <article class="notebook-cover"
                 style={coverStyle(note.cover)}
                 role="button" tabindex="0"
+                aria-label={note.title || 'Untitled Note'}
                 data-cuelume-navigate="navigate" data-cuelume-emphasis="subtle"
                 onclick={() => openNote(note)}
                 onkeydown={(e)=>{ if (e.key==='Enter') { e.preventDefault(); openNote(note); } }}>
-                <div class="notebook-entry-spine" aria-hidden="true"></div>
 
-                {#if getRibbon(note.ribbon)}
-                    <span class="notebook-ribbon" data-ribbon={note.ribbon} title={getRibbon(note.ribbon).label} aria-label={getRibbon(note.ribbon).label}></span>
-                {/if}
+                <!-- Ribbon: a bookmark strap hanging over the top edge. -->
+                <span class="notebook-cover-ribbon" data-ribbon={note.ribbon || 'none'}
+                    title={getRibbon(note.ribbon)?.label || 'No ribbon'}
+                    aria-hidden="true"></span>
 
-                <div class="notebook-entry-body">
-                    <div class="notebook-entry-head">
-                        {#if renamingFor === note.id}
-                            <!-- Inline rename: the title is already on screen, so
-                                 it becomes an input in place rather than opening a
-                                 dialog to ask for a string that is already visible. -->
-                            <input class="notebook-entry-title-input" type="text" maxlength="100"
-                                data-cuelume-type
-                                bind:value={renameDraft}
-                                onclick={(e)=> e.stopPropagation()}
-                                onblur={()=> commitRename(note)}
-                                onkeydown={(e)=>{ if (e.key==='Enter') { e.preventDefault(); commitRename(note); } if (e.key==='Escape') { renamingFor = null; } }}
-                                aria-label="Note title" />
-                        {:else}
-                            <h3 class="notebook-entry-title">{note.title || 'Untitled Note'}</h3>
-                        {/if}
-                        <span class="notebook-entry-cover-name">{coverLabel(note.cover)}</span>
-                    </div>
+                <div class="notebook-cover-face">
+                    {#if renamingFor === note.id}
+                        <input class="notebook-cover-title-input" type="text" maxlength="100"
+                            data-cuelume-type
+                            bind:value={renameDraft}
+                            onclick={(e)=> e.stopPropagation()}
+                            onblur={()=> commitRename(note)}
+                            onkeydown={(e)=>{ if (e.key==='Enter') { e.preventDefault(); commitRename(note); } if (e.key==='Escape') { renamingFor = null; } }}
+                            aria-label="Note title" />
+                    {:else}
+                        <h3 class="notebook-cover-title">{note.title || 'Untitled Note'}</h3>
+                    {/if}
 
-                    <p class="notebook-entry-preview">{stripHtml(note.content)}</p>
+                    <p class="notebook-cover-preview">{stripHtml(note.content)}</p>
 
-                    <div class="notebook-entry-meta">
-                        <span class="notebook-entry-date">{note.updatedAt ? new Date(note.updatedAt).toLocaleDateString(undefined, { month:'short', day:'numeric' }) : ''}</span>
-                        <span class="notebook-entry-flags">
+                    <div class="notebook-cover-foot">
+                        <span class="notebook-cover-date">
+                            {note.updatedAt ? new Date(note.updatedAt).toLocaleDateString(undefined, { month:'short', day:'numeric' }) : ''}
+                        </span>
+                        <span class="notebook-cover-flags">
                             {#if note.linkedPdf}
-                                <span class="notebook-entry-flag" title={note.linkedPdf.name || 'Linked to a PDF'}><HugeIcon name="link-01" /></span>
+                                <span class="notebook-cover-flag" title={note.linkedPdf.name || 'Linked to a PDF'}><HugeIcon name="link-01" /></span>
                             {/if}
                             {#if note.syncedToCloud}
-                                <span class="notebook-entry-flag is-synced" title="Synced"><HugeIcon name="cloud-check" /></span>
+                                <span class="notebook-cover-flag is-synced" title="Synced"><HugeIcon name="cloud-check" /></span>
                             {/if}
                         </span>
                     </div>
                 </div>
 
-                <div class="notebook-entry-actions">
-                    <button class="notebook-entry-btn" data-cuelume-select="select" title="Change cover"
-                        aria-label="Change cover of {note.title || 'Untitled Note'}"
+                <!-- On the cover, but hover-only, so the shelf reads as books
+                     rather than as a toolbar grid. -->
+                <div class="notebook-cover-actions">
+                    <button class="notebook-cover-btn" data-cuelume-select="select" title="Change cover colour"
+                        aria-label="Change cover colour of {note.title || 'Untitled Note'}"
                         onclick={(e)=> { e.stopPropagation(); toggleCoverPicker(note.id); }}>
                         <span class="notebook-cover-swatch" style={coverStyle(note.cover)}></span>
                     </button>
-                    <button class="notebook-entry-btn" data-cuelume-select="select" title="Rename"
+                    <button class="notebook-cover-btn" data-cuelume-select="select" title="Rename"
                         aria-label="Rename {note.title || 'Untitled Note'}"
                         onclick={(e)=> { e.stopPropagation(); startRename(note); }}>
                         <HugeIcon name="pencil-edit-02" />
                     </button>
-                    <button class="notebook-entry-btn" data-cuelume-tap="navigate" data-cuelume-emphasis="subtle" title="Open"
-                        aria-label="Open {note.title || 'Untitled Note'}"
-                        onclick={(e)=> { e.stopPropagation(); openNote(note); }}>
-                        <HugeIcon name="eye" />
-                    </button>
-                    <button class="notebook-entry-btn is-danger" data-cuelume-close="close" data-cuelume-emphasis="strong" title="Delete"
+                    <button class="notebook-cover-btn is-danger" data-cuelume-close="close" data-cuelume-emphasis="strong" title="Delete"
                         aria-label="Delete {note.title || 'Untitled Note'}"
                         onclick={(e)=> { e.stopPropagation(); deleteNote(note.id); }}>
                         <HugeIcon name="delete-02" />
@@ -523,10 +515,10 @@ import { NOTEBOOK_COVERS, DEFAULT_COVER, coverLabel, coverStyle, getRibbon } fro
                 </div>
 
                 {#if coverPickerFor === note.id}
-                    <div class="notebook-entry-covers" role="listbox" aria-label="Cover colour"
+                    <div class="notebook-cover-palette" role="listbox" aria-label="Cover colour"
                         onclick={(e)=> e.stopPropagation()}>
                         {#each NOTEBOOK_COVERS as cover (cover.id)}
-                            <button type="button" class="notebook-entry-cover-option"
+                            <button type="button" class="notebook-cover-swatch-option"
                                 class:selected={(note.cover || DEFAULT_COVER) === cover.id}
                                 style={coverStyle(cover.id)}
                                 data-cuelume-select="select"
@@ -536,7 +528,7 @@ import { NOTEBOOK_COVERS, DEFAULT_COVER, coverLabel, coverStyle, getRibbon } fro
                         {/each}
                     </div>
                 {/if}
-            </div>
+            </article>
         {/each}
     {/if}
 </div>

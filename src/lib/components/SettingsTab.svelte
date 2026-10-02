@@ -1367,7 +1367,7 @@
                     </div>
                     <div class="sounds-volume-control">
                         <input type="range" id="soundVolumeSlider" min="0" max="100" step="5"
-                            value={Math.round($soundVolume * 100)} class="warmth-slider"
+                            value={Math.round($soundVolume * 100)} class="sounds-slider"
                             aria-label="Sound volume" data-cuelume-select="select" data-cuelume-emphasis="subtle"
                             on:input={(e)=>{ setSoundVolume(Number(e.target.value) / 100); }}
                             on:change={(e)=>{ setSoundVolume(Number(e.target.value) / 100); sfx('tap', { emphasis: 'subtle' }); }}>
@@ -1398,6 +1398,7 @@
                         <button type="button" class="sounds-preview-btn sounds-preview-btn-danger" data-cuelume-close="error" title="Error"
                             on:click={() => sfx('error')}>Error</button>
                     </div>
+                    <p class="sounds-preview-note">Cues play once, never stacked.</p>
                 </div>
             </div>
         {/if}

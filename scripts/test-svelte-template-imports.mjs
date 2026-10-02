@@ -201,7 +201,9 @@ for (const file of COMPONENTS) {
 const tab = readFileSync(new URL('../src/lib/components/NotebooksTab.svelte', import.meta.url), 'utf8');
 const tabImports = tab.match(/import\s+\{([^}]*)\}\s+from\s+['"][^'"]*notebookCover\.js['"]/);
 const imported = tabImports ? tabImports[1] : '';
-for (const helper of ['coverStyle', 'coverLabel', 'getRibbon', 'NOTEBOOK_COVERS', 'DEFAULT_COVER']) {
+// coverLabel is deliberately gone: the A4 design prints the title on the
+// cover, so there is no separate colour-name chip beside it.
+for (const helper of ['coverStyle', 'getRibbon', 'NOTEBOOK_COVERS', 'DEFAULT_COVER']) {
   check(`NotebooksTab imports ${helper} from notebookCover.js`, imported.includes(helper));
 }
 
