@@ -301,7 +301,26 @@
                 } else if (offlineRecord.blob) {
                     offlineArrayBuffer = await offlineRecord.blob.arrayBuffer();
                 } else if (offlineRecord.data) {
-                    offlineArrayBuffer = offlineRecord.data.buffer || offlineRecord.data;
+                    // Must normalise a VIEW, not take .buffer raw.
+                    //
+                    // `data.buffer` is the whole underlying ArrayBuffer, which
+                    // for a Uint8Array that is a subarray view is larger than
+                    // the PDF: it can carry the bytes of a neighbouring write.
+                    // setupAnnotIdentity() SHA-256s exactly what it is given, so
+                    // over-reading changed the sidecar key — the annotation was
+                    // SAVED under one hash and looked up under another, which
+                    // presented as "saved (1)" but never restored, on the very
+                    // same file. Slice the view to its own bytes.
+                    const view = ArrayBuffer.isView(offlineRecord.data)
+                        ? new Uint8Array(
+                              offlineRecord.data.buffer,
+                              offlineRecord.data.byteOffset,
+                              offlineRecord.data.byteLength
+                          )
+                        : offlineRecord.data;
+                    offlineArrayBuffer = view instanceof ArrayBuffer
+                        ? view
+                        : view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
                 }
                 hasOfflineData = true;
                 activeViewerUrl = url;
