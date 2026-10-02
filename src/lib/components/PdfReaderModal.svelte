@@ -104,11 +104,18 @@
     }
 
     function annotDiag(...args) {
-        // Diagnostic marker: grep the app log for ANNOTDIAG.
-        try { console.log('[ANNOTDIAG]', ...args); } catch {}
+        const line = args.map(a => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
+        try { console.log('[ANNOTDIAG] ' + line); } catch {}
         try {
             window.__materioAnnotDiag = window.__materioAnnotDiag || [];
-            window.__materioAnnotDiag.push(args.map(a => (typeof a === 'string' ? a : JSON.stringify(a))).join(' '));
+            window.__materioAnnotDiag.push(line);
+        } catch {}
+        // Persist to the app's annot-diag.log. tauri-plugin-log's Webview
+        // target only forwards calls made through its own JS package, which is
+        // not installed, so console.* alone never reached a file.
+        try {
+            const invoke = window.__TAURI__?.core?.invoke || window.__TAURI__?.invoke;
+            if (typeof invoke === 'function') invoke('annot_diag', { line }).catch(() => {});
         } catch {}
     }
 

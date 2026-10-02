@@ -1,0 +1,100 @@
+﻿<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>annot harness</title>
+<style>body{margin:0;font:13px monospace}#log{white-space:pre-wrap;padding:8px;background:#111;color:#0f0}</style>
+</head>
+<body>
+<pre id="log">booting…</pre>
+<iframe id="fr" style="width:1200px;height:800px;border:1px solid #888"></iframe>
+<script>
+// Mirrors PdfReaderModal + sidecar.js, but against the REAL pdf.mjs/viewer.mjs.
+// Answers: does a saved highlight actually get restored on a cold open?
+const PDF_URL = '/build/assets/data/Seating%20Arrangement_7th%20Sem_Btech.pdf';
+
+// Exactly the shape HighlightEditor.serialize() emits in this pdf.mjs build:
+//   { annotationType: 9, color, opacity, thickness, quadPoints: Float32Array,
+//     outlines, pageIndex, rect, rotation, structTreeParentId, id }
+const SAVED = {
+  id: 'pdf0178',
+  annotationType: 9,
+  color: [135, 203, 140],
+  opacity: 1,
+  thickness: 1,
+  quadPoints: new Float32Array([40, 60, 300, 60, 40, 80, 300, 80]),
+  outlines: null,
+  pageIndex: 0,
+  rect: [40, 60, 300, 80],
+  rotation: 0,
+  structTreeParentId: null,
+};
+
+const lines = [];
+const log = (...a) => { lines.push(a.join(' ')); out.textContent = lines.join('\n'); };
+const out = document.getElementById('log');
+const fr = document.getElementById('fr');
+
+window.addEventListener('message', (e) => {
+  if (!e.data || typeof e.data.type !== 'string') return;
+  const d = e.data;
+  if (d.type === 'materioAnnotReady') {
+    log('<- materioAnnotReady  (posting init)');
+    fr.contentWindow.postMessage({ type: 'materioAnnotInit', annotations: { storage: { [SAVED.id]: SAVED } } }, '*');
+  } else if (d.type === 'materioAnnotSync' || d.type === 'materioAnnotSynced') {
+    const st = (d.annotations && d.annotations.storage) || {};
+    const n = Object.keys(st).length;
+    window.__lastSync = st;
+    log('<- ' + d.type + '  entries=' + n + (n === 0 ? '   <-- EMPTY' : ''));
+  } else if (d.type === 'materioAnnotDiag') {
+    log('   DIAG ' + d.line);
+  }
+});
+
+fr.src = '/static/oread/web/viewer.html?file=' + encodeURIComponent(PDF_URL);
+
+// Capture the viewer's console once it exists (same origin, so reachable).
+let patched = false;
+const patchConsole = () => {
+  if (patched) return;
+  try {
+    const w = fr.contentWindow;
+    const orig = w.console.log.bind(w.console);
+    w.console.log = (...a) => { log('   [js] ' + a.map(String).join(' ')); orig(...a); };
+    patched = true;
+  } catch (e) {}
+};
+const iv = setInterval(patchConsole, 100);
+
+setTimeout(() => {
+  clearInterval(iv);
+  let report;
+  try {
+    const w = fr.contentWindow;
+    const A = w.PDFViewerApplication;
+    const pv = A.pdfViewer;
+    const doc = A.pdfDocument;
+    const st = doc.annotationStorage;
+    const all = st.getAll();
+    const v0 = pv.getPageView(0);
+    const builder = v0 && v0.annotationEditorLayer;
+    const inner = builder && builder.annotationEditorLayer;
+    const edDivs = w.document.querySelectorAll('.annotationEditorLayer > div').length;
+    report = {
+      docLoaded: !!doc,
+      storageEntries: Object.keys(all).length,
+      storageKeys: Object.keys(all),
+      builderExists: !!builder,
+      innerLayerExists: !!inner,
+      hasDeserialize: !!(inner && typeof inner.deserialize === 'function'),
+      renderedEditorDivs: edDivs,
+      editorMode: A.prefs && A.prefs.annotationEditorMode,
+    };
+  } catch (e) {
+    report = { harnessError: String(e && e.stack || e) };
+  }
+  lines.push('', '===== VERDICT =====', JSON.stringify(report, null, 1));
+  out.textContent = lines.join('\n');
+}, 12000);
+</script>
+</body>
+</html>
+

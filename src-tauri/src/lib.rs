@@ -432,6 +432,42 @@ fn app_window_is_maximized(window: tauri::Window) -> bool {
     window.is_maximized().unwrap_or(false)
 }
 
+/// Appends one diagnostic line to the app log file.
+///
+/// Exists because tauri-plugin-log's Webview target only forwards calls made
+/// through its own JS API, and that package is not installed here — so raw
+/// `console.log` from the app (and from the PDF viewer iframe, which has no
+/// devtools in a packaged build) never reaches the log file. That made a failing
+/// PDF annotation restore completely undiagnosable: the whole failure path is JS
+/// and none of it was persisted.
+///
+/// Called from JS via `window.__TAURI__.core.invoke`, same transport as
+/// `open_external_url`.
+#[tauri::command]
+fn annot_diag(app: tauri::AppHandle, line: String) {
+    let clean: String = line
+        .chars()
+        .filter(|c| *c != '\n' && *c != '\r')
+        .take(4000)
+        .collect();
+    if let Some(dir) = app.path().app_log_dir().ok() {
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("annot-diag.log");
+        use std::io::Write;
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+        {
+            let stamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            let _ = writeln!(f, "[{}] {}", stamp, clean);
+        }
+    }
+}
+
 /// Opens an off-app link in the OS default browser (room posts, status
 /// page, share URLs, …). The desktop WebView ships no opener plugin, so
 /// plain target=_blank links would otherwise do nothing. Only http(s)
@@ -460,7 +496,8 @@ pub fn run() {
             app_window_toggle_maximize,
             app_window_close,
             app_window_is_maximized,
-            open_external_url
+            open_external_url,
+            annot_diag
         ])
         // Second launches (e.g. materio:// taps from the browser while the
         // app runs) focus the existing window and forward the URL instead

@@ -71,6 +71,23 @@
     var restoreTimer = null;
     var pollTimer = null;
 
+    // editor.id -> last known-good serialized entry for an editor we restored.
+    //
+    // PDF.js builds editors from raw editor data WITHOUT setting _initialData
+    // (that field is only populated when deserializing an existing PDF
+    // annotation), but HighlightEditor.serialize() calls #hasElementChanged(),
+    // which destructures _initialData - so serialize() THROWS on every restored
+    // highlight. snapshotPlain() caught the throw, skipped the key, and returned
+    // {} - which the parent read as "this PDF has no annotations", rebased its
+    // baseline to it, and then persisted the empty record. The annotations were
+    // rendered correctly and then destroyed on the next save. That is the whole
+    // "saved, but never comes back" bug.
+    //
+    // Keeping the entry we fed in gives the snapshot a truthful value for an
+    // editor PDF.js refuses to serialize, so no restored editor can ever blank
+    // the record again.
+    var restoredFallback = {};
+
     function app() {
         return window.PDFViewerApplication || null;
     }
@@ -179,14 +196,33 @@
                 // Live editor instance: serialize it in isolation.
                 try {
                     var s = v.serialize(false);
-                    if (!s || typeof s !== 'object') continue;
+                    if (!s || typeof s !== 'object') {
+                        // serialize() returns null for an editor PDF.js considers
+                        // unchanged or empty. Fall back rather than drop it.
+                        var fb0 = restoredFallback[k] || restoredFallback[(v && v.id) || ''];
+                        if (fb0) { out[k] = fb0; }
+                        continue;
+                    }
                     if (s.bitmap) continue;
                     var copy = jsonSafe(s);
                     if (copy && typeof copy === 'object' && isEditorData(copy)) {
                         out[k] = copy;
+                    } else if (restoredFallback[k]) {
+                        out[k] = restoredFallback[k];
                     }
                 } catch (e) {
-                    /* skip this editor only */
+                    // PDF.js threw (typically _initialData being null on an
+                    // editor we restored). Use the entry we restored from so the
+                    // snapshot stays truthful - an empty snapshot is what
+                    // destroys the saved record.
+                    var fb = restoredFallback[k] || restoredFallback[(v && v.id) || ''];
+                    if (fb) {
+                        diag('snap fallback used key=' + k, 'from=' +
+                            (restoredFallback[k] ? k : (v && v.id)), 'err=' + String(e && e.message || e));
+                        out[k] = fb;
+                    } else {
+                        diag('snap DROPPED key=' + k, String(e && e.message || e));
+                    }
                 }
             } else if (isEditorData(v)) {
                 try {
@@ -410,6 +446,28 @@
                     var editor = await layer.deserialize(entry);
                     diag('deserialize key=' + key, 'page=' + pageIndex,
                         'returned=' + !!editor, 'hasAddOrRebuild=' + (typeof layer.addOrRebuild === 'function'));
+                    if (editor) {
+                        // A restored editor is NOT backed by a PDF annotation
+                        // element, so annotationElementId must be null. Leaving
+                        // it set makes serialize() take the #hasElementChanged()
+                        // path, which throws because _initialData is null.
+                        try {
+                            if (editor.annotationElementId && !editor._initialData) {
+                                diag('neutralise annotationElementId key=' + key,
+                                    'was=' + editor.annotationElementId);
+                                editor.annotationElementId = null;
+                            }
+                        } catch (e2) { /* ignore */ }
+                        // Remember what we fed in, keyed by the id PDF.js will
+                        // store it under, so snapshotPlain can fall back to it.
+                        try {
+                            var safeEntry = jsonSafe(entry);
+                            if (safeEntry && typeof safeEntry === 'object') {
+                                var fallbackKey = editor.id || key;
+                                restoredFallback[fallbackKey] = safeEntry;
+                            }
+                        } catch (e3) { /* ignore */ }
+                    }
                     if (editor && typeof layer.addOrRebuild === 'function') {
                         layer.addOrRebuild(editor);
                         appliedIds[key] = true;
@@ -584,6 +642,7 @@
             lastInitStr = null;
             initApplied = false;
             appliedIds = {};
+            restoredFallback = {}; // annotationStorage is per-document
             if (d) {
                 try {
                     var a = app();
