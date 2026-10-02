@@ -424,19 +424,28 @@
     function scheduleRestore(attempt, remaining) {
         if (!pending) return;
         if ((attempt || 0) > RESTORE_MAX_ATTEMPTS) {
-            // Pages never became available: restore what we could and rebase
-            // anyway. A stuck pending restore must never leave phantom dirt.
-            try {
-                if (remaining) {
-                    for (var i = 0; i < remaining.length; i++) {
-                        appliedIds[remaining[i]] = true;
-                    }
-                }
-            } catch (e) { /* ignore */ }
-            pending = null;
-            initApplied = true;
-            hookStorage();
-            emitSynced();
+            // Pages / editor layers never became available in time.
+            //
+            // This used to give up here and emit synced with whatever had been
+            // applied so far - which at this point is usually NOTHING. The parent
+            // treats a sync as the canonical snapshot and rebases its baseline to
+            // it, so an empty sync told it "this PDF has no annotations". The next
+            // save then wrote that empty snapshot OVER the real record and the
+            // annotations were destroyed permanently. That is the "saved (N)" but
+            // never comes back bug: data loss, not a rendering failure.
+            //
+            // PDF.js defaults annotationEditorMode to NONE (viewer.mjs), so
+            // pageView.annotationEditorLayer only exists once a tool is activated
+            // or the page carrying the annotation has rendered. A large PDF opened
+            // near the end blows past the old 30 x 1s window easily.
+            //
+            // So: keep retrying quietly for as long as the document is open, and
+            // do NOT emit a synced message we already know is incomplete. Silence
+            // cannot destroy anything.
+            restoreTimer = setTimeout(function () {
+                restoreTimer = null;
+                applyPending(attempt || 0);
+            }, RESTORE_RETRY_MS);
             return;
         }
         if (restoreTimer) clearTimeout(restoreTimer);
@@ -460,8 +469,41 @@
             } catch (e) { /* ignore */ }
         }
         try {
+            hookEditorModeChanges();
             window.parent.postMessage({ type: 'materioAnnotReady' }, '*');
         } catch (e) { /* ignore */ }
+    }
+
+    /**
+     * Re-run a pending restore the moment the annotation editor mode changes.
+     *
+     * This is what actually unblocks restore. PDF.js defaults
+     * annotationEditorMode to NONE, and only builds pageView.annotationEditorLayer
+     * once a mode is active - so at load time the deserialize() target simply
+     * does not exist and every entry lands in `remaining`. Polling cannot fix
+     * that, because nothing will ever change the mode on its own: the user has
+     * to pick the highlight / text / draw tool. PDF.js fires
+     * `annotationeditormodechanged` at exactly that moment, so re-running
+     * applyPending there means saved annotations appear as soon as the reader
+     * touches any annotation tool, with no UI state forced from here.
+     */
+    function hookEditorModeChanges() {
+        try {
+            var bus = app() && app().eventBus;
+            if (!bus || typeof bus.on !== 'function' || bus.__materioAnnotHooked) return;
+            bus.__materioAnnotHooked = true;
+            bus.on('annotationeditormodechanged', function () {
+                if (!pending || applying) return;
+                try {
+                    appliedIds = {};
+                    if (restoreTimer) {
+                        clearTimeout(restoreTimer);
+                        restoreTimer = null;
+                    }
+                    applyPending(0);
+                } catch (e) { /* ignore */ }
+            });
+        } catch (e) { /* older bundles may not expose this */ }
     }
 
     window.addEventListener('message', function (event) {

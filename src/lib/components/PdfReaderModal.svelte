@@ -163,7 +163,24 @@
 
     function queueAnnotSave(storage, opts = {}) {
         if (!pdfHash) return;
-        pendingAnnotStorage = storage || {};
+        const incoming = storage || {};
+
+        // Never let an EMPTY snapshot replace a non-empty one we already hold.
+        //
+        // The viewer emits a sync after restore; if its restore could not reach
+        // every page (PDF.js only builds editor layers for rendered pages, and
+        // the editor mode defaults to NONE) that sync can legitimately be empty
+        // or partial. Adopting it rebases the baseline to "no annotations", and
+        // the next save then writes that emptiness over the real record -
+        // destroying annotations the user never touched. So a shrink to empty is
+        // treated as "the viewer has not caught up yet", not as a deletion.
+        const incomingEmpty = Object.keys(incoming).length === 0;
+        const held = Object.keys(pendingAnnotStorage || {}).length;
+        if (incomingEmpty && held > 0 && !opts.allowEmpty) {
+            return;
+        }
+
+        pendingAnnotStorage = incoming;
         if (opts.synced) {
             // Post-restore canonical snapshot (fresh editor ids): rebase the
             // clean baseline instead of flagging dirty.
