@@ -70,11 +70,30 @@ import { NOTEBOOK_COVERS, DEFAULT_COVER, coverLabel, coverStyle, getRibbon } fro
     }
 
     function createNoteWithCover() {
-        // The editor owns note creation (it resets title/content and assigns the
-        // id). Creating a stub note here just to stamp a cover produced TWO
-        // notes per click — a blank shelf entry plus the real one. The editor
-        // now assigns a cover itself on first save, so this just delegates.
-        window.createNewNotebook?.(true);
+        // The editor owns note creation (it resets title/content and assigns
+        // the id), so creating a stub note here just to stamp a cover produced
+        // TWO notes per click — a blank shelf entry plus the real one. The
+        // editor now assigns a cover itself on first save.
+        //
+        // Go through __materioNotebookCreate, the canonical implementation
+        // NotebookEditor publishes. window.createNewNotebook is written by BOTH
+        // NotebookEditor and MainApp (which wraps it) and MainApp deletes it on
+        // destroy, so calling it through optional chaining could silently do
+        // nothing at all — which is what made "New Note" do nothing.
+        try {
+            if (typeof window.__materioNotebookCreate === 'function') {
+                window.__materioNotebookCreate(true);
+                return;
+            }
+            if (typeof window.createNewNotebook === 'function') {
+                window.createNewNotebook(true);
+                return;
+            }
+        } catch (e) {
+            console.error('New note failed:', e);
+        }
+        // Last resort: open the editor directly so the click is never a no-op.
+        activeModalStore.set('notebook');
     }
 
     function getAuthToken() {

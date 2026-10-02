@@ -182,8 +182,7 @@
                         updatedAt = existing.updatedAt || null;
                         showDelete = true;
                         isViewMode = false;
-                        if (editorEl) { editorEl.innerHTML = contentHtml; updateWordCount(); }
-                        activeModalStore.set('notebook');
+                        openEditor();
                         return;
                     }
                     title = `Notes on ${pdfState.topic || pdfState.title || 'PDF'}`;
@@ -196,7 +195,7 @@
                     createdAt = null;
                     updatedAt = null;
                     if (editorEl) { editorEl.innerHTML = ''; updateWordCount(); }
-                    activeModalStore.set('notebook');
+                    openEditor();
                     return;
                 }
                 title = 'Untitled Note';
@@ -209,7 +208,7 @@
                 createdAt = null;
                 updatedAt = null;
                 if (editorEl) { editorEl.innerHTML = ''; updateWordCount(); }
-                activeModalStore.set('notebook');
+                openEditor();
             };
             window.openNotebook = (id) => {
                 try {
@@ -229,7 +228,6 @@
                     updatedAt = existing.updatedAt || null;
                     showDelete = true;
                     isViewMode = false;
-                    setTimeout(()=> { if(editorEl) { editorEl.innerHTML = contentHtml; updateWordCount(); } }, 0);
                 } else {
                     // A stale id used to open the modal anyway, presenting
                     // whatever was last in the editor as if it were the note
@@ -244,9 +242,8 @@
                     updatedAt = null;
                     showDelete = false;
                     isViewMode = false;
-                    setTimeout(()=> { if(editorEl) { editorEl.innerHTML = ''; updateWordCount(); } }, 0);
                 }
-                activeModalStore.set('notebook');
+                openEditor();
             };
             window.MaterioNotebook = {
                 get isOpen() { let v; activeModalStore.subscribe(x=>v=x)(); return v==='notebook'; },
@@ -290,7 +287,34 @@
         return null;
     }
 
-    function closeModal() { activeModalStore.set(null); showLinkPdfModal=false; showExportModal=false; showAiOverlay=false; showCoverPicker=false; }
+    function closeModal() { activeModalStore.set(null); showLinkPdfModal=false; showExportModal=false; showAiOverlay=false; showCoverPicker=false; isViewMode=false; }
+
+    /** Writes the current note state into the live contenteditable. */
+    function paintEditor() {
+        if (isViewMode) { renderView(); updateWordCount(); return; }
+        if (editorEl) { editorEl.innerHTML = contentHtml || ''; updateWordCount(); }
+    }
+
+    /**
+     * Opens the editor, guaranteeing the note actually renders.
+     *
+     * `activeModalStore.set('notebook')` when the store is ALREADY 'notebook'
+     * notifies nobody — writable stores skip equal values — so opening from
+     * inside the editor (or reopening the same note) left the PREVIOUS note on
+     * screen with the new note's title, and the editor looked stuck. Closing
+     * first forces a real null -> 'notebook' transition, then the DOM is
+     * repainted once the editor is actually mounted.
+     */
+    function openEditor() {
+        const reopen = () => { activeModalStore.set('notebook'); tick().then(paintEditor); };
+        if (get(activeModalStore) === 'notebook') {
+            activeModalStore.set(null);
+            tick().then(reopen);
+        } else {
+            reopen();
+        }
+        sfx('open', { emphasis: 'subtle' });
+    }
 
     function updateWordCount() {
         // In read mode the live editor is unmounted, so the model HTML is the
