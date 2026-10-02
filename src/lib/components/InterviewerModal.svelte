@@ -147,7 +147,9 @@ import { get } from 'svelte/store';
 			// rarely semesters[0]. Same threshold logic as the exam card.
 			const now = new Date();
 			const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-			const showBefore = data.showBeforeDaysViva || 3;
+			// `||` discarded an admin-set 0 and fell back to 3, so "don't show
+			// early" showed 3 days early. Same fix as ExamCard.
+			const showBefore = Number(data.showBeforeDaysViva ?? 3);
 			const candidates = (data.semesters || []).filter(s =>
 				savedSem == null || String(s.semester) === String(savedSem)
 			);

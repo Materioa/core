@@ -16,7 +16,14 @@
 
         const daysUntilExam = Math.ceil((startDateOnly - today) / (1000 * 60 * 60 * 24));
         const isVivaExam = semester.exams && semester.exams.some(e => e.type === 'viva' || e.type === 'practical');
-        const showBefore = isVivaExam ? (data.showBeforeDaysViva || 3) : (data.showBeforeDays || 7);
+        // `||` here silently discarded an admin-set 0 and fell back to the
+        // default, so "show 0 days before" became "show 3 days before" and the
+        // card appeared early. Only fall back on a genuinely missing value.
+        const showBefore = Number(
+            isVivaExam
+                ? (data.showBeforeDaysViva ?? 3)
+                : (data.showBeforeDays ?? 7)
+        );
 
         // 1. Shows within showBeforeDays (e.g. 3 days) before exam starts
         if (daysUntilExam <= showBefore && daysUntilExam >= 0) return true;

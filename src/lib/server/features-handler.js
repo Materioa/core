@@ -1762,7 +1762,12 @@ async function handlePromotionsFeature(request, url) {
         }
 
         if (promos.length === 0) {
-          return serveLocalPromo();
+          // Mongo answered, and the answer is "nothing is live". Serving the
+          // bundled promo.json here resurrected promos an admin had just
+          // disabled — disabling the only promo kept showing it, because the
+          // stale build-time snapshot was treated as a fallback. Local data is
+          // only a fallback when Mongo itself is unavailable.
+          return json({ enabled: false, message: 'No active promotions' });
         }
 
         const activePromo = promos.find(promo => {
