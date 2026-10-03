@@ -1088,6 +1088,45 @@
                                 restoredFallback[fallbackKey] = safeEntry;
                             }
                         } catch (e3) { /* ignore */ }
+                        // FreeText is the ONE editor whose emptiness is read from
+                        // the DOM rather than from the deserialized data:
+                        //
+                        //   FreeTextEditor.isEmpty() {
+                        //     return !this.editorDiv || this.editorDiv.innerText.trim() === "";
+                        //   }
+                        //
+                        // and render() only fills editorDiv (#setContent, the
+                        // per-line <div>s holding #content) on the
+                        // `_isCopy || annotationElementId` branch. A sidecar
+                        // restore takes the OTHER branch every time:
+                        // annotationElementId was deliberately nulled two blocks
+                        // up, and _isCopy is false. The saved text therefore
+                        // lands in #content but renders as an EMPTY box:
+                        // isEmpty() stays true, uiManager.addToAnnotationStorage()
+                        // skips the editor (it only stores non-empty editors),
+                        // snapshotPlain() never sees it, and after five empty
+                        // retries the sidecar logs "empty gave up" and moves on -
+                        // the reader's text never reappears, while highlights and
+                        // drawings (geometry-based isEmpty) restore fine. That is
+                        // exactly the reported bug, in the reader's own
+                        // annot-diag.log: `vis ... edCls=freeTextEditor EMPTY=true
+                        // ... empty retry x5 ... empty gave up`.
+                        //
+                        // Flipping _isCopy routes the first render through the
+                        // copy branch: it fills editorDiv from #content, leaves
+                        // the box non-editable and draggable until the reader
+                        // clicks it - the same state a pasted text box starts in -
+                        // and _moveAfterPaste() re-sets the position it already
+                        // has, so geometry is untouched. It is left ON after the
+                        // attach deliberately: if PDF.js later destroys and
+                        // re-renders this editor (cleanup + heal), render() fills
+                        // the content again instead of the box coming back empty.
+                        try {
+                            if (entryCtor(entry) === 'FREETEXT') {
+                                editor._isCopy = true;
+                                diag('freetext copy-branch key=' + key);
+                            }
+                        } catch (e4) { /* ignore */ }
                     }
                     if (editor && (typeof layer.addOrRebuild === 'function' ||
                         typeof layer.add === 'function')) {

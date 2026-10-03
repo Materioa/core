@@ -706,6 +706,78 @@ try {
       `NaN=${rl.paint && rl.paint.pathHasNaN}`);
     check('legacy capture serialises', rl.serializeThrew === null, rl.serializeThrew || 'ok');
 
+    // ---------------- PHASE 2f: a TEXT (FreeText) annotation ---------------
+    // FreeText is the one editor whose emptiness is read from the DOM:
+    // FreeTextEditor.isEmpty() checks editorDiv.innerText, and render() only
+    // fills editorDiv (#setContent) on the `_isCopy || annotationElementId`
+    // branch - which a sidecar restore never takes (annotationElementId is
+    // deliberately null). The text landed in #content but rendered as an EMPTY
+    // box: addToAnnotationStorage skipped it, the snapshot never contained it,
+    // and the sidecar burned its five empty-retries ("empty gave up"). The
+    // reader's text never came back while highlights/drawings (geometry-based
+    // isEmpty) were fine. _isCopy routes the first render through the branch
+    // that fills the box.
+    console.log('\nPHASE 2f  FreeText annotation (typed text box)');
+    const ftEntry = {
+      annotationType: 3,          // AnnotationEditorType.FREETEXT in this build
+      color: [255, 0, 0],
+      fontSize: 12,
+      value: 'Hello annot probe',
+      pageIndex: 0,
+      rect: [100, 120, 300, 160],
+      rotation: 0,
+      structTreeParentId: null,
+      id: null,
+    };
+    const rft = JSON.parse(await restore({ pdfjs_internal_editor_0: ftEntry }, 1));
+    console.log('  ' + JSON.stringify(rft));
+    check('freetext restores into storage', rft.storage > 0, `storage=${rft.storage}`);
+    // THE assertion that bites: before the fix this stayed true forever and the
+    // entry never reached annotationStorage (see annot-diag.log "empty gave up").
+    check('freetext editor is not empty', rft.isEmpty === false, `isEmpty=${rft.isEmpty} ctor=${rft.ctor}`);
+    check('freetext payload produced a FreeTextEditor', rft.ctor === 'FreeTextEditor',
+      `ctor=${rft.ctor}`);
+    check('freetext editor is attached to the DOM', rft.attachedToDom === true,
+      `attached=${rft.attachedToDom}`);
+    check('freetext layer is not hidden', rft.layerDivHidden === false,
+      `layerDivHidden=${rft.layerDivHidden}`);
+    check('freetext editor has real geometry', !!rft.editorRect && rft.editorRect.w > 1 && rft.editorRect.h > 1,
+      JSON.stringify(rft.editorRect));
+    check('freetext annotation is reported in the sync', rft.synced === 1, `synced=${rft.synced}`);
+    check('restored freetext comes back unselected',
+      !!rft.selection && rft.selection.selectedDivs === 0 && rft.selection.editorIsSelected === false &&
+      rft.selection.visibleToolbars === 0 && rft.selection.uiHasSelection === false,
+      JSON.stringify(rft.selection));
+    const efFt = await editorFocusDuringRestore();
+    check('freetext restore never asks to focus the annotation',
+      Array.isArray(efFt) && efFt.length === 0,
+      efFt === null ? 'focus log unavailable' : JSON.stringify(efFt));
+    // The text itself: serialised value AND what the reader can see in the box.
+    const ftVal = JSON.parse(await ev(`(() => {
+      const w = document.getElementById('fr').contentWindow;
+      const wd = document.getElementById('fr').contentDocument;
+      const all = w.PDFViewerApplication.pdfDocument.annotationStorage.getAll() || {};
+      const k = Object.keys(all)[0]; const e = all[k];
+      if (!e) return JSON.stringify({ err: 'no editor in storage' });
+      let ser = null, serErr = null;
+      try { ser = JSON.parse(JSON.stringify(e.serialize(false))); } catch (x) { serErr = String(x.message); }
+      const ed = e.editorDiv;
+      return JSON.stringify({ ctor: e.constructor.name, isEmpty: e.isEmpty(),
+        value: ser ? ser.value : null, serErr,
+        divText: ed ? String(ed.innerText) : null });
+    })()`));
+    console.log('  freetext value -> ' + JSON.stringify(ftVal));
+    check('restored freetext serialises its text',
+      ftVal.value === 'Hello annot probe', JSON.stringify(ftVal.value || ftVal.serErr));
+    check('restored freetext displays its text in the box',
+      // pdf.js stores spaces as   in the divs (that is what
+      // #deserializeContent does), so normalise before comparing.
+      typeof ftVal.divText === 'string' &&
+        ftVal.divText.replace(/ /g, ' ').includes('Hello annot probe'),
+      JSON.stringify(ftVal.divText));
+    check('restored freetext is not empty (isEmpty agrees with the text)',
+      ftVal.isEmpty === false, String(ftVal.isEmpty));
+
     // ---------------- PHASE 4: deleting must actually stick ---------------
     // Restore works now, but deleting a restored highlight did not. Two things
     // have to happen for a deletion to reach the record:
