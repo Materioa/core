@@ -54,7 +54,8 @@ jobs:
   # ─────────────────────────────────────────────
   #  Which platforms does this push touch?
   #  Website-only pushes build NEITHER native app; android/** builds
-  #  Android only; src-tauri/** builds Windows only. Tags and manual
+  #  Android only; src-tauri/** builds Windows only. src/** and static/**
+  #  build BOTH, because the apps bundle those verbatim. Tags and manual
   #  runs default to both (dispatch can narrow via the platform input).
   # ─────────────────────────────────────────────
   changes:
@@ -90,7 +91,15 @@ jobs:
             # filter used to trigger on android/, src-tauri/ and this workflow
             # file alone, which meant src/ changes produced NO app build at
             # all — every web-side fix silently stopped at the web.
-            APP_PATHS='^(src/|packages/|package\.json$|package-lock\.json$|capacitor\.config\.json|vite\.config\.|svelte\.config\.|tailwind\.config\.|postcss\.config\.)'
+            #
+            # static/ belongs in the same list for the same reason: SvelteKit
+            # copies it verbatim into build/, and tauri.conf.json points
+            # frontendDist at ../build. The PDF viewer lives entirely there
+            # (static/oread/**, including the annotation sidecar), so a change
+            # to it ships to app users ONLY through a rebuild - and without
+            # this entry the filter skipped both app jobs, leaving the
+            # installed apps serving the previous sidecar.
+            APP_PATHS='^(src/|static/|packages/|package\.json$|package-lock\.json$|capacitor\.config\.json|vite\.config\.|svelte\.config\.|tailwind\.config\.|postcss\.config\.)'
             # BOTH apps, not Android only. src/ is the whole Svelte app: the
             # desktop app bundles it via `npm run build:static` (see
             # tauri.conf.json beforeBuildCommand), so a change here reaches
