@@ -774,6 +774,84 @@
         } catch (e) { /* ignore */ }
     }
 
+    // Attach a restored (or re-attached) editor WITHOUT letting PDF.js focus
+    // it, so opening a document never lands on an annotation the reader did
+    // not click.
+    //
+    // AnnotationEditorLayer.add() always ends in onceAdded(!#isEnabling). PDF.js
+    // passes FALSE while it batches editors in through enable(), which is why
+    // reopening a document through its own code leaves nothing selected. Every
+    // path here runs outside enable(), so it passes TRUE:
+    //
+    //     HighlightEditor.onceAdded(focus) { ...; if (focus) this.div.focus(); }
+    //
+    // and a focused editor selects itself:
+    //
+    //     focusin() -> parent.setSelected(this) -> classList.add('selectedEditor')
+    //                                      -> addEditToolbar().then(() => show())
+    //
+    // The result is exactly the reported symptom: the highlight comes back
+    // wearing the selection outline, with the floating colour toolbar over it,
+    // before the reader has touched anything. Free text and ink select even
+    // more directly - straight from onceAdded() - so silencing focusin alone
+    // would not be enough.
+    //
+    // So do what enable() does: force focus=false for the one call add() makes,
+    // then clear any selection that appeared anyway. Only undo a selection that
+    // APPEARED during this add - never one the reader already had.
+    function attachRestored(layer, editor) {
+        if (!layer || !editor) return;
+        var mgr = null;
+        var wasSelected = false;
+        try {
+            mgr = editor._uiManager || null;
+            wasSelected = !!(mgr && typeof mgr.isSelected === 'function' && mgr.isSelected(editor));
+        } catch (e0) { mgr = null; }
+
+        // Shadow onceAdded for the duration of add(): it takes focus as an
+        // argument, so this is the same lever #isEnabling pulls, just from
+        // outside the class. Hand the prototype back afterwards so later adds
+        // behave exactly as stock PDF.js.
+        var hadOwn = false;
+        var saved = null;
+        var shadowed = false;
+        try {
+            hadOwn = Object.prototype.hasOwnProperty.call(editor, 'onceAdded');
+            saved = editor.onceAdded;
+            editor.onceAdded = function (focus) { return saved.call(this, false); };
+            shadowed = true;
+        } catch (e1) { shadowed = false; }
+        try {
+            if (typeof layer.addOrRebuild === 'function') layer.addOrRebuild(editor);
+            else if (typeof layer.add === 'function') layer.add(editor);
+        } finally {
+            if (shadowed) {
+                try {
+                    if (hadOwn) editor.onceAdded = saved;
+                    else delete editor.onceAdded;
+                } catch (e2) { /* prototype lookup still resolves */ }
+            }
+        }
+
+        try {
+            if (mgr && !wasSelected && typeof mgr.isSelected === 'function' &&
+                mgr.isSelected(editor) && typeof mgr.unselect === 'function') {
+                mgr.unselect(editor);
+                diag('unselect after attach id=' + (editor.id || ''));
+            }
+        } catch (e3) { /* an unselect that throws still leaves it usable */ }
+
+        // If focus did land on it anyway, park it on the layer container rather
+        // than leaving the caret sitting inside an annotation.
+        try {
+            var ae = document.activeElement;
+            if (ae && editor.div && typeof editor.div.contains === 'function' &&
+                editor.div.contains(ae) && layer.div) {
+                layer.div.focus({ preventScroll: true });
+            }
+        } catch (e4) { /* ignore */ }
+    }
+
     // Re-assert restored editors that PDF.js has dropped.
     //
     // AnnotationEditorLayer.#cleanup() runs on every ordinary page draw and on
@@ -806,7 +884,7 @@
             if (!dropped) continue;
             try {
                 if (rec.layer && typeof rec.layer.add === 'function') {
-                    rec.layer.add(ed);
+                    attachRestored(rec.layer, ed);
                     if (rec.layer.div && rec.layer.div.hidden) rec.layer.div.hidden = false;
                     var r = ed.div && ed.div.getBoundingClientRect ? ed.div.getBoundingClientRect() : null;
                     diag('heal key=' + k, 'page=' + rec.pageIndex,
@@ -1011,8 +1089,9 @@
                             }
                         } catch (e3) { /* ignore */ }
                     }
-                    if (editor && typeof layer.addOrRebuild === 'function') {
-                        layer.addOrRebuild(editor);
+                    if (editor && (typeof layer.addOrRebuild === 'function' ||
+                        typeof layer.add === 'function')) {
+                        attachRestored(layer, editor);
                         // PDF.js hides the editor layer's own container while it
                         // is empty:
                         //     render()  ->  if (this.isEmpty) this.div.hidden = true

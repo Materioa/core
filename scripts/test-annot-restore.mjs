@@ -132,6 +132,15 @@ try {
 
   await send('Runtime.enable');
   await send('Page.enable');
+  // Focus is INERT until the page itself is focused. In a headless session
+  // nothing ever takes focus, so HTMLElement.focus() leaves activeElement on
+  // <body> and focusin never fires - which is how PDF.js's
+  // add() -> onceAdded(true) -> div.focus() -> focusin -> setSelected() selects
+  // a freshly restored annotation in the real app while every assertion here
+  // reported "not selected" and passed WITH the bug present. Turn on CDP focus
+  // emulation so the test exercises the same focus path a reader does.
+  await send('Emulation.setFocusEmulationEnabled', { enabled: true });
+  await send('Page.bringToFront');
   // The uiManager is published once, at document load, so the hook has to be
   // installed before any page script runs.
   await send('Page.addScriptToEvaluateOnNewDocument', { source: `
@@ -390,6 +399,24 @@ try {
             !/undefined|NaN|null|^none$|^transparent$/.test(f)),
         };
       } catch (x) { paint = { err: String(x && x.message) }; }
+      // Is anything left SELECTED after a restore? A restored editor must come
+      // back inert: the selection outline (.selectedEditor) and the floating
+      // .editToolbar are what the reader sees when PDF.js focused the editor
+      // while adding it, and they appear before anyone has clicked anything.
+      let selection = null;
+      try {
+        const sel = [...wd.querySelectorAll('.selectedEditor')];
+        const tb = [...wd.querySelectorAll('.editToolbar')];
+        const ae = wd.activeElement;
+        selection = {
+          selectedDivs: sel.length,
+          editorIsSelected: !!(e && e.div && e.div.classList.contains('selectedEditor')),
+          editToolbars: tb.length,
+          visibleToolbars: tb.filter((t) => !t.classList.contains('hidden')).length,
+          focusInsideEditor: !!(e && e.div && ae && e.div.contains(ae)),
+          uiHasSelection: (() => { try { return w.__ui ? !!w.__ui.hasSelection : null; } catch (x) { return null; } })(),
+        };
+      } catch (x) { selection = { err: String(x && x.message) }; }
       return JSON.stringify({
         rendered: wd.querySelectorAll('.annotationEditorLayer div').length,
         storage: Object.keys(all).length,
@@ -412,6 +439,7 @@ try {
         uiEditorsOnPage: inLayer,
         editorGetRect: rect,
         paint,
+        selection,
       });
     })()`;
     let rep = null;
@@ -422,6 +450,23 @@ try {
       await sleep(1000);
     }
     return JSON.stringify(rep || { err: 'report never became valid' });
+  };
+
+  // Every focus() the viewer asked for during the restore that just ran.
+  //
+  // Headless Chrome does not honour focus() in an unfocused window, so the
+  // "came back unselected" assertions are corroborating rather than decisive -
+  // they passed WITH the bug present. This one is decisive: the fix removes
+  // the focus request itself (attachRestored() forces onceAdded(focus=false),
+  // exactly as pdf.js's own enable() batch does), and reverting it puts the
+  // request straight back. See annot-restore-harness.html for the mechanism.
+  const editorFocusDuringRestore = async () => {
+    try {
+      const raw = await ev('JSON.stringify(window.__focusLogAll ? window.__focusLogAll() : [])');
+      const log = typeof raw === 'string' ? JSON.parse(raw) : null;
+      if (!Array.isArray(log)) return null;
+      return log.filter((f) => f && f.editor);
+    } catch (e) { return null; }
   };
 
   if (payload) {
@@ -445,6 +490,22 @@ try {
       `display=${r2.editorDisplay} visibility=${r2.editorVisibility} opacity=${r2.editorOpacity}`);
     check('editor is the top element at its own centre', !!r2.elementAtEditorCentre,
       `topEl=${r2.elementAtEditorCentre}`);
+    // Opening a document must not land the reader on an annotation they never
+    // clicked. add() calls onceAdded(!#isEnabling) and every path we drive runs
+    // outside enable(), so PDF.js focused the restored editor - focusin then
+    // selected it, painting the outline and the colour toolbar over it.
+    check('restored annotation comes back unselected',
+      !!r2.selection && r2.selection.selectedDivs === 0 && r2.selection.editorIsSelected === false &&
+      r2.selection.visibleToolbars === 0 && r2.selection.uiHasSelection === false,
+      JSON.stringify(r2.selection));
+    check('focus is not parked inside the restored annotation',
+      !!r2.selection && r2.selection.focusInsideEditor === false,
+      JSON.stringify(r2.selection));
+    // The assertion that actually catches the bug.
+    const ef2 = await editorFocusDuringRestore();
+    check('restore never asks to focus the annotation',
+      Array.isArray(ef2) && ef2.length === 0,
+      ef2 === null ? 'focus log unavailable' : JSON.stringify(ef2));
 
     // PHASE 2b: cold reopen landing on a DIFFERENT page than the annotation.
     // PDF.js restores the last-viewed page, so the page carrying an annotation
@@ -496,6 +557,14 @@ try {
       `topEl=${ri.elementAtEditorCentre}${ri.onTopNote || ''}`);
     check('ink editor is serializable', ri.serializeThrew === null, ri.serializeThrew || 'ok');
     check('ink annotation is reported in the sync', ri.synced === 1, `synced=${ri.synced}`);
+    check('restored ink comes back unselected',
+      !!ri.selection && ri.selection.selectedDivs === 0 && ri.selection.editorIsSelected === false &&
+      ri.selection.visibleToolbars === 0 && ri.selection.uiHasSelection === false,
+      JSON.stringify(ri.selection));
+    const efInk = await editorFocusDuringRestore();
+    check('ink restore never asks to focus the annotation',
+      Array.isArray(efInk) && efInk.length === 0,
+      efInk === null ? 'focus log unavailable' : JSON.stringify(efInk));
     // The synthetic ink payload must actually produce an InkEditor. If it does
     // not, this phase is measuring a leftover editor from an earlier phase and
     // every check above is meaningless.

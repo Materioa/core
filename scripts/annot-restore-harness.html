@@ -79,7 +79,49 @@ const patchConsole = () => {
     patched = true;
   } catch (e) {}
 };
-const iv = setInterval(patchConsole, 100);
+
+// Record every focus() the VIEWER makes, and mark which of them landed on an
+// annotation editor.
+//
+// This guards the "opening a PDF leaves my annotation selected" bug.
+// AnnotationEditorLayer.add() always ends in editor.onceAdded(!#isEnabling).
+// PDF.js passes FALSE while it batches editors in through enable(), which is
+// why reopening a document through its own code selects nothing. The sidecar's
+// restore runs outside enable(), so it used to pass TRUE, and
+// HighlightEditor.onceAdded then does div.focus() -> focusin() ->
+// setSelected(): the annotation comes back wearing the selection outline and
+// the floating colour toolbar, before the reader has clicked anything.
+//
+// The SELECTED outcome is not reliably observable here - headless Chrome does
+// not honour focus() in an unfocused window, so the outcome assertions can
+// pass with the bug present. The focus REQUEST cannot be faked away, and it is
+// precisely what the fix removes, so this is the assertion that actually bites.
+//
+// Re-hooked whenever the iframe navigates (its Window/global is replaced, so
+// the marker below disappears with it).
+const EDITOR_FOCUS = /(?:^|\s)(?:freeTextEditor|highlightEditor|inkEditor|signatureEditor|stampEditor)(?:\s|$)/;
+const patchFocus = () => {
+  try {
+    const w = fr.contentWindow;
+    if (!w || !w.HTMLElement || !w.document || w.__focusHooked) return;
+    window.__focusLog = [];
+    const orig = w.HTMLElement.prototype.focus;
+    w.HTMLElement.prototype.focus = function (...a) {
+      try {
+        const cn = this.className;
+        const cls = String(cn && typeof cn === 'object' ? cn.baseVal : (cn || this.tagName));
+        window.__focusLog.push({ cls, editor: EDITOR_FOCUS.test(cls) });
+      } catch (e) { /* never break focus itself */ }
+      return orig.apply(this, a);
+    };
+    w.__focusHooked = true;
+    log('   focus hook installed');
+  } catch (e) { /* not ready */ }
+};
+window.__focusLogAll = () => (window.__focusLog || []).slice();
+window.__focusLogReset = () => { window.__focusLog = []; };
+
+const iv = setInterval(() => { patchConsole(); patchFocus(); }, 100);
 
 setTimeout(() => {
   clearInterval(iv);
