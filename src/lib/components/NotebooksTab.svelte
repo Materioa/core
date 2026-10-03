@@ -355,20 +355,6 @@ import { NOTEBOOK_COVERS, DEFAULT_COVER, coverStyle, getRibbon } from '$lib/util
         }
     }
 
-    function stripHtml(html) {
-        if (!html) return 'Empty note';
-        try {
-            const d = document.createElement('div');
-            d.innerHTML = html;
-            // textContent, not innerText: innerText is layout-dependent and
-            // returns '' for a detached node, so previews silently vanished.
-            const t = (d.textContent || '').replace(/\s+/g, ' ').trim();
-            return t.substring(0, 140) || 'Empty note';
-        } catch {
-            return String(html).replace(/<[^>]*>/g, '').substring(0, 140) || 'Empty note';
-        }
-    }
-
     function openNote(note) {
         if (typeof window !== 'undefined' && window.openNotebook) {
             window.openNotebook(note.id);
@@ -464,6 +450,11 @@ import { NOTEBOOK_COVERS, DEFAULT_COVER, coverStyle, getRibbon } from '$lib/util
                     title={getRibbon(note.ribbon)?.label || 'No ribbon'}
                     aria-hidden="true"></span>
 
+                <!-- Title only. The cover is the book's spine, not a preview
+                     card: printing an excerpt of the note's body on it made
+                     every cover read as the same wall of truncated text and
+                     pushed the title out of view. The note opens on click
+                     when the full text is actually wanted. -->
                 <div class="notebook-cover-face">
                     {#if renamingFor === note.id}
                         <input class="notebook-cover-title-input" type="text" maxlength="100"
@@ -476,8 +467,6 @@ import { NOTEBOOK_COVERS, DEFAULT_COVER, coverStyle, getRibbon } from '$lib/util
                     {:else}
                         <h3 class="notebook-cover-title">{note.title || 'Untitled Note'}</h3>
                     {/if}
-
-                    <p class="notebook-cover-preview">{stripHtml(note.content)}</p>
 
                     <div class="notebook-cover-foot">
                         <span class="notebook-cover-date">

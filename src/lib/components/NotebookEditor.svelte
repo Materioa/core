@@ -21,6 +21,8 @@
     $: if ($activeModalStore !== 'notebook') {
         isViewMode = false;
         showCoverPicker = false;
+        showBlockMenu = false;
+        showMoreMenu = false;
     }
 
     export let noteId = null;
@@ -44,6 +46,43 @@
     let showAiOverlay = false;
     let aiPrompt = '';
     let showDelete = false;
+
+    // --- toolbar popovers ------------------------------------------------
+    // The strip used to be ~20 buttons that wrapped onto three rows. Only the
+    // tools used while writing stay inline now; headings and the occasional
+    // inserts live behind these two, and at most one is open at a time so the
+    // two can never overlap.
+    let showBlockMenu = false;
+    let showMoreMenu = false;
+
+    const BLOCK_LEVELS = [
+        { key: '¶', label: 'Body text', action: 'paragraph' },
+        { key: 'H1', label: 'Heading 1', action: 'heading1' },
+        { key: 'H2', label: 'Heading 2', action: 'heading2' },
+        { key: 'H3', label: 'Heading 3', action: 'heading3' }
+    ];
+
+    function toggleMenu(which) {
+        if (which === 'block') {
+            showBlockMenu = !showBlockMenu;
+            showMoreMenu = false;
+        } else {
+            showMoreMenu = !showMoreMenu;
+            showBlockMenu = false;
+        }
+    }
+
+    function closeMenus() {
+        showBlockMenu = false;
+        showMoreMenu = false;
+    }
+
+    /** Applies a toolbar action and dismisses the menu it came from. */
+    function runAndClose(which, action) {
+        if (which === 'block') showBlockMenu = false;
+        else showMoreMenu = false;
+        handleToolbar(action);
+    }
     let currentCover = DEFAULT_COVER;
     let createdAt = null;
     let updatedAt = null;
@@ -443,6 +482,10 @@
             case 'heading1': document.execCommand('formatBlock', false, '<h1>'); break;
             case 'heading2': document.execCommand('formatBlock', false, '<h2>'); break;
             case 'heading3': document.execCommand('formatBlock', false, '<h3>'); break;
+            // Back to a plain paragraph. Needed because the Block menu offers
+            // "Body text" as a destination — without this case it was a dead
+            // item, since <p> is not one of the three H buttons.
+            case 'paragraph': document.execCommand('formatBlock', false, '<p>'); break;
             case 'bulletList': document.execCommand('insertUnorderedList', false, null); break;
             case 'numberedList': document.execCommand('insertOrderedList', false, null); break;
             case 'checkbox': {
@@ -475,6 +518,37 @@
             case 'aiWrite': showAiOverlay = !showAiOverlay; break;
         }
         handleEditorInput();
+    }
+
+    /**
+     * Click-away and Escape for the toolbar popovers and the cover palette.
+     * Without this the open menu stays floating over the page, because
+     * `document.execCommand` moves the selection away from the trigger as soon
+     * as a format is applied — so the usual "blur to dismiss" never fires.
+     */
+    function handleDialogPointer(e) {
+        const t = e.target;
+        if (!t || !t.closest) return;
+        if (t.closest('.nb-menu-wrap')) return;
+        if (t.closest('.notebook-cover-picker-wrap')) return;
+        closeMenus();
+        if (!t.closest('#notebookCoverBtn')) showCoverPicker = false;
+    }
+
+    function handleDialogKeydown(e) {
+        if (e.key !== 'Escape') return;
+        if (showBlockMenu || showMoreMenu) {
+            closeMenus();
+            return;
+        }
+        if (showCoverPicker) {
+            showCoverPicker = false;
+            return;
+        }
+        if (showAiOverlay) {
+            showAiOverlay = false;
+            return;
+        }
     }
 
     function handleAttachment(e) {
@@ -554,14 +628,20 @@
 {#if $activeModalStore === 'notebook'}
     <div class="notebook-modal visible" id="notebookModal" role="dialog" aria-modal="true">
         <div class="notebook-backdrop" id="notebookBackdrop" on:click={closeModal}></div>
-        <div class="notebook-dialog">
+        <!-- Dismiss handlers live on the dialog, not the window: they must not
+             fire for the note's own clicks, and the Escape case has to know
+             which surface it is closing. -->
+        <div class="notebook-dialog" on:click={handleDialogPointer} on:keydown={handleDialogKeydown}>
+            <!-- A clipboard, not an app window. The board is the dialog, the
+                 clip is its top edge, and everything the note actually needs
+                 lives on one sheet of cream paper clipped to it. -->
+            <div class="notebook-spine" style={coverStyle(currentCover)} aria-hidden="true"></div>
+            <div class="notebook-clip" aria-hidden="true"></div>
+
+            <div class="notebook-sheet">
             <button type="button" class="notebook-close-btn" id="notebookCloseBtn" aria-label="Close Notebook" data-cuelume-close="close" data-cuelume-emphasis="subtle" on:click={closeModal}>
                 <HugeIcon name="cancel-01" />
             </button>
-
-            <!-- Cover spine: a thin colour bar carrying this note's cover, so the note
-                 is identifiable at a glance even while the editor is open. -->
-            <div class="notebook-spine" style={coverStyle(currentCover)} aria-hidden="true"></div>
 
             <div class="notebook-header">
                 <div class="notebook-title-section">
@@ -581,50 +661,98 @@
 
             <!-- Formatting belongs to writing. In read mode the whole strip is
                  replaced by nothing at all rather than left enabled over a pane
-                 that cannot be typed into. -->
+                 that cannot be typed into.
+
+                 One row, never wrapped. The tools used while writing are
+                 inline; headings and the occasional inserts live in two
+                 popovers. The old strip was ~20 buttons and folded onto three
+                 rows, which is most of why the editor felt like a toolbar app
+                 rather than a page of paper. -->
             {#if !isViewMode}
             <div class="notebook-toolbar" id="notebookToolbar">
                 <div class="toolbar-group toolbar-formatting">
-                    <button type="button" class="toolbar-btn" data-action="bold" title="Bold" on:click={()=>handleToolbar('bold')}><HugeIcon name="text-bold" /></button>
-                    <button type="button" class="toolbar-btn" data-action="italic" title="Italic" on:click={()=>handleToolbar('italic')}><HugeIcon name="text-italic" /></button>
-                    <button type="button" class="toolbar-btn" data-action="underline" title="Underline" on:click={()=>handleToolbar('underline')}><HugeIcon name="text-underline" /></button>
-                    <button type="button" class="toolbar-btn" data-action="strikethrough" title="Strikethrough" on:click={()=>handleToolbar('strikethrough')}><HugeIcon name="text-strikethrough" /></button>
+                    <button type="button" class="toolbar-btn" data-action="bold" title="Bold" aria-label="Bold" on:click={()=>handleToolbar('bold')}><HugeIcon name="text-bold" /></button>
+                    <button type="button" class="toolbar-btn" data-action="italic" title="Italic" aria-label="Italic" on:click={()=>handleToolbar('italic')}><HugeIcon name="text-italic" /></button>
+                    <button type="button" class="toolbar-btn" data-action="underline" title="Underline" aria-label="Underline" on:click={()=>handleToolbar('underline')}><HugeIcon name="text-underline" /></button>
+                    <button type="button" class="toolbar-btn" data-action="strikethrough" title="Strikethrough" aria-label="Strikethrough" on:click={()=>handleToolbar('strikethrough')}><HugeIcon name="text-strikethrough" /></button>
                 </div>
                 <div class="toolbar-divider"></div>
-                <div class="toolbar-group toolbar-headings">
-                    <button type="button" class="toolbar-btn" data-action="heading1" on:click={()=>handleToolbar('heading1')}><span class="heading-text">H1</span></button>
-                    <button type="button" class="toolbar-btn" data-action="heading2" on:click={()=>handleToolbar('heading2')}><span class="heading-text">H2</span></button>
-                    <button type="button" class="toolbar-btn" data-action="heading3" on:click={()=>handleToolbar('heading3')}><span class="heading-text">H3</span></button>
+
+                <!-- Block style: one trigger instead of three H1/H2/H3 buttons.
+                     It does not claim to show the current level — tracking that
+                     needs a caret listener to stay honest, and a stale
+                     "H2" on a paragraph is worse than no readout at all. -->
+                <div class="nb-menu-wrap">
+                    <button type="button" class="toolbar-btn nb-tool-wide" data-action="blockStyle"
+                        aria-haspopup="true" aria-expanded={showBlockMenu}
+                        title="Block style" aria-label="Block style"
+                        on:click={()=> toggleMenu('block')}>
+                        <HugeIcon name="list-view" />
+                        <HugeIcon name="arrow-down-01" class="nb-tool-caret" />
+                    </button>
+                    {#if showBlockMenu}
+                        <div class="nb-menu" role="menu" aria-label="Block style">
+                            {#each BLOCK_LEVELS as level (level.action)}
+                                <button type="button" class="nb-menu-item" role="menuitem"
+                                    on:click={()=> runAndClose('block', level.action)}>
+                                    <span class="nb-menu-key">{level.key}</span>
+                                    <span>{level.label}</span>
+                                </button>
+                            {/each}
+                        </div>
+                    {/if}
                 </div>
+
                 <div class="toolbar-divider"></div>
                 <div class="toolbar-group toolbar-lists">
-                    <button type="button" class="toolbar-btn" data-action="bulletList" on:click={()=>handleToolbar('bulletList')}><HugeIcon name="list-bullet" /></button>
-                    <button type="button" class="toolbar-btn" data-action="numberedList" on:click={()=>handleToolbar('numberedList')}><HugeIcon name="list-number" /></button>
-                    <button type="button" class="toolbar-btn" data-action="checkbox" on:click={()=>handleToolbar('checkbox')}><HugeIcon name="checkmark-square-01" /></button>
+                    <button type="button" class="toolbar-btn" data-action="bulletList" title="Bulleted list" aria-label="Bulleted list" on:click={()=>handleToolbar('bulletList')}><HugeIcon name="list-bullet" /></button>
+                    <button type="button" class="toolbar-btn" data-action="numberedList" title="Numbered list" aria-label="Numbered list" on:click={()=>handleToolbar('numberedList')}><HugeIcon name="list-number" /></button>
+                    <button type="button" class="toolbar-btn" data-action="quote" title="Quote" aria-label="Quote" on:click={()=>handleToolbar('quote')}><HugeIcon name="quote-up" /></button>
                 </div>
-                <div class="toolbar-divider"></div>
-                <div class="toolbar-group toolbar-insert">
-                    <button type="button" class="toolbar-btn" data-action="link" on:click={()=>handleToolbar('link')}><HugeIcon name="link-01" /></button>
-                    <button type="button" class="toolbar-btn" data-action="image" on:click={()=>handleToolbar('image')}><HugeIcon name="image-01" /></button>
-                    <button type="button" class="toolbar-btn" data-action="code" on:click={()=>handleToolbar('code')}><HugeIcon name="code-01" /></button>
-                    <button type="button" class="toolbar-btn" data-action="math" on:click={()=>handleToolbar('math')}><HugeIcon name="math" /></button>
-                    <button type="button" class="toolbar-btn" data-action="quote" on:click={()=>handleToolbar('quote')}><HugeIcon name="quote-up" /></button>
-                    <button type="button" class="toolbar-btn" data-action="divider" on:click={()=>handleToolbar('divider')}><HugeIcon name="minus-sign" /></button>
-                </div>
+
                 <div class="toolbar-divider"></div>
                 <div class="toolbar-group toolbar-actions">
-                    <button type="button" class="toolbar-btn" data-action="linkPdf" id="notebookLinkPdfBtn" on:click={()=>handleToolbar('linkPdf')}><HugeIcon name="pdf-01" /></button>
-                    <button type="button" class="toolbar-btn" data-action="attachment" on:click={()=>handleToolbar('attachment')}><HugeIcon name="attachment-01" /></button>
-                    <input type="file" id="notebookAttachmentInput" style="display:none" on:change={handleAttachment} />
+                    <button type="button" class="toolbar-btn" data-action="link" title="Link" aria-label="Insert link" on:click={()=>handleToolbar('link')}><HugeIcon name="link-01" /></button>
+
+                    <!-- AI sits on its own, at the far end of the row: it is
+                         a mode you drop into, not a formatting toggle. -->
+                    <button type="button" class="toolbar-btn toolbar-btn-ai" data-action="aiWrite"
+                        data-cuelume-open="open" data-cuelume-emphasis="subtle"
+                        aria-pressed={showAiOverlay}
+                        title="Write with AI" aria-label="Write with AI"
+                        on:click={()=>handleToolbar('aiWrite')}><HugeIcon name="magic-wand-01" /><span>AI</span></button>
                 </div>
-                <div class="toolbar-group toolbar-ai" id="notebookAiToolbar" style="display: flex;">
-                    <div class="toolbar-divider"></div>
-                    <button type="button" class="toolbar-btn toolbar-btn-ai" data-action="aiWrite" data-cuelume-open="open" data-cuelume-emphasis="subtle" on:click={()=>handleToolbar('aiWrite')}><HugeIcon name="magic-wand-01" /><span>AI</span></button>
+
+                <!-- The occasional tools: checkbox, image, code, math, rule,
+                     link a PDF, attach a file. -->
+                <div class="nb-menu-wrap" style="margin-left:auto">
+                    <button type="button" class="toolbar-btn" data-action="insertMore"
+                        aria-haspopup="true" aria-expanded={showMoreMenu}
+                        title="More tools" aria-label="More tools"
+                        on:click={()=> toggleMenu('more')}>
+                        <HugeIcon name="menu-01" />
+                    </button>
+                    {#if showMoreMenu}
+                        <div class="nb-menu" role="menu" aria-label="More tools">
+                            <button type="button" class="nb-menu-item" role="menuitem" on:click={()=> runAndClose('more', 'checkbox')}><HugeIcon name="checkmark-square-01" /><span>Checklist</span></button>
+                            <button type="button" class="nb-menu-item" role="menuitem" on:click={()=> runAndClose('more', 'code')}><HugeIcon name="code-01" /><span>Code block</span></button>
+                            <button type="button" class="nb-menu-item" role="menuitem" on:click={()=> runAndClose('more', 'math')}><HugeIcon name="math" /><span>Formula</span></button>
+                            <button type="button" class="nb-menu-item" role="menuitem" on:click={()=> runAndClose('more', 'image')}><HugeIcon name="image-01" /><span>Image</span></button>
+                            <button type="button" class="nb-menu-item" role="menuitem" on:click={()=> runAndClose('more', 'divider')}><HugeIcon name="minus-sign" /><span>Divider</span></button>
+                            <button type="button" class="nb-menu-item" role="menuitem" on:click={()=> runAndClose('more', 'linkPdf')}><HugeIcon name="pdf-01" /><span>Link a PDF</span></button>
+                            <button type="button" class="nb-menu-item" role="menuitem" on:click={()=> runAndClose('more', 'attachment')}><HugeIcon name="attachment-01" /><span>Attach a file</span></button>
+                        </div>
+                    {/if}
                 </div>
+                <input type="file" id="notebookAttachmentInput" style="display:none" on:change={handleAttachment} />
             </div>
             {/if}
 
             <div class="notebook-editor-container" class:reading={isViewMode}>
+                <!-- The page is the ruled paper. It grows with the content, so
+                     the rules scroll with the text instead of being pinned to
+                     the scroller — which is what makes them read as paper. -->
+                <div class="notebook-page" id="notebookPage">
                 {#if isViewMode}
                     <!-- Read mode. A separate surface, not an overlay: the
                          contenteditable is not in the DOM while this is up. It
@@ -657,6 +785,7 @@
                     </div>
                     {/if}
                 {/if}
+                </div>
             </div>
 
             <div class="notebook-footer">
@@ -694,13 +823,13 @@
                             }
                         }
                     }}><HugeIcon name="folder-open" /><span>Manage Notebooks</span></a>
+                    <span class="word-count" id="notebookWordCount">{wordCount} {wordCount === 1 ? 'word' : 'words'}</span>
                     <span class="save-status" id="notebookSaveStatus">
                         <span class="status-icon-container" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;margin-right:4px;">
                             {#if isSaving}<HugeiconsIcon icon={LoaderIcon} size="1em" class="hgi spin" />{:else}<HugeIcon name="cloud-check" />{/if}
                         </span>
                         <span class="save-status-text">{saveStatusText}</span>
                     </span>
-                    <span class="word-count" id="notebookWordCount">{wordCount} words</span>
                 </div>
                 <div class="notebook-footer-actions">
                     <!-- Read / write and cover live down here, not in the title
@@ -746,8 +875,9 @@
                     <button type="button" class="notebook-btn notebook-btn-primary" id="notebookEditBtn" data-cuelume-toggle="toggle" on:click={()=> setViewMode(false)}><HugeIcon name="edit-02" /><span>Edit</span></button>
                     {/if}
                 </div>
-            </div>
-        </div>
+            </div><!-- /notebook-footer -->
+            </div><!-- /notebook-sheet -->
+        </div><!-- /notebook-dialog -->
     </div>
 
     {#if showLinkPdfModal}
