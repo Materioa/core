@@ -8,6 +8,7 @@
     import { bindSounds, autoAnnotate, sfx } from '$lib/sounds/index.js';
     import * as cue from '$lib/sounds/events.js';
     import { hashPdfBuffer, hashPdfUrl, getPdfAnnotations, savePdfAnnotations } from '$lib/utils/pdfAnnotations.js';
+    import { annotShrinkGuard } from '$lib/utils/pdfAnnotShrinkGuard.js';
     import { toApiUrl } from '$lib/config/api.js';
     import HugeIcon from "./HugeIcon.svelte";
     import { HugeiconsIcon } from "@hugeicons/svelte";
@@ -189,18 +190,22 @@
         if (!pdfHash) return;
         const incoming = storage || {};
 
-        // Never let an EMPTY snapshot replace a non-empty one we already hold.
-        //
-        // The viewer emits a sync after restore; if its restore could not reach
-        // every page (PDF.js only builds editor layers for rendered pages, and
-        // the editor mode defaults to NONE) that sync can legitimately be empty
-        // or partial. Adopting it rebases the baseline to "no annotations", and
-        // the next save then writes that emptiness over the real record -
-        // destroying annotations the user never touched. So a shrink to empty is
-        // treated as "the viewer has not caught up yet", not as a deletion.
-        const incomingEmpty = Object.keys(incoming).length === 0;
-        const held = Object.keys(pendingAnnotStorage || {}).length;
-        if (incomingEmpty && held > 0 && !opts.allowEmpty) {
+        // Shrink guard: a snapshot carrying fewer editor annotations than we
+        // already hold is only accepted when the viewer says the reader deleted
+        // them. Anything else means its restore has not reached every page yet,
+        // and adopting it would rebase the baseline onto that partial state -
+        // the next save then writes it over the real record and the untouched
+        // annotations are gone. Full reasoning lives with the rule itself.
+        const guard = annotShrinkGuard(pendingAnnotStorage, incoming, {
+            removed: opts.removed,
+            allowEmpty: opts.allowEmpty,
+        });
+        if (guard.reject) {
+            annotDiag('reject shrinking snapshot; held=', guard.held,
+                'incoming=', guard.incoming, 'removed=', guard.removed,
+                'reason=', guard.reason, 'synced=', !!opts.synced,
+                'restoring=', String(opts.restoring),
+                'incomingKeys=', Object.keys(incoming).length);
             return;
         }
 
@@ -538,12 +543,19 @@
                 // A highlight or a drawing landed. Throttled inside the cue:
                 // one stroke can emit a long run of these.
                 cue.annotationCommitted();
-                queueAnnotSave(e.data.annotations?.storage);
+                queueAnnotSave(e.data.annotations?.storage, {
+                    removed: e.data.removed,
+                    restoring: e.data.restoring,
+                });
                 resolveFlushWaiter();
             }
             if (e.data && e.data.type === 'materioAnnotSynced') {
                 cue.annotationCommitted();
-                queueAnnotSave(e.data.annotations?.storage, { synced: true });
+                queueAnnotSave(e.data.annotations?.storage, {
+                    synced: true,
+                    removed: e.data.removed,
+                    restoring: e.data.restoring,
+                });
                 resolveFlushWaiter();
             }
             if (e.data && e.data.type === 'materioAnnotSaveRequest') {

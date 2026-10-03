@@ -263,13 +263,18 @@ try {
     // annotationStorage, serialises fine, and is completely invisible - which
     // is exactly what made an earlier version of this check pass while the
     // reader saw a blank page.
-    return ev(`(() => {
+    //
+    // The DrawLayer path is written asynchronously after deserialize, so a
+    // single sample can catch the page mid-paint and report "nothing drawn"
+    // for an annotation that appears a moment later. Poll for the paint rather
+    // than fixing a longer sleep: the assertion is about the end state.
+    const reportExpr = `(() => {
       const w = document.getElementById('fr').contentWindow;
       const wd = document.getElementById('fr').contentDocument;
       const all = w.PDFViewerApplication.pdfDocument.annotationStorage.getAll() || {};
       const k = Object.keys(all)[0]; const e = all[k];
       let serErr = null;
-      if (e) { try { e.serialize(false); } catch (err) { serErr = String(err.message); } }
+      if (e) { try { e.serialize(false); } catch (err) { serErr = String(err.message) + ' ||| ' + String(err.stack || '').split('\\n').slice(0,6).join(' << '); } }
       const pv = w.PDFViewerApplication.pdfViewer;
       const pvPage = pv.getPageView(e ? e.pageIndex : 0);
       const bld = pvPage && pvPage.annotationEditorLayer;
@@ -305,6 +310,47 @@ try {
       let empty = 'n/a', rect = null;
       try { empty = e.isEmpty(); } catch (x) { empty = 'threw'; }
       try { const g = e.getRect(0, 0); rect = Array.from(g).map((n) => Math.round(n * 100) / 100); } catch (x) { /* n/a */ }
+      // What the reader actually SEES. Highlights (box AND freehand) paint
+      // through the page's DrawLayer - an <svg><defs><path/></defs><use/></svg>
+      // that lives in the page's canvas wrapper, NOT inside editor.div. An SVG
+      // path whose "d" attribute contains NaN does not render at all, and a fill
+      // of "#undefinedundefinedundefined" is not a colour - both leave the
+      // editor present, non-empty and serialising, yet invisible, so they have
+      // to be measured directly instead of inferred from isEmpty().
+      let paint = null;
+      try {
+        // The DrawLayer <svg> is classed "highlight" (+ "free" for freehand)
+        // and lives in the page's canvas wrapper. Select it BY CLASS across the
+        // whole document: scoping through editor.div.closest('.page') proved
+        // flaky, because at sample time it can resolve to the placeholder
+        // "page loadingIcon" element, which holds no DrawLayer at all - and the
+        // check then reports "nothing is painted" for an annotation sitting on
+        // the neighbouring page element.
+        //
+        // Deliberately NO fallback to "any svg path on the page": an unrelated
+        // path with fill="none" would make a missing highlight look painted.
+        const hlSvgs = [...wd.querySelectorAll('svg.highlight')];
+        const paths = hlSvgs.flatMap((s) => [...s.querySelectorAll('path')]);
+        const ds = paths.map((p) => p.getAttribute('d') || '').join(' ');
+        const fills = [];
+        for (const p of paths) {
+          const f = w.getComputedStyle(p).fill;
+          if (f) fills.push(f);
+        }
+        paint = {
+          drawSvgs: hlSvgs.length,
+          pages: wd.querySelectorAll('.page').length,
+          svgPaths: paths.length,
+          pathLen: ds.length,
+          pathHasNaN: /NaN/.test(ds),
+          pathHasUndefined: /undefined/.test(ds),
+          fills,
+          // A painted path must resolve to a real colour, never to
+          // transparent / none / an unparsable string.
+          hexOk: fills.length > 0 && fills.every((f) =>
+            !/undefined|NaN|null|^none$|^transparent$/.test(f)),
+        };
+      } catch (x) { paint = { err: String(x && x.message) }; }
       return JSON.stringify({
         rendered: wd.querySelectorAll('.annotationEditorLayer div').length,
         storage: Object.keys(all).length,
@@ -325,8 +371,17 @@ try {
         layerHasViewport: layer ? !!layer.viewport : null,
         uiEditorsOnPage: inLayer,
         editorGetRect: rect,
+        paint,
       });
-    })()`);
+    })()`;
+    let rep = null;
+    for (let i = 0; i < 8; i++) {
+      const raw = await ev(reportExpr);
+      rep = (typeof raw === 'string' && raw.startsWith('{')) ? JSON.parse(raw) : null;
+      if (rep && rep.storage > 0 && rep.paint && rep.paint.svgPaths > 0) break;
+      await sleep(1000);
+    }
+    return JSON.stringify(rep || { err: 'report never became valid' });
   };
 
   if (payload) {
@@ -424,29 +479,39 @@ try {
     }
 
     // PHASE 2d: a FREE (freehand) HIGHLIGHT - the exact shape found in the
-    // reader's own annot-diag.log:
+    // reader's own annot-diag.log / IndexedDB dump:
     //     ctor=HIGHLIGHT fields=... quadPoints=null outlines=object ...
-    // HighlightEditor.deserialize reads only quadPoints and inkLists, so this
-    // restored as a bare editor with no geometry: truthy deserialize, successful
-    // addOrRebuild, unhidden layer, and nothing drawn.
-    console.log('\nPHASE 2d  freehand HIGHLIGHT (quadPoints=null, outlines is an object)');
-    // Real free highlights carry MANY outline rows (the reader's log showed
-    // rows=240), each a quad of 8 numbers. Build several so a wrong stride or
-    // a dropped row shows up as wrong geometry rather than passing by luck.
-    const quadRows = [];
-    for (let i = 0; i < 12; i++) {
-      const y = 640 + i * 4;
-      quadRows.push([120, y, 200, y, 120, y + 14, 200, y + 14]);
+    //     outlines: { outline: [456 numbers incl. NaN sentinels],
+    //                 points: [[x,y,x,y,... page coords]] }
+    //
+    // HighlightEditor.deserialize reads ONLY quadPoints and inkLists, so this
+    // used to restore as a bare editor with no geometry: truthy deserialize,
+    // successful addOrRebuild, unhidden layer, and nothing drawn. The old
+    // workaround flattened `outlines.outline` - a cubic-bezier PATH whose NaNs
+    // are sentinels - into stride-8 quads, which produced NaN geometry that no
+    // SVG path can draw. The real stroke is `outlines.points[0]`, which is what
+    // the inkLists branch consumes.
+    console.log('\nPHASE 2d  freehand HIGHLIGHT (quadPoints=null, outlines={outline,points})');
+    // outline: [NaN,NaN,NaN,NaN, x0,y0, c1x,c1y,c2x,c2y,x,y, ...] - exactly the
+    // shape FreeDrawOutline.serialize writes. Deliberately full of NaNs so a
+    // repair that copies them into geometry fails the assertions below.
+    const bez = [NaN, NaN, NaN, NaN, 120, 640];
+    for (let i = 0; i < 20; i++) {
+      const x = 120 + i * 4;
+      bez.push(x + 1, 641, x + 2, 642, x + 4, 640 + ((i % 3) * 4));
     }
+    // points: the authoritative stroke polyline, page coordinates, flat.
+    const strokePts = [];
+    for (let i = 0; i < 24; i++) strokePts.push(120 + i * 4, 640 + ((i % 3) * 4));
     const freeHl = {
       annotationType: 9,
       color: [255, 235, 59],
       opacity: 1,
       thickness: 12,
       quadPoints: null,
-      outlines: { outline: quadRows },
+      outlines: { outline: bez, points: [strokePts] },
       pageIndex: 0,
-      rect: [120, 640, 200, 690],
+      rect: [120, 636, 216, 656],
       rotation: 0,
       structTreeParentId: null,
       id: null,
@@ -462,14 +527,66 @@ try {
     check('free highlight has real geometry',
       !!rf.editorRect && rf.editorRect.w > 1 && rf.editorRect.h > 1, JSON.stringify(rf.editorRect));
     check('free highlight is reported in the sync', rf.synced === 1, `synced=${rf.synced}`);
-    // Re-serializing a highlight that came back through the synthesized
-    // quadPoints path can still throw inside PDF.js (#serializeOutlines walks
-    // outlines that were never built). That is expected and is precisely what
-    // the restoredFallback entry exists for - what must NOT happen is the
-    // record being blanked. synced === 1 above is that guarantee, so assert the
-    // editor is non-empty and present rather than demanding a clean serialize.
+    // The actual visibility assertions: the restored stroke must be drawn as an
+    // SVG path with no NaN in it (a NaN `d` renders NOTHING), and its fill must
+    // be a real colour, not "#undefinedundefinedundefined".
+    check('free highlight paints an SVG path', !!rf.paint && rf.paint.svgPaths > 0,
+      JSON.stringify(rf.paint));
+    check('painted path has no NaN/undefined',
+      !!rf.paint && rf.paint.pathHasNaN === false && rf.paint.pathHasUndefined === false,
+      `NaN=${rf.paint && rf.paint.pathHasNaN} undefined=${rf.paint && rf.paint.pathHasUndefined}`);
+    check('painted colour is valid', !!rf.paint && rf.paint.hexOk === true,
+      JSON.stringify(rf.paint && rf.paint.fills));
+    // Re-serializing a restored highlight can still throw inside PDF.js
+    // (#serializeOutlines walks outlines that were never rebuilt). That is
+    // expected and is exactly what the restoredFallback entry exists for - what
+    // must NOT happen is the record being blanked. synced === 1 above is that
+    // guarantee, so assert the editor is non-empty and present rather than
+    // demanding a clean serialize.
     check('free highlight survives a snapshot round-trip', rf.storage > 0 && rf.isEmpty === false,
       `serializeThrew=${rf.serializeThrew || 'none'}`);
+
+    // PHASE 2e: a LEGACY capture - the two shapes older builds wrote, plus a
+    // colour that no longer is three integers. All of it used to either throw
+    // in deserialize (retried forever) or come back with
+    // fill="#undefinedundefinedundefined" (present, serialising, invisible).
+    console.log('\nPHASE 2e  legacy outline-rows capture + broken colour');
+    const legacy = {
+      annotationType: 9,
+      color: '#ffeb3b',            // string, not [255,235,59]
+      opacity: 'not-a-number',
+      thickness: undefined,
+      quadPoints: null,
+      outlines: [                  // bare ARRAY of polygon rows
+        [120, 700, 200, 700, 120, 720, 200, 720],
+        [120, 730, 200, 730, 120, 750, 200, 750],
+      ],
+      pageIndex: 0,
+      rect: [120, 700, 200, 750],
+      rotation: 0,
+      structTreeParentId: null,
+      id: null,
+    };
+    const rl = JSON.parse(await restore({ pdfjs_internal_editor_0: legacy }));
+    console.log('  ' + JSON.stringify(rl));
+    check('legacy capture restores into storage', rl.storage > 0, `storage=${rl.storage}`);
+    check('legacy editor is not empty', rl.isEmpty === false, `isEmpty=${rl.isEmpty}`);
+    check('legacy layer is not hidden', rl.layerDivHidden === false,
+      `layerDivHidden=${rl.layerDivHidden}`);
+    check('legacy editor has real geometry',
+      !!rl.editorRect && rl.editorRect.w > 1 && rl.editorRect.h > 1, JSON.stringify(rl.editorRect));
+    check('legacy capture is reported in the sync', rl.synced === 1, `synced=${rl.synced}`);
+    check('legacy capture paints', !!rl.paint && rl.paint.svgPaths > 0,
+      JSON.stringify(rl.paint));
+    // The repaired colour must be the one that was asked for (#ffed3b), not the
+    // highlight default and not an unparsable string.
+    check('legacy colour repaired to the saved colour',
+      !!rl.paint && rl.paint.fills.some((f) => f.replace(/\s/g, '') === 'rgb(255,235,59)'),
+      JSON.stringify(rl.paint && rl.paint.fills));
+    check('legacy capture has no NaN in its path',
+      !!rl.paint && rl.paint.pathHasNaN === false && rl.paint.pathHasUndefined === false,
+      `NaN=${rl.paint && rl.paint.pathHasNaN}`);
+    check('legacy capture serialises', rl.serializeThrew === null, rl.serializeThrew || 'ok');
   }
   ws.close();
 } catch (err) {

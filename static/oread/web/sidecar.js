@@ -94,6 +94,22 @@
     var emptyRetries = {};
     // One-shot flags so a polling snapshot cannot flood the diagnostic log.
     var fallbackLogged = {};
+    // key -> ORIGINAL saved entry for an annotation that is currently NOT
+    // represented in annotationStorage: its page has not rendered yet, its
+    // deserialize() threw, or we decided not to retry it. Every snapshot
+    // carries these forward, so a restore that only half succeeds can never
+    // shrink the record and destroy the half that is still pending.
+    var unrestored = {};
+    // key -> true for entries we have given up retrying but still preserve.
+    var noRetry = {};
+    // One-shot: have we already emitted the "restore finished (best effort)"
+    // sync after blowing past RESTORE_MAX_ATTEMPTS?
+    var maxAttemptSynced = false;
+    // keys the READER deleted (real user action) since the last snapshot we
+    // posted. The parent uses this to tell a deliberate deletion apart from a
+    // snapshot that merely failed to reach every page - it refuses the second
+    // and accepts the first.
+    var removedSinceEmit = {};
 
     function app() {
         return window.PDFViewerApplication || null;
@@ -180,11 +196,322 @@
         }
         return o;
     }
+    // ---------------------------------------------------------------- entry
+    // repair helpers.
+    //
+    // Everything below runs BEFORE an entry is handed to PDF.js's
+    // deserialize(). A saved record can be months old, may have crossed a JSON
+    // hop at some point, and PDF.js is unforgiving: a null quadPoints, a NaN
+    // coordinate or a missing colour turns a good annotation into either
+    // "deserialize THREW, retried forever" or - worse - a restored editor that
+    // is in the layer, serialises, and paints NOTHING. That last one is the
+    // "it comes back but it's invisible" bug: an SVG path containing NaN does
+    // not render, and `fill="#undefined..."` is not a colour at all.
+
+    function isFiniteNum(n) {
+        return typeof n === 'number' && isFinite(n);
+    }
+
+    // Flat [x,y,x,y,...] coordinate list with non-finite POINTS dropped as a
+    // pair. Used for stroke polylines, where skipping one bad point is safe;
+    // never for quadPoints, whose stride-8 grouping would shift.
+    function cleanPolyline(arr) {
+        if (!arr || typeof arr !== 'object') return null;
+        var raw = Array.isArray(arr) ? arr
+            : (typeof arr.length === 'number' ? Array.prototype.slice.call(arr) : null);
+        if (!raw) return null;
+        var out = [];
+        for (var i = 0; i + 1 < raw.length; i += 2) {
+            if (!isFiniteNum(raw[i]) || !isFiniteNum(raw[i + 1])) continue;
+            out.push(raw[i], raw[i + 1]);
+        }
+        return out.length >= 4 ? out : null;
+    }
+
+    // Stride-8 quadPoints, dropping any quad that is not 8 finite numbers.
+    // A partially-NaN quad cannot be dropped by filtering individual values -
+    // that would shift every later quad onto the wrong stride.
+    function cleanQuads(arr) {
+        var raw = toNumericArray(arr);
+        if (!raw || typeof raw.length !== 'number') return null;
+        var out = [];
+        for (var i = 0; i + 7 < raw.length; i += 8) {
+            var ok = true;
+            for (var j = 0; j < 8; j++) {
+                if (!isFiniteNum(raw[i + j])) { ok = false; break; }
+            }
+            if (!ok) continue;
+            for (var k = 0; k < 8; k++) out.push(raw[i + k]);
+        }
+        return out.length >= 8 ? out : null;
+    }
+
+    function clamp255(n) {
+        var v = Math.round(Number(n));
+        if (!isFinite(v)) return null;
+        return v < 0 ? 0 : (v > 255 ? 255 : v);
+    }
+
+    function parseColorString(c) {
+        if (typeof c !== 'string') return null;
+        var s = c.trim().toLowerCase();
+        var m = /^#([0-9a-f]{3})$/.exec(s);
+        if (m) {
+            return [parseInt(m[1][0] + m[1][0], 16),
+                parseInt(m[1][1] + m[1][1], 16),
+                parseInt(m[1][2] + m[1][2], 16)];
+        }
+        m = /^#([0-9a-f]{6})$/.exec(s);
+        if (m) {
+            return [parseInt(m[1].slice(0, 2), 16),
+                parseInt(m[1].slice(2, 4), 16),
+                parseInt(m[1].slice(4, 6), 16)];
+        }
+        m = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,.*)?\)$/.exec(s);
+        if (m) {
+            var r = clamp255(m[1]), g = clamp255(m[2]), b = clamp255(m[3]);
+            if (r === null || g === null || b === null) return null;
+            return [r, g, b];
+        }
+        return null;
+    }
+
+    // HighlightEditor.deserialize does `Util.makeHexColor(...color)`, and
+    // makeHexColor is `hexNumbers[r]` over a 256-entry table: an undefined,
+    // fractional or out-of-range component yields the literal string
+    // "#undefinedundefinedundefined", which is not a colour, so the highlight
+    // comes back black-less / unpaintable. Always return three integers.
+    function normalizeColor(c, fallback) {
+        var p = parseColorString(c);
+        if (p) return p;
+        if (c && (Array.isArray(c) || typeof c.length === 'number')) {
+            var r = c[0], g = c[1], b = c[2];
+            if (isFiniteNum(r) && isFiniteNum(g) && isFiniteNum(b)) {
+                // PDF.js itself writes 0..255 integers, but a capture that went
+                // through a 0..1 float pipeline would otherwise become "#010100"
+                // - near black on white paper, i.e. "the colour is gone".
+                if (r >= 0 && g >= 0 && b >= 0 && r <= 1 && g <= 1 && b <= 1 &&
+                    (r % 1 !== 0 || g % 1 !== 0 || b % 1 !== 0)) {
+                    r *= 255; g *= 255; b *= 255;
+                }
+                var rr = clamp255(r), gg = clamp255(g), bb = clamp255(b);
+                if (rr !== null && gg !== null && bb !== null) return [rr, gg, bb];
+            }
+        }
+        return fallback ? fallback.slice(0) : null;
+    }
+
+    // The viewer's own default highlight colour when we can reach it, so a
+    // record with a broken colour still comes back looking like a highlight
+    // rather than black. Falls back to pdf.js's built-in #fff066.
+    function defaultColorFor(type) {
+        if (type === 9 /* HIGHLIGHT */) {
+            try {
+                var props = viewer() && viewer()._layerProperties;
+                var ui = props && props.annotationEditorUIManager;
+                var colors = ui && ui.highlightColors;
+                if (colors && typeof colors.values === 'function') {
+                    var v = colors.values().next().value;
+                    var p = parseColorString(v);
+                    if (p) return p;
+                }
+            } catch (e) { /* fall through */ }
+            return [255, 240, 102];
+        }
+        return [0, 0, 0];
+    }
+
+    function normalizeRotation(r) {
+        var n = Number(r);
+        if (!isFinite(n)) return 0;
+        var d = ((n % 360) + 360) % 360;
+        return (d === 0 || d === 90 || d === 180 || d === 270) ? d : 0;
+    }
+
+    // Polyline out of the cubic-bezier path that HighlightEditor serialises
+    // as `outlines.outline`. The path is [NaN,NaN,NaN,NaN, x,y, c1x,c1y,c2x,
+    // c2y,x,y, ...] - every group of six ends on the on-curve point, which is
+    // exactly what toSVGPath() draws a `C`/`L` to. The NaNs are sentinels and
+    // must never be copied into geometry.
+    function polylineFromOutlinePath(flat) {
+        if (!flat || flat.length < 6) return null;
+        var out = [];
+        var x0 = flat[4], y0 = flat[5];
+        if (isFiniteNum(x0) && isFiniteNum(y0)) out.push(x0, y0);
+        for (var i = 6; i + 5 < flat.length; i += 6) {
+            var x = flat[i + 4], y = flat[i + 5];
+            if (isFiniteNum(x) && isFiniteNum(y)) out.push(x, y);
+        }
+        return out.length >= 4 ? out : null;
+    }
+
+    // The stroke polyline for a FREE (freehand) highlight, in page coordinates
+    // - the exact shape HighlightEditor.deserialize's `inkLists` branch feeds
+    // back into a FreeHighlightOutliner.
+    //
+    // `outlines.points[0]` is the authoritative one: FreeDrawOutline.serialize
+    // writes `{ outline: <bezier path>, points: [<stroke points>] }`, and
+    // points is already rescaled through the same rect that `rect` and
+    // `quadPoints` use, so it drops straight into the inkLists branch.
+    function freeStrokeFromOutlines(outlines) {
+        if (!outlines) return null;
+        if (Array.isArray(outlines)) {
+            // Older captures stored a bare array of polygons (the BOX
+            // highlight shape), not a stroke. Caller handles those separately.
+            return null;
+        }
+        if (typeof outlines !== 'object') return null;
+        var p = outlines.points;
+        if (p && typeof p === 'object') {
+            var first = (p.length && p[0] !== undefined) ? p[0] : p;
+            var flat = cleanPolyline(first);
+            if (flat) return flat;
+        }
+        if (Array.isArray(outlines.outline)) {
+            return polylineFromOutlinePath(outlines.outline);
+        }
+        return null;
+    }
+
+    // Box-highlight outlines are an array of rectilinear polygons in page
+    // coordinates. Used only when quadPoints itself was lost: each polygon
+    // collapses to its bounding-box quad, which is what
+    // HighlightEditor.deserialize reads anyway.
+    function quadsFromOutlinePolygons(polys) {
+        if (!Array.isArray(polys) || !polys.length) return null;
+        var out = [];
+        for (var i = 0; i < polys.length; i++) {
+            var poly = cleanPolyline(polys[i]);
+            if (!poly) continue;
+            var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            for (var j = 0; j < poly.length; j += 2) {
+                if (poly[j] < minX) minX = poly[j];
+                if (poly[j] > maxX) maxX = poly[j];
+                if (poly[j + 1] < minY) minY = poly[j + 1];
+                if (poly[j + 1] > maxY) maxY = poly[j + 1];
+            }
+            if (!(maxX > minX) || !(maxY > minY)) continue;
+            out.push(minX, maxY, maxX, maxY, minX, minY, maxX, minY);
+        }
+        return out.length >= 8 ? out : null;
+    }
+
+    // Repair one saved record into something PDF.js can actually deserialize,
+    // or return null when it is not restorable (the caller keeps the ORIGINAL
+    // record around rather than dropping it, so nothing is ever lost).
+    function prepareEntry(data) {
+        if (!data || typeof data !== 'object') return null;
+        var entry = {};
+        for (var k in data) {
+            if (Object.prototype.hasOwnProperty.call(data, k)) entry[k] = data[k];
+        }
+        var type = entry.annotationType != null ? entry.annotationType : entry.annotationEditorType;
+
+        // --- scalars -------------------------------------------------------
+        entry.color = normalizeColor(entry.color, defaultColorFor(type));
+        if (isFiniteNum(entry.opacity) && entry.opacity > 0 && entry.opacity <= 1) {
+            // keep
+        } else if (entry.opacity !== undefined && entry.opacity !== null) {
+            var op = Number(entry.opacity);
+            entry.opacity = (isFinite(op) && op > 0 && op <= 1) ? op : 1;
+        }
+        // HighlightEditor's inkLists branch does `thickness / 2`; an undefined
+        // thickness makes an all-NaN stroke width and nothing renders.
+        if (type === 9 || type === 15 || entry.thickness !== undefined) {
+            var th = Number(entry.thickness);
+            entry.thickness = (isFinite(th) && th > 0) ? th : (type === 9 ? 12 : 1);
+        }
+        entry.rotation = normalizeRotation(entry.rotation);
+
+        var rect = toNumericArray(entry.rect);
+        if (!rect || typeof rect.length !== 'number' || rect.length < 4 ||
+            !isFiniteNum(rect[0]) || !isFiniteNum(rect[1]) ||
+            !isFiniteNum(rect[2]) || !isFiniteNum(rect[3])) {
+            return null; // base deserialize() slices data.rect: unusable
+        }
+        entry.rect = [rect[0], rect[1], rect[2], rect[3]];
+
+        // --- geometry ------------------------------------------------------
+        if (type === 9 /* HIGHLIGHT */) {
+            var quads = cleanQuads(data.quadPoints);
+            if (quads) {
+                entry.quadPoints = quads;
+                delete entry.inkLists;
+            } else {
+                // No usable boxes: this is a FREE highlight. Feed the stroke
+                // back through the inkLists branch, which rebuilds the exact
+                // FreeHighlightOutliner shape it was created with.
+                var stroke = freeStrokeFromOutlines(data.outlines) ||
+                    (Array.isArray(data.inkLists) ? cleanPolyline(data.inkLists[0]) : null);
+                if (stroke) {
+                    entry.inkLists = [stroke];
+                    entry.quadPoints = null;
+                    diag('free stroke key=' + (data.id || '?'),
+                        'points=' + (stroke.length / 2));
+                } else {
+                    // Legacy captures: `outlines` is (or contains) an ARRAY OF
+                    // POLYGON ROWS rather than a flat bezier path. Each row
+                    // collapses to its bounding-box quad - what the box branch
+                    // of deserialize reads anyway.
+                    var polys = Array.isArray(data.outlines) ? data.outlines
+                        : (data.outlines && Array.isArray(data.outlines.outline) &&
+                            data.outlines.outline.length &&
+                            Array.isArray(data.outlines.outline[0]))
+                            ? data.outlines.outline : null;
+                    var alt = quadsFromOutlinePolygons(polys);
+                    if (alt) {
+                        entry.quadPoints = alt;
+                        delete entry.inkLists;
+                        diag('outline polygons->quads key=' + (data.id || '?'),
+                            'quads=' + (alt.length / 8));
+                    } else {
+                        return null;
+                    }
+                }
+            }
+        } else if (type === 15 /* INK */) {
+            if (data.paths && typeof data.paths === 'object') {
+                var paths = {};
+                for (var pk in data.paths) {
+                    if (Object.prototype.hasOwnProperty.call(data.paths, pk)) paths[pk] = data.paths[pk];
+                }
+                if (Array.isArray(paths.lines)) paths.lines = paths.lines.map(toNumericArray);
+                if (Array.isArray(paths.points)) paths.points = paths.points.map(toNumericArray);
+                entry.paths = paths;
+            } else if (Array.isArray(data.inkLists)) {
+                entry.inkLists = data.inkLists.map(cleanPolyline).filter(Boolean);
+                if (!entry.inkLists.length) return null;
+                delete entry.quadPoints;
+            } else {
+                return null;
+            }
+        } else {
+            // FreeText / Stamp / Signature: normalise whatever geometry they
+            // happen to carry, but never invent any.
+            if (entry.quadPoints !== undefined && entry.quadPoints !== null) {
+                var q2 = cleanQuads(entry.quadPoints);
+                if (q2) entry.quadPoints = q2; else delete entry.quadPoints;
+            }
+            if (Array.isArray(entry.inkLists)) {
+                entry.inkLists = entry.inkLists.map(cleanPolyline).filter(Boolean);
+                if (!entry.inkLists.length) delete entry.inkLists;
+            }
+        }
+        return entry;
+    }
+
     // Plain-JSON snapshot of the viewer's EDITOR annotations. Each live
     // editor is serialized individually inside its own try/catch (one bad
     // editor can't kill the whole snapshot), then passed through jsonSafe
     // so typed arrays survive. Image bitmaps (stamp/signature photos)
     // still can't be persisted and are skipped.
+    //
+    // It is ALSO a completeness guarantee: an entry that PDF.js does not
+    // currently hold - because its page has not rendered yet, because
+    // deserialize threw, or because cleanup() destroyed the editor - is merged
+    // back in from `unrestored` / `restoredFallback`. Without that, a partial
+    // restore silently SHRINKS the snapshot, the parent adopts the smaller
+    // record, and annotations the reader never touched are overwritten away.
     function snapshotPlain() {
         var st = storage();
         if (!st) return null;
@@ -214,6 +541,11 @@
                     var copy = jsonSafe(s);
                     if (copy && typeof copy === 'object' && isEditorData(copy)) {
                         out[k] = copy;
+                        // Keep the retained copy in step with edits, so a later
+                        // cleanup()-destroy of this editor preserves the CURRENT
+                        // geometry rather than the shape it was first restored
+                        // with.
+                        if (restoredFallback[k]) restoredFallback[k] = copy;
                     } else if (restoredFallback[k]) {
                         out[k] = restoredFallback[k];
                     }
@@ -246,6 +578,18 @@
                 }
             }
         }
+        // Anything PDF.js is not currently holding must survive the round-trip
+        // or it is destroyed on the next save.
+        var keepKeys = Object.keys(unrestored);
+        for (var ui = 0; ui < keepKeys.length; ui++) {
+            var uk = keepKeys[ui];
+            if (!(uk in out) && unrestored[uk]) out[uk] = unrestored[uk];
+        }
+        var fbKeys = Object.keys(restoredFallback);
+        for (var fi = 0; fi < fbKeys.length; fi++) {
+            var fk = fbKeys[fi];
+            if (!(fk in out) && restoredFallback[fk]) out[fk] = restoredFallback[fk];
+        }
         return out;
     }
 
@@ -275,13 +619,36 @@
             saveTimer = null;
         }
         if (applying) return;
+        // Nothing may leave the viewer before this document's init has been
+        // seen. Between a document swap and the parent's materioAnnotInit,
+        // annotationStorage is empty while `unrestored` still holds entries
+        // from the previous document - emitting there would hand the parent a
+        // record belonging to a DIFFERENT PDF hash. The parent's init is what
+        // establishes which record this document talks about. (`lastInitStr` is
+        // cleared on every document swap and set by every init.)
+        if (lastInitStr === null) return;
         var snap = snapshotPlain();
         if (!snap) return;
         var str = stableStringify(snap);
-        if (str === lastEmitted) return;
+        if (str === lastEmitted) {
+            // No change to report - keep `removedSinceEmit` for the next post
+            // rather than burning the credit on a snapshot that says nothing.
+            return;
+        }
         lastEmitted = str;
+        var removed = Object.keys(removedSinceEmit);
+        removedSinceEmit = {};
         try {
-            window.parent.postMessage({ type: 'materioAnnotChanged', annotations: { storage: snap } }, '*');
+            window.parent.postMessage({
+                type: 'materioAnnotChanged',
+                annotations: { storage: snap },
+                removed: removed,
+                // true while entries are still waiting for their page/layer.
+                // `pending === null` means every editor-data entry is now
+                // either a live editor or carried in the snapshot itself, so
+                // what we are sending IS the whole truth.
+                restoring: !!pending,
+            }, '*');
         } catch (e) { /* ignore */ }
     }
 
@@ -301,7 +668,14 @@
         try {
             var snap = snapshotPlain() || {};
             lastEmitted = stableStringify(snap);
-            window.parent.postMessage({ type: 'materioAnnotSynced', annotations: { storage: snap } }, '*');
+            var removed = Object.keys(removedSinceEmit);
+            removedSinceEmit = {};
+            window.parent.postMessage({
+                type: 'materioAnnotSynced',
+                annotations: { storage: snap },
+                removed: removed,
+                restoring: !!pending,
+            }, '*');
         } catch (e) { /* ignore */ }
     }
 
@@ -328,7 +702,41 @@
         try {
             var origRemove = st.remove.bind(st);
             st.remove = function (k) {
+                // Two very different things call remove():
+                //   a) AnnotationEditorLayer.#cleanup() destroying an EMPTY
+                //      editor (a transient, not-yet-ready restore) - the data
+                //      is still wanted, so the fallback must be KEPT or the
+                //      snapshot silently loses it;
+                //   b) the reader deleting a real annotation - the data must
+                //      go, including the fallback that snapshotPlain() would
+                //      otherwise resurrect, and the heal entry that would put
+                //      the editor back on the next poll.
+                var victim = null;
+                var wasEmpty = false;
+                try {
+                    victim = (typeof st.getValue === 'function') ? st.getValue(k) : null;
+                    wasEmpty = !!(victim && typeof victim.isEmpty === 'function' && victim.isEmpty());
+                } catch (e0) { victim = null; }
                 var r = origRemove(k);
+                if (victim && !wasEmpty) {
+                    delete restoredFallback[k];
+                    for (var tk in trackedEditors) {
+                        if (!Object.prototype.hasOwnProperty.call(trackedEditors, tk)) continue;
+                        var rec = trackedEditors[tk];
+                        if (rec && rec.editor && (rec.editor === victim || rec.editor.id === k)) {
+                            delete trackedEditors[tk];
+                        }
+                    }
+                    // Tell the parent this shrink is deliberate. Without an
+                    // explicit signal it cannot tell "the reader deleted a
+                    // highlight" from "the restore never reached that page",
+                    // and the only safe answer to the second one is to refuse
+                    // the smaller snapshot.
+                    removedSinceEmit[k] = true;
+                    diag('user removed key=' + k, 'wasEmpty=false');
+                } else {
+                    diag('cleanup removed key=' + k, 'wasEmpty=' + wasEmpty);
+                }
                 if (!applying) emitChanged();
                 return r;
             };
@@ -392,6 +800,9 @@
         if (pollTimer) return;
         pollTimer = setInterval(function () {
             if (applying || !pdfDoc()) return;
+            // Same gate as emitChangedNow: never emit for a document whose
+            // init has not been seen yet (see there for the reasoning).
+            if (lastInitStr === null) return;
             try { healEditors(); } catch (e) { /* ignore */ }
             try {
                 var snap = snapshotPlain();
@@ -399,8 +810,15 @@
                 var str = stableStringify(snap);
                 if (str !== lastEmitted) {
                     lastEmitted = str;
+                    var prend = Object.keys(removedSinceEmit);
+                    removedSinceEmit = {};
                     try {
-                        window.parent.postMessage({ type: 'materioAnnotChanged', annotations: { storage: snap } }, '*');
+                        window.parent.postMessage({
+                            type: 'materioAnnotChanged',
+                            annotations: { storage: snap },
+                            removed: prend,
+                            restoring: !!pending,
+                        }, '*');
                     } catch (e) { /* ignore */ }
                 }
             } catch (e) { /* ignore */ }
@@ -458,7 +876,15 @@
                 // keep pending + appliedIds for the new document's pass.
                 var key = keys[i];
                 if (appliedIds[key]) continue;
+                if (noRetry[key]) continue; // preserved in the record, never
+                // retried (unrestorable payload - see prepareEntry)
                 var data = pending[key];
+                // Seed the safety net: while this entry is not represented in
+                // annotationStorage, snapshotPlain() carries it forward from
+                // `unrestored` so a partial restore can never shrink the record.
+                // Only real editor data is carried (form values / stale junk
+                // must not be re-injected into the snapshot forever).
+                if (isEditorData(data)) unrestored[key] = data;
                 if (!isEditorData(data)) {
                     appliedIds[key] = true; // stale junk: skip, never retry
                     continue;
@@ -469,84 +895,42 @@
                     appliedIds[key] = true; // unmappable: skip, never retry
                     continue;
                 }
-                // Freehand highlights serialize their geometry as `outlines`
-                // only (no quadPoints/inkLists), but HighlightEditor.deserialize
-                // reads ONLY quadPoints and inkLists - it never looks at
-                // `outlines`. So a free highlight restores as a bare editor with
-                // no geometry: deserialize() returns a truthy editor, addOrRebuild
-                // succeeds, the layer is unhidden, and nothing is drawn.
+                // Repair the record into a shape PDF.js can actually
+                // deserialize (see prepareEntry). This is where two real bugs
+                // used to live:
                 //
-                // `outlines` comes in two shapes and both are in the wild:
-                //   outlines: [ [...], [...] ]        (older captures)
-                //   outlines: { outline: [ [...] ] } (what the viewer writes)
-                // The old guard was Array.isArray(outlines), which silently
-                // rejected the object form - the common one.
-                var entry = data;
+                //   1. Freehand highlights serialize geometry as `outlines`
+                //      ONLY (quadPoints is null). HighlightEditor.deserialize
+                //      reads quadPoints and inkLists and never looks at
+                //      `outlines`, so a free highlight used to restore as a
+                //      bare editor with no geometry - in the layer, serializing,
+                //      painting nothing.
+                //   2. The old conversion flattened `outlines.outline` (a
+                //      cubic-bezier path full of NaN sentinels) into stride-8
+                //      quads, producing NaN geometry that no SVG path can draw.
+                //      The real stroke is `outlines.points[0]`, already in page
+                //      coordinates, which is exactly what the `inkLists`
+                //      branch consumes.
+                //   3. An unconditional `entry.quadPoints =
+                //      toNumericArray(data.quadPoints)` afterwards overwrote the
+                //      freehand conversion with null, undoing it.
+                //
+                // prepareEntry returns null only for a truly unrestorable
+                // payload (no usable rect / no geometry at all); the ORIGINAL
+                // record is then kept in `unrestored` so the snapshot never
+                // shrinks, and we stop retrying it.
                 diag('restoreEntry key=' + key, 'page=' + pageIndex,
                     'ctor=' + entryCtor(data),
                     'fields=' + entryFields(data));
-                var freehand = null;
-                if (Array.isArray(data.outlines)) {
-                    freehand = data.outlines;
-                } else if (data.outlines && typeof data.outlines === 'object' &&
-                    Array.isArray(data.outlines.outline)) {
-                    freehand = data.outlines.outline;
+                var entry = prepareEntry(data);
+                if (!entry) {
+                    diag('restoreEntry UNRESTORABLE key=' + key,
+                        'type=' + entryCtor(data), 'page=' + pageIndex);
+                    unrestored[key] = data;
+                    noRetry[key] = true;
+                    appliedIds[key] = true; // preserved, but never retried
+                    continue;
                 }
-                if (!data.quadPoints && !data.inkLists && freehand && freehand.length) {
-                    entry = {};
-                    for (var dk in data) {
-                        if (Object.prototype.hasOwnProperty.call(data, dk)) entry[dk] = data[dk];
-                    }
-                    // Flatten the outline rows into the stride-8 quadPoints array
-                    // that HighlightEditor.deserialize actually reads:
-                    //     if (quadPoints) { for (let i = 0; i < quadPoints.length; i += 8) ... }
-                    //
-                    // NOT inkLists: that branch reads only inkLists[0] and walks
-                    // it as one flat [x,y,x,y,...] stroke, so handing it N rows
-                    // built a single bogus stroke and threw
-                    // "offset is out of bounds".
-                    var flatQ = [];
-                    for (var rr = 0; rr < freehand.length; rr++) {
-                        var row = freehand[rr];
-                        if (row === null || row === undefined) continue;
-                        if (typeof row === 'number') { flatQ.push(row); continue; }
-                        var len = typeof row.length === 'number' ? row.length : null;
-                        if (len === null && typeof row === 'object') {
-                            var kk = Object.keys(row);
-                            len = kk.length;
-                            for (var q = 0; q < kk.length; q++) flatQ.push(Number(row[kk[q]]));
-                            continue;
-                        }
-                        for (var cc = 0; cc < len; cc++) flatQ.push(Number(row[cc]));
-                    }
-                    entry.quadPoints = new Float32Array(flatQ);
-                    try { delete entry.inkLists; } catch (e8) { entry.inkLists = undefined; }
-                    diag('freehand->quadPoints key=' + key, 'rows=' + freehand.length,
-                        'values=' + flatQ.length, 'stride8=' + (flatQ.length % 8 === 0),
-                        'shape=' + (Array.isArray(data.outlines) ? 'array' : 'object'));
-                }
-                // Normalise the geometry before handing it to PDF.js.
-                //
-                // PDF.js indexes quadPoints directly (quadPoints[0]) and iterates
-                // paths.lines, so both must be real arrays. Any JSON hop that
-                // turns a typed array into {"0":..,"1":..} produces a record that
-                // deserialize() cannot consume at all:
-                //     TypeError: Cannot read properties of undefined (reading '0')
-                // and the entry is retried forever and never appears. Records
-                // written by older builds, or imported through anything that
-                // stringified them, look exactly like this - so repair them
-                // rather than refusing to restore them.
-                try {
-                    entry.quadPoints = toNumericArray(data.quadPoints);
-                    if (data.inkLists) entry.inkLists = data.inkLists.map(toNumericArray);
-                    if (data.paths && typeof data.paths === 'object') {
-                        if (data.paths.lines) entry.paths = Object.assign({}, data.paths, { lines: data.paths.lines.map(toNumericArray) });
-                        if (data.paths.points) {
-                            entry.paths = Object.assign({}, entry.paths || data.paths,
-                                { points: data.paths.points.map(toNumericArray) });
-                        }
-                    }
-                } catch (e6) { /* keep the original entry if repair fails */ }
 
                 var layer = null;
                 try {
@@ -581,6 +965,11 @@
                     diag('deserialize key=' + key, 'page=' + pageIndex,
                         'returned=' + !!editor, 'hasAddOrRebuild=' + (typeof layer.addOrRebuild === 'function'));
                     if (editor) {
+                        // The entry now has a live representation in
+                        // annotationStorage: stop carrying it from `unrestored`
+                        // (otherwise the snapshot would keep BOTH the raw
+                        // record and the live editor - a duplicate annotation).
+                        delete unrestored[key];
                         // A restored editor is NOT backed by a PDF annotation
                         // element, so annotationElementId must be null. Leaving
                         // it set makes serialize() take the #hasElementChanged()
@@ -782,22 +1171,26 @@
         if ((attempt || 0) > RESTORE_MAX_ATTEMPTS) {
             // Pages / editor layers never became available in time.
             //
-            // This used to give up here and emit synced with whatever had been
-            // applied so far - which at this point is usually NOTHING. The parent
-            // treats a sync as the canonical snapshot and rebases its baseline to
-            // it, so an empty sync told it "this PDF has no annotations". The next
-            // save then wrote that empty snapshot OVER the real record and the
-            // annotations were destroyed permanently. That is the "saved (N)" but
-            // never comes back bug: data loss, not a rendering failure.
+            // Emit ONE synced snapshot here: the parent treats a sync as the
+            // canonical record and rebases clean, and it is safe now because
+            // snapshotPlain() carries every not-yet-restored entry forward
+            // from `unrestored`, so this snapshot is COMPLETE - it can no
+            // longer arrive as "{}" and talk the parent into overwriting the
+            // real record with nothing. Before that guarantee existed, silence
+            // was the only safe option (see git history).
             //
             // PDF.js defaults annotationEditorMode to NONE (viewer.mjs), so
-            // pageView.annotationEditorLayer only exists once a tool is activated
-            // or the page carrying the annotation has rendered. A large PDF opened
-            // near the end blows past the old 30 x 1s window easily.
-            //
-            // So: keep retrying quietly for as long as the document is open, and
-            // do NOT emit a synced message we already know is incomplete. Silence
-            // cannot destroy anything.
+            // pageView.annotationEditorLayer only exists once a tool is
+            // activated or the page carrying the annotation has rendered. A
+            // large PDF opened near the end blows past the old 30 x 1s window
+            // easily - so keep retrying quietly for as long as the document is
+            // open, and only sync once.
+            if (!maxAttemptSynced) {
+                maxAttemptSynced = true;
+                diag('restore max attempts reached', 'remaining=' +
+                    ((remaining && remaining.length) || 0), 'emitting sync once');
+                emitSynced();
+            }
             restoreTimer = setTimeout(function () {
                 restoreTimer = null;
                 applyPending(attempt || 0);
@@ -851,7 +1244,12 @@
             bus.on('annotationeditormodechanged', function () {
                 if (!pending || applying) return;
                 try {
-                    appliedIds = {};
+                    // Deliberately NOT clearing `appliedIds` here. Entries that
+                    // are still waiting are already outside appliedIds (they
+                    // were pushed to `remaining`), so they retry on their own.
+                    // Clearing it re-deserialized the entries that SUCCEEDED,
+                    // adding a second, identical editor to the page every time
+                    // the reader touched an annotation tool.
                     if (restoreTimer) {
                         clearTimeout(restoreTimer);
                         restoreTimer = null;
@@ -879,12 +1277,36 @@
             lastInitStr = str;
             initApplied = false;
             appliedIds = {};
+            maxAttemptSynced = false;
+            removedSinceEmit = {};
+            // Rename incoming keys to a collision-free prefix.
+            //
+            // Saved keys are pdf.js editor ids, and those IDs RESTART FROM 1
+            // for every document: a record saved from a previous session can
+            // hold `pdfjs_internal_editor_9_p0_1`, and a live editor created
+            // during THIS session's restore gets exactly the same id. With the
+            // original keys, the pending entry and the freshly restored editor
+            // fight over one id - the snapshot drops or duplicates one of them.
+            // Keeping the raw record under `materio_pending_*` means pending
+            // entries can never shadow a live editor id.
+            var renamed = {};
+            var ik = Object.keys(map);
+            for (var ii = 0; ii < ik.length; ii++) {
+                renamed['materio_pending_' + ii] = map[ik[ii]];
+            }
+            // Seed the completeness net: every incoming entry is carried in
+            // snapshots until an editor actually exists for it.
+            unrestored = {};
+            noRetry = {};
+            for (var uk2 in renamed) {
+                if (Object.prototype.hasOwnProperty.call(renamed, uk2)) unrestored[uk2] = renamed[uk2];
+            }
             if (pdfDoc()) {
-                pending = map;
+                pending = renamed;
                 hookStorage();
                 applyPending(0);
             } else {
-                pending = map;
+                pending = renamed;
                 scheduleRestore(0);
             }
         } else if (data.type === 'materioAnnotFlush') {
@@ -920,10 +1342,35 @@
             lastInitStr = null;
             initApplied = false;
             appliedIds = {};
+            maxAttemptSynced = false;
             restoredFallback = {}; // annotationStorage is per-document
             fallbackLogged = {};
             trackedEditors = {};
             emptyRetries = {};
+            // Per-document as well: entries carried for the PREVIOUS document
+            // must never leak into this document's snapshot (they are keyed to
+            // a different PDF hash on the parent side). Exception: entries we
+            // already gave up retrying (bad payload, not bad document) stay -
+            // they are the whole reason a partial snapshot cannot shrink the
+            // record, and init re-seeds everything anyway.
+            var keepUnrestored = {};
+            var keepNoRetry = {};
+            for (var uk3 in unrestored) {
+                if (Object.prototype.hasOwnProperty.call(unrestored, uk3) && noRetry[uk3]) {
+                    keepUnrestored[uk3] = unrestored[uk3];
+                    keepNoRetry[uk3] = true;
+                }
+            }
+            unrestored = keepUnrestored;
+            noRetry = keepNoRetry;
+            removedSinceEmit = {};
+            if (pending) {
+                for (var pk in pending) {
+                    if (Object.prototype.hasOwnProperty.call(pending, pk) && isEditorData(pending[pk])) {
+                        unrestored[pk] = pending[pk];
+                    }
+                }
+            }
             if (d) {
                 try {
                     var a = app();
@@ -940,6 +1387,17 @@
                         a.eventBus.__materioSidecarPages = true;
                         try {
                             a.eventBus.on('pagechanging', function () {
+                                if (pending && !applying) {
+                                    try { applyPending(0); } catch (e) { /* ignore */ }
+                                }
+                            });
+                            // A page finishing its draw is the moment its
+                            // AnnotationEditorLayerBuilder finally exists -
+                            // exactly what "SKIP noLayer" is waiting for.
+                            // Retrying here turns a page the reader scrolls to
+                            // into an immediate restore instead of waiting for
+                            // the next 1s poll.
+                            a.eventBus.on('pagerendered', function () {
                                 if (pending && !applying) {
                                     try { applyPending(0); } catch (e) { /* ignore */ }
                                 }
