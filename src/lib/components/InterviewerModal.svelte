@@ -5,7 +5,7 @@
 import { get } from 'svelte/store';
 	import { page } from '$app/stores';
 	import { getSkipLanding, isForceApp } from '$lib/utils/landingPrefs.js';
-import { isExamPeriodActive, findVivaOrPracticalExam, isUsableExamConfig } from '$lib/utils/exam-gate.js';
+import { isExamPeriodRunning, findVivaOrPracticalExam, isUsableExamConfig } from '$lib/utils/exam-gate.js';
 	import InterviewerCore from './InterviewerCore.svelte';
 
 	const INTERVIEW_MODAL_KEYS = ['interview', 'viva', 'viva-box', 'viva-question-bank'];
@@ -201,11 +201,11 @@ import { isExamPeriodActive, findVivaOrPracticalExam, isUsableExamConfig } from 
 
 			// Scan every semester entry (not just saved/first): admin keeps
 			// separate Mid/End/Practical-Viva periods and the viva entry is
-			// rarely semesters[0]. Same gate as the exam card, via exam-gate.js.
+			// rarely semesters[0]. Gate lives in exam-gate.js.
 			const now = new Date();
-			// `??` so an admin-set 0 survives; `||` turned "don't show early"
-			// into "show 3 days early".
-			const showBefore = Number(data.showBeforeDaysViva ?? 3);
+			// Running-only gate below: the exam card teases the period a few days
+			// early via showBeforeDaysViva, but the question box is for a
+			// practical/viva period that is actually underway right now.
 			// No saved semester means "consider them all" — restricting to the
 			// saved one hid a genuinely active practical/viva period.
 			const candidates = (data.semesters || []).filter(s =>
@@ -219,7 +219,7 @@ import { isExamPeriodActive, findVivaOrPracticalExam, isUsableExamConfig } from 
 				// replaced read `!endDate` as "ongoing forever", so a practical
 				// period from a past semester with no endDate kept the box open
 				// indefinitely — long outside the show-before window.
-				if (isExamPeriodActive(semester, showBefore, now)) {
+				if (isExamPeriodRunning(semester, now)) {
 					hasVivaExam = true;
 					activeVivaExam = vivaOrPracticalExam;
 					break;

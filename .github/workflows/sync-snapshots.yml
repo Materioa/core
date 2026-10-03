@@ -1,9 +1,9 @@
-# Keeps the MongoDB fallback snapshots fresh.
+# Keeps the MongoDB version snapshot fresh.
 #
-# The public read APIs (promotions / releases / examdata) fall back to
-# static/assets/data/*.json when Mongo is unreachable from the edge. Without
-# this job those files go stale and the fallback serves wrong data (dead
-# promos, past exams). Runs daily; commits only when content actually changed.
+# The health endpoint reads the served version from the committed
+# releases.json, refreshed here daily. The public read APIs that
+# used to fall back to static JSON (promotions / releases / examdata)
+# are Mongo-only now, so only that one file is synced.
 #
 # Required repo secret: MONGODB_URI (read-only DB user is enough).
 
@@ -44,12 +44,12 @@ jobs:
       - name: Commit if changed
         shell: bash
         run: |
-          if git diff --quiet -- static/assets/data/promo.json static/assets/data/releases.json static/assets/data/examdata.json; then
-            echo "Snapshots already fresh, nothing to commit."
+          if git diff --quiet -- static/assets/data/releases.json; then
+            echo "Snapshot already fresh, nothing to commit."
             exit 0
           fi
           git config user.name "materio-snapshot-bot"
           git config user.email "snapshot-bot@getmaterio.app"
-          git add static/assets/data/promo.json static/assets/data/releases.json static/assets/data/examdata.json
-          git commit -m "chore: refresh Mongo fallback snapshots [skip ci]"
+          git add static/assets/data/releases.json
+          git commit -m "chore: refresh releases snapshot [skip ci]"
           git push

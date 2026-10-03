@@ -20,16 +20,7 @@ import {
   removeWebPushSubscription
 } from '$lib/server/webpush.js';
 import { getContributionNotificationTemplate } from '$lib/server/email-templates.js';
-// Build-time bundled snapshots: static/ is uploaded as Assets (not visible
-// to fs at runtime on Workers), so fs-based getLocalDataFile() always misses
-// in production. These imports bake the last-deployed snapshot into the
-// bundle: 0ms, always available, fresh as of last deploy (refreshed daily by
-// the snapshot cron + deploy). Live Mongo data still wins whenever reachable.
-import bundledPromo from '../../../static/assets/data/promo.json';
-import bundledReleases from '../../../static/assets/data/releases.json';
-// No bundled examdata snapshot on purpose: see handleExamdataFeature. A
-// committed examdata.json is stale the moment it lands, and exam config gates
-// live UI, so a snapshot must never be served as if Mongo had said so.
+
 
 // ==========================================
 // Google Drive Configuration
@@ -310,9 +301,8 @@ async function fetchJsonNotifications() {
     } catch {}
   }
 
-  const fallback = getLocalDataFile('notifications.json');
-  if (Array.isArray(fallback)) return fallback;
-  if (Array.isArray(fallback?.notifications)) return fallback.notifications;
+  // No local-file fallback: the CDN feed already won, and a bundled
+  // notifications.json would resurrect announcements admins retired.
   return [];
 }
 
@@ -429,13 +419,6 @@ async function handleSavePromo(request) {
 
   try {
     const promoData = await request.json();
-    const promoFilePath = path.join(process.cwd(), 'promo.json');
-
-    try {
-      fs.writeFileSync(promoFilePath, JSON.stringify(promoData, null, 2));
-    } catch (writeErr) {
-      console.warn('Could not write promo.json to disk:', writeErr.message);
-    }
 
     try {
       const db = await getMongoDb();
@@ -443,6 +426,7 @@ async function handleSavePromo(request) {
       await promoCollection.replaceOne({ type: 'active_promo' }, promoData, { upsert: true });
     } catch (e) {
       console.warn('MongoDB promo save error:', e.message);
+      return json({ error: 'Failed to save promotion', details: e.message }, { status: 503 });
     }
 
     return json({ success: true, message: 'Promotion saved successfully' });
@@ -1695,33 +1679,23 @@ async function handlePosts(url) {
 // 13. Promotions Feature (Full CRUD)
 // ==========================================
 async function handlePromotionsFeature(request, url) {
-  // Public GETs must never 500: Mongo may be unconfigured/slow on the
-  // edge, so fall back to the bundled static file instead of erroring.
+  // No static fallback anymore: a committed promo.json went stale the
+  // moment it landed and kept showing promos after an admin disabled them.
+  // Mongo-only — "we do not know" answers as disabled, never as a file.
   let db = null;
   try {
     db = await getMongoDb();
   } catch (err) {
-    console.warn('Promotions Mongo unavailable, using local fallback:', err.message);
+    console.warn('Promotions Mongo unavailable:', err.message);
   }
-  // All three serveLocal* helpers answer from the bundled snapshot rather
-  // than live Mongo, so they tag the response as degraded: the edge cache
-  // then stores it for seconds instead of the full TTL, so a transient
-  // Mongo blip can't pin stale content or mask recovery.
-  const serveLocalPromo = () => {
-    const promoFile = getLocalDataFile('promo.json') || bundledPromo;
-    if (promoFile && promoFile.enabled) return markDegraded(json(promoFile));
-    return json({ enabled: false, message: 'No active promotions' });
-  };
+  const promoUnavailable = () =>
+    markDegraded(json({ enabled: false, message: 'No active promotions' }));
   try {
     const method = request.method;
     const getAll = url.searchParams.get('all') === 'true';
 
     if (!db) {
-      if (method === 'GET' && !getAll) return serveLocalPromo();
-      if (method === 'GET' && getAll) {
-        const promoFile = getLocalDataFile('promo.json');
-        return json(promoFile ? [promoFile] : []);
-      }
+      if (method === 'GET') return promoUnavailable();
       return json({ error: 'Database temporarily unavailable', details: 'MongoDB not reachable' }, { status: 503 });
     }
     const promoCollection = db.collection('promotions');
@@ -1732,7 +1706,7 @@ async function handlePromotionsFeature(request, url) {
           const isAdmin = await checkAdminUser(request, url);
           if (!isAdmin) return json({ error: 'Admin privileges required' }, { status: 403 });
 
-          let promos = await withMongoTimeout(
+          const promos = await withMongoTimeout(
             promoCollection
               .find({})
               .sort({ lastUpdated: -1, _id: -1 })
@@ -1740,17 +1714,6 @@ async function handlePromotionsFeature(request, url) {
             5000,
             'promotions find-all'
           );
-
-          if (promos.length === 0) {
-            const promoFile = getLocalDataFile('promo.json');
-            if (promoFile) {
-              const inserted = await promoCollection.insertOne({
-                ...promoFile,
-                lastUpdated: promoFile.lastUpdated || new Date().toISOString()
-              });
-              promos = [{ _id: inserted.insertedId, ...promoFile }];
-            }
-          }
 
           return json(promos);
         }
@@ -1776,8 +1739,8 @@ async function handlePromotionsFeature(request, url) {
             return String(b?._id || '').localeCompare(String(a?._id || ''));
           });
         } catch (err) {
-          console.warn('Promotions Mongo read failed, using local fallback:', err.message);
-          return serveLocalPromo();
+          console.warn('Promotions Mongo read failed:', err.message);
+          return promoUnavailable();
         }
 
         if (promos.length === 0) {
@@ -1888,7 +1851,7 @@ async function handlePromotionsFeature(request, url) {
     }
   } catch (error) {
     console.error('Promotions Feature Error:', error);
-    if (request.method === 'GET') return serveLocalPromo();
+    if (request.method === 'GET') return promoUnavailable();
     return json({ error: 'Database temporarily unavailable', details: error.message }, { status: 503 });
   }
 }
@@ -1897,23 +1860,14 @@ async function handlePromotionsFeature(request, url) {
 // 14. Releases Feature (Full CRUD)
 // ==========================================
 async function handleReleasesFeature(request, url) {
-  const serveLocalReleases = () => {
-    const fallback = getLocalDataFile('releases.json') || bundledReleases;
-    const releases = Array.isArray(fallback)
-      ? fallback
-      : Array.isArray(fallback?.releases)
-        ? fallback.releases
-        : [];
-    return markDegraded(json(releases));
-  };
   let db = null;
   try {
     db = await getMongoDb();
   } catch (err) {
-    console.warn('Releases Mongo unavailable, using local fallback:', err.message);
+    console.warn('Releases Mongo unavailable:', err.message);
   }
   if (!db) {
-    if (request.method === 'GET') return serveLocalReleases();
+    if (request.method === 'GET') return markDegraded(json([]));
     return json({ error: 'Database temporarily unavailable', details: 'MongoDB not reachable' }, { status: 503 });
   }
   try {
@@ -1926,12 +1880,12 @@ async function handleReleasesFeature(request, url) {
         try {
           releases = await withMongoTimeout(releasesCollection.find({}).toArray(), 5000, 'releases find');
         } catch (err) {
-          console.warn('Releases Mongo read failed, using local fallback:', err.message);
-          return serveLocalReleases();
+          console.warn('Releases Mongo read failed:', err.message);
+          return markDegraded(json([]));
         }
 
         if (releases.length === 0) {
-          return serveLocalReleases();
+          return json([]);
         }
 
         // Decorate-sort-undecorate. The comparator used to call parseBuildDate
@@ -2056,7 +2010,7 @@ async function handleExamdataFeature(request, url) {
   try {
     db = await getMongoDb();
   } catch (err) {
-    console.warn('Examdata Mongo unavailable, using local fallback:', err.message);
+    console.warn('Examdata Mongo unavailable:', err.message);
   }
   if (!db) {
     if (request.method === 'GET') return noConfig();
@@ -2069,8 +2023,8 @@ async function handleExamdataFeature(request, url) {
     switch (method) {
       case 'GET': {
         // Distinguish "Mongo is down" from "Mongo says there is no config".
-        // Only the former may fall back to the bundled snapshot; the latter
-        // used to resurrect an exam config an admin had just cleared.
+        // Neither may resurrect static JSON: a committed snapshot used to
+        // reappear here and keep an exam config on screen forever.
         let mongoAnswered = false;
         try {
           const data = await withMongoTimeout(
@@ -2099,7 +2053,7 @@ async function handleExamdataFeature(request, url) {
             }
           }
         } catch (err) {
-          console.warn('Examdata Mongo read failed, using local fallback:', err.message);
+          console.warn('Examdata Mongo read failed:', err.message);
         }
 
         if (mongoAnswered) {

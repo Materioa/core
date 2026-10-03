@@ -1,12 +1,12 @@
-// Nightly snapshot: dumps the live MongoDB collections that back the public
-// read APIs (promotions / releases / examdata) into static/assets/data/*.json.
+// Nightly snapshot: dumps the deploy version manifest (releases.json)
+// from MongoDB into static/assets/data/releases.json.
 //
-// Why this exists: the API handlers fall back to those static files when
-// Mongo is unreachable from the edge. The bundled files go stale (e.g. a
-// disabled June promo still marked enabled, past exams only), so a stale
-// fallback silently serves wrong data. This script keeps the fallback fresh:
-// run it locally after changing promos/releases/exams, and daily via the
-// `sync-snapshots.yml` GitHub Action (which commits only when content changed).
+// Why this exists: the health handler derives the served version string
+// from the bundle-time static file (no live Mongo read on that endpoint),
+// so the file must stay fresh across deploys without a manual bump.
+// Promotions / releases API reads and exam config intentionally serve
+// Mongo-only — a committed snapshot there was silently promoted to a
+// source of truth (dead promos, past exams), so those dumps are gone.
 //
 // Usage:
 //   MONGODB_URI="mongodb+srv://..." node scripts/sync-mongo-snapshot.mjs
@@ -73,21 +73,6 @@ function writeIfChanged(filename, data) {
   return true;
 }
 
-// Same active-promo selection as handlePromotionsFeature (features-handler.js).
-function pickActivePromo(promos) {
-  const now = new Date();
-  const enabled = (promos || []).filter((p) => p && p.enabled);
-  return (
-    enabled.find((promo) => {
-      if (!promo.isLimitedOffer) return true;
-      if (!promo.startDate || !promo.endDate) return true;
-      const start = new Date(promo.startDate);
-      const end = new Date(promo.endDate);
-      return now >= start && now <= end;
-    }) || null
-  );
-}
-
 const client = new MongoClient(uri, {
   serverSelectionTimeoutMS: 15000,
   connectTimeoutMS: 15000
@@ -98,36 +83,12 @@ try {
   const db = client.db('materio');
   let changed = 0;
 
-  // 1. Promotions — the file holds the single active promo object.
-  const promos = await db
-    .collection('promotions')
-    .find({})
-    .sort({ lastUpdated: -1, _id: -1 })
-    .toArray();
-  const active = pickActivePromo(promos);
-  if (active) {
-    if (writeIfChanged('promo.json', stripId(active))) changed++;
-  } else {
-    console.log('- promo.json: no active promo in Mongo, leaving file as-is');
-  }
-
-  // 2. Releases — the file holds the full array.
+  // Releases — the file holds the full array.
   const releases = await db.collection('releases').find({}).toArray();
   if (releases.length > 0) {
     if (writeIfChanged('releases.json', releases.map(stripId))) changed++;
   } else {
     console.log('- releases.json: collection empty, leaving file as-is');
-  }
-
-  // 3. Examdata — the file holds the single config object.
-  const config =
-    (await db.collection('examdata').findOne({ type: 'config' })) ||
-    (await db.collection('examdata').findOne({ semesters: { $exists: true } })) ||
-    (await db.collection('examdata').findOne({}));
-  if (config && (Array.isArray(config.semesters) || config.enabled === false)) {
-    if (writeIfChanged('examdata.json', stripId(config))) changed++;
-  } else {
-    console.log('- examdata.json: no usable config in Mongo, leaving file as-is');
   }
 
   console.log(changed > 0 ? `Done. ${changed} file(s) updated.` : 'Done. All snapshots already fresh.');

@@ -1,6 +1,7 @@
 // Regression tests for the exam gate. Run: node .examgate-test/run.mjs
 import {
   isExamPeriodActive,
+  isExamPeriodRunning,
   effectiveEndDate,
   findVivaOrPracticalExam,
   showBeforeDaysFor,
@@ -94,6 +95,29 @@ ok('finds practical', findVivaOrPracticalExam({ exams: [{ type: 'practical' }] }
 ok('finds viva', findVivaOrPracticalExam({ exams: [{ type: 'viva' }] })?.type, 'viva');
 ok('none for theory', findVivaOrPracticalExam({ exams: [{ type: 'theory' }] }), null);
 
+/* ---- isExamPeriodRunning: strictly "underway", never show-before -------- */
+const oncomingPractical = {
+  semester: '7',
+  examPeriod: { startDate: '2026-10-04T09:00:00', endDate: '2026-10-08T17:00:00' },
+  exams: [
+    { type: 'practical', date: '2026-10-07' },
+    { type: 'viva', date: '2026-10-13' }
+  ]
+};
+// Oct 2 (shown for the card via showBefore) must NOT unlock the viva box.
+ok('running: day before start -> false', isExamPeriodRunning(oncomingPractical, day('2026-10-03')), false);
+ok('...but the card still teases it via its window', isExamPeriodActive(oncomingPractical, 3, day('2026-10-03')), true);
+// Admin forgot to extend the period past the viva exam: endDate 10-08 is
+// inside the exam window — effectiveEndDate takes the last exam date.
+ok('running: day of a viva inside the period -> true', isExamPeriodRunning(oncomingPractical, day('2026-10-07')), true);
+ok('running: after a shorter configured endDate but viva still ahead -> true',
+   isExamPeriodRunning(oncomingPractical, day('2026-10-13')), true);
+ok('running: after the last viva -> false', isExamPeriodRunning(oncomingPractical, day('2026-10-14')), false);
+
+/* ---- day-inclusive end boundary --------------------------------------- */
+ok('period ending midnight on Oct 8 still runs on Oct 8',
+   isExamPeriodActive({ examPeriod: { startDate: '2026-10-01', endDate: '2026-10-08' }, exams: [] }, 3, day('2026-10-08')), true);
+
 /* ---- only a live Mongo config may switch the card on ----------------- */
 const liveConfig = {
   enabled: true,
@@ -109,20 +133,27 @@ ok('admin-disabled is NOT usable', isUsableExamConfig({ enabled: false, semester
 ok('empty semesters is NOT usable', isUsableExamConfig({ enabled: true, semesters: [] }), false);
 ok('null is NOT usable', isUsableExamConfig(null), false);
 
-// The actual committed snapshot that caused the false positive: it declares a
-// Practical/Viva period inside the show-before window.
-const staleSnapshot = JSON.parse(
-  (await import('node:fs')).readFileSync(
-    new URL('../static/assets/data/examdata.json', import.meta.url), 'utf8'
-  )
-);
-ok('committed snapshot parses (regression fixture)', Array.isArray(staleSnapshot.semesters), true);
+// The deleted committed snapshot carried a Practical/Viva period inside the
+// show-before window. Simulate it: a snapshot is never usable config, and it
+// must stay hidden even when its dates say "on".
+const staleSnapshot = {
+  enabled: true,
+  showBeforeDays: 9,
+  showBeforeDaysViva: 3,
+  semesters: [
+    {
+      semester: 6,
+      examPeriod: { name: 'Viva/Practical', startDate: '2026-04-06T09:00:00', endDate: '2026-04-11T17:00:00' },
+      exams: [{ type: 'viva', date: '2026-04-06' }]
+    }
+  ]
+};
 const staleVivaSem = staleSnapshot.semesters.find((s) =>
   (s.exams || []).some((e) => e.type === 'viva' || e.type === 'practical')
 );
-ok('snapshot does contain a practical/viva period (the bug source)', Boolean(staleVivaSem), true);
-ok('...and its dates would have gated the box on 2026-10-02',
-   isExamPeriodActive(staleVivaSem, staleSnapshot.showBeforeDaysViva, day('2026-10-02')), true);
+ok('snapshot declared a practical/viva period (the bug source)', Boolean(staleVivaSem), true);
+ok('...and its dates would have gated the box during that window',
+   isExamPeriodActive(staleVivaSem, staleSnapshot.showBeforeDaysViva, day('2026-04-06')), true);
 ok('...but a snapshot is never usable config, so it stays hidden',
    isUsableExamConfig({ ...staleSnapshot, degraded: true }), false);
 

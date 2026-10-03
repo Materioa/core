@@ -539,10 +539,9 @@ import HugeIcon from './HugeIcon.svelte';
     async function loadAndDisplayPromotion() {
         try {
             const timestamp = Date.now();
+            // MongoDB promotions only. The /assets/data/promo.json fallback was
+            // a build-time snapshot that reproduced disabled promos forever.
             let response = await fetch(`/api/v2/promotions?t=${timestamp}`);
-            if (!response.ok) {
-                response = await fetch(`/assets/data/promo.json?t=${timestamp}`);
-            }
             if (!response.ok) return;
 
             const data = await response.json();

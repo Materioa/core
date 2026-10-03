@@ -106,13 +106,12 @@
     async function loadReleases() {
         loadingReleases = true;
         try {
-            // First fetch releases directly from the MongoDB releases collection API
+            // Two API candidates only. The old third fallback — the committed
+            // /assets/data/releases.json — was a stale snapshot that revived
+            // dead releases when Mongo was slow. Mongo or nothing.
             let res = await fetch(toApiUrl('/api/v2/releases'));
             if (!res.ok) {
                 res = await fetch(toApiUrl('/api/v2/features?action=releases'));
-            }
-            if (!res.ok) {
-                res = await fetch('/assets/data/releases.json');
             }
             if (res.ok) {
                 const releases = await res.json();

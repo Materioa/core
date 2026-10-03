@@ -55,14 +55,45 @@ let isExamDataLoading = false;
 let hasExamDataProcessed = false;
 
 let vivaData = null; // Cached viva.csv data
+let vivaDataUrl = null; // URL the cache was filled from
 let vivaDivisions = []; // Cached divisions list from viva.csv
 const USER_DIV_LS_KEY = 'user_div';
 
-async function loadVivaData() {
-    if (vivaData) return vivaData;
+// viva/practical schedules are division-specific (different classes sit
+// different lab/viva slots), so they read from the period's seating CSV.
+// The CSV lives at the exam-level seatingDataUrl override first, then the
+// period-level seatingDataUrl — never the bundled /assets/data/viva.csv,
+// which is a stale April snapshot and used to paper over Mongo gaps.
+function isDivisionScheduled(exams) {
+    return Array.isArray(exams) && exams.some(e => e.type === 'viva' || e.type === 'practical');
+}
+
+function getVivaScheduleUrl() {
     try {
-        const response = await fetch('/assets/data/viva.csv');
-        if (!response.ok) throw new Error('Viva CSV not found');
+        const fromExams = (currentSemesterData?.exams || [])
+            .map((e) => e?.seatingDataUrl)
+            .find((u) => typeof u === 'string' && u.trim());
+        if (fromExams) return fromExams.trim();
+        const periodUrl = currentSemesterData?.seatingDataUrl;
+        if (typeof periodUrl === 'string' && periodUrl.trim()) return periodUrl.trim();
+    } catch {}
+    return '';
+}
+
+async function loadVivaData() {
+    const url = getVivaScheduleUrl();
+    if (!url) {
+        vivaData = null;
+        vivaDataUrl = null;
+        vivaDivisions = [];
+        return null;
+    }
+    // Refetch when the period (and therefore its CSV URL) changes.
+    if (vivaData && vivaDataUrl === url) return vivaData;
+    vivaDataUrl = url;
+    try {
+        const response = await fetch(url, { cache: 'no-store' });
+        if (!response.ok) throw new Error(`Viva schedule CSV not found at ${url}`);
         const text = await response.text();
         const lines = text.trim().split(/\r?\n/);
         const headers = lines[0].split(',').map(h => h.trim());
@@ -82,7 +113,8 @@ async function loadVivaData() {
         });
         return vivaData;
     } catch (e) {
-        console.error('[ExamCard] Error loading viva.csv:', e);
+        console.error('[ExamCard] Error loading viva schedule:', e);
+        vivaData = null;
         return null;
     }
 }
@@ -96,7 +128,13 @@ async function populateClassroomSelector() {
     if (!input || !datalist) return;
 
     const data = await loadVivaData();
-    if (!data) return;
+    if (!data) {
+        // No fresh division CSV (e.g. admin never set a seatingDataUrl for
+        // this period) — hide the selector rather than keep last session's
+        // divisions on screen.
+        if (selectorWrap) selectorWrap.style.display = 'none';
+        return;
+    }
 
     vivaDivisions = [...new Set(data.map(row => row.Division).filter(Boolean))].sort((a, b) => {
         return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
@@ -265,7 +303,7 @@ function refreshMiniTimelineForCurrentState() {
 }
 
 function getEffectiveCardExams(exams) {
-    const isVivaExam = Array.isArray(exams) && exams.some(e => e.type === 'viva');
+    const isVivaExam = isDivisionScheduled(exams);
     if (!isVivaExam || !vivaData) return exams;
 
     const selectedDivision = getSelectedDivision();
@@ -515,7 +553,7 @@ function shouldDisplayExamCard(data, semesterData) {
 
     const daysUntilExam = Math.ceil((startDateOnly - today) / (1000 * 60 * 60 * 24));
     
-    const isVivaExam = semesterData.exams && semesterData.exams.some(e => e.type === 'viva');
+    const isVivaExam = isDivisionScheduled(semesterData.exams);
     // Same falsy-zero fix as above.
     const showBeforeDays = Number(
         isVivaExam
@@ -591,7 +629,7 @@ export function displayExamCard(data, semesterData) {
 
     const sortedExams = [...semesterData.exams].sort((a, b) => new Date(a.date) - new Date(b.date));
 
-    if (sortedExams.some(e => e.type === 'viva')) {
+    if (isDivisionScheduled(sortedExams)) {
         loadVivaData().then(() => {
             populateClassroomSelector();
             refreshMiniTimelineForCurrentState();
@@ -709,7 +747,7 @@ function showPreExamView(exams, data, isDefault = false) {
 
     preexamView.style.display = 'flex';
 
-    const isVivaExam = currentSemesterData?.exams?.some(e => e.type === 'viva');
+    const isVivaExam = isDivisionScheduled(currentSemesterData?.exams);
     if (isVivaExam && !vivaData) {
         loadVivaData().then(() => {
             showPreExamView(exams, data, isDefault);
@@ -825,7 +863,7 @@ function showOngoingView(todayExam, tomorrowExam, nextExam, allExams, isDefault 
     const subjectEl = document.getElementById('examTodaySubject' + suffix);
     const dateEl = document.getElementById('examTodayDate' + suffix);
     const syllabusEl = document.getElementById('ongoingSyllabus' + suffix);
-    const isVivaExam = currentSemesterData?.exams?.some(e => e.type === 'viva');
+    const isVivaExam = isDivisionScheduled(currentSemesterData?.exams);
 
     if (syllabusEl && isVivaExam) {
         syllabusEl.style.display = 'none';
@@ -897,7 +935,7 @@ function showTimelineView(exams, isDefault = false) {
     const now = getCurrentDate();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    const isVivaExam = exams.some(e => e.type === 'viva');
+    const isVivaExam = isDivisionScheduled(exams);
     let sourceExams = exams;
 
     if (isVivaExam) {
@@ -1087,7 +1125,7 @@ function updatePreExamWithSubject(exam, isDefault = false) {
     }
     if (dateEl) dateEl.textContent = formatDate(exam.date);
 
-    const isVivaExam = currentSemesterData?.exams?.some(e => e.type === 'viva');
+    const isVivaExam = isDivisionScheduled(currentSemesterData?.exams);
     if (syllabusEl && isVivaExam) {
         syllabusEl.style.display = 'none';
     } else if (syllabusEl && exam.syllabus) {
@@ -1241,7 +1279,7 @@ export function openExamModal() {
 
     generateExamTimeline();
 
-    const isVivaExam = currentSemesterData.exams && currentSemesterData.exams.some(e => e.type === 'viva');
+    const isVivaExam = currentSemesterData.exams && isDivisionScheduled(currentSemesterData.exams);
     if (isVivaExam) {
         populateClassroomSelector();
     } else {
@@ -1349,7 +1387,7 @@ export async function generateExamTimeline() {
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const sortedExams = [...currentSemesterData.exams].sort((a, b) => new Date(a.date) - new Date(b.date));
 
-    const isVivaExam = currentSemesterData.exams.some(e => e.type === 'viva');
+    const isVivaExam = isDivisionScheduled(currentSemesterData.exams);
     if (isVivaExam && !vivaData) {
         await loadVivaData();
     }

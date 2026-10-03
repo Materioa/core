@@ -41,15 +41,44 @@ export function daysUntil(date, now = new Date()) {
  */
 export function effectiveEndDate(semester) {
   const configured = semester?.examPeriod?.endDate;
-  if (configured) {
-    const d = new Date(configured);
-    if (isValidDate(d)) return d;
-  }
   const examDates = (semester?.exams || [])
     .map((e) => (e?.date ? new Date(e.date) : null))
     .filter(isValidDate);
-  if (!examDates.length) return null;
-  return examDates.reduce((a, b) => (a.getTime() > b.getTime() ? a : b));
+  const lastExam = examDates.length
+    ? examDates.reduce((a, b) => (a.getTime() > b.getTime() ? a : b))
+    : null;
+
+  if (configured) {
+    const d = new Date(configured);
+    if (isValidDate(d)) {
+      // The admin set an end, but a period is not over while exams still
+      // lie in it — the exam list is the more reliable bound (this period
+      // shipped with endDate one day short of its last viva).
+      return lastExam && lastExam.getTime() > d.getTime() ? lastExam : d;
+    }
+  }
+  return lastExam;
+}
+
+/**
+ * True only while the period has started and is not yet over.
+ * Strictly the running window: the show-before phase (0..N days early)
+ * is intentionally excluded — the exam card is the early tease, the
+ * viva/interviewer box is for a period that is actually underway.
+ */
+export function isExamPeriodRunning(semester, now = new Date()) {
+  const startDate = semester?.examPeriod?.startDate;
+  if (!startDate) return false;
+  const start = new Date(startDate);
+  if (!isValidDate(start)) return false;
+
+  const today = dayStart(now);
+  const startDay = dayStart(start);
+  if (today.getTime() < startDay.getTime()) return false;
+
+  const end = effectiveEndDate(semester);
+  if (!end) return false;
+  return today.getTime() <= dayStart(end).getTime();
 }
 
 /**
@@ -97,7 +126,9 @@ export function isExamPeriodActive(semester, showBeforeDays, now = new Date()) {
   //    without it an open-ended period never stops being "ongoing".
   const end = effectiveEndDate(semester);
   if (!end) return false;
-  return today.getTime() >= startDay.getTime() && now.getTime() <= end.getTime();
+  // dayStart so a period whose endDate is date-only (midnight) still
+  // covers that whole end day.
+  return today.getTime() >= startDay.getTime() && today.getTime() <= dayStart(end).getTime();
 }
 
 /**
