@@ -527,8 +527,12 @@
      * as a format is applied — so the usual "blur to dismiss" never fires.
      */
     function handleDialogPointer(e) {
+        if (get(activeModalStore) !== 'notebook') return;
         const t = e.target;
         if (!t || !t.closest) return;
+        // Clicks outside the dialog land on the backdrop, which closes the
+        // modal on its own; there is nothing to dismiss out there.
+        if (!t.closest('#notebookDialog')) return;
         if (t.closest('.nb-menu-wrap')) return;
         if (t.closest('.notebook-cover-picker-wrap')) return;
         closeMenus();
@@ -537,6 +541,14 @@
 
     function handleDialogKeydown(e) {
         if (e.key !== 'Escape') return;
+        // Bound to the window, so Escape works even when focus is on the board
+        // rather than in the editor — a dialog-scoped listener would go deaf
+        // exactly when the user has clicked away from the text.
+        if (get(activeModalStore) !== 'notebook') return;
+        // Innermost first: a popover, then the cover palette, then the AI
+        // prompt, and only when nothing else is open does Escape leave. That
+        // ordering is what stops one keypress from closing the note while the
+        // user is only trying to dismiss a menu.
         if (showBlockMenu || showMoreMenu) {
             closeMenus();
             return;
@@ -549,6 +561,15 @@
             showAiOverlay = false;
             return;
         }
+        if (showLinkPdfModal) {
+            showLinkPdfModal = false;
+            return;
+        }
+        if (showExportModal) {
+            showExportModal = false;
+            return;
+        }
+        closeModal();
     }
 
     function handleAttachment(e) {
@@ -625,24 +646,36 @@
     {/if}
 </svelte:head>
 
+<!-- Both dismiss handlers are on the window, not the dialog. Escape has to
+     work when focus is on the board rather than in the editor, and a
+     click-away listener on the dialog div would drag an ARIA role and a key
+     handler onto a plain container that has no keyboard equivalent to
+     declare. Each handler no-ops unless this modal is the open one. -->
+<svelte:window on:keydown={handleDialogKeydown} on:click={handleDialogPointer} />
+
 {#if $activeModalStore === 'notebook'}
     <div class="notebook-modal visible" id="notebookModal" role="dialog" aria-modal="true">
         <div class="notebook-backdrop" id="notebookBackdrop" on:click={closeModal}></div>
-        <!-- Dismiss handlers live on the dialog, not the window: they must not
-             fire for the note's own clicks, and the Escape case has to know
-             which surface it is closing. -->
-        <div class="notebook-dialog" on:click={handleDialogPointer} on:keydown={handleDialogKeydown}>
+        <div class="notebook-dialog" id="notebookDialog">
             <!-- A clipboard, not an app window. The board is the dialog, the
                  clip is its top edge, and everything the note actually needs
                  lives on one sheet of cream paper clipped to it. -->
             <div class="notebook-spine" style={coverStyle(currentCover)} aria-hidden="true"></div>
             <div class="notebook-clip" aria-hidden="true"></div>
 
-            <div class="notebook-sheet">
-            <button type="button" class="notebook-close-btn" id="notebookCloseBtn" aria-label="Close Notebook" data-cuelume-close="close" data-cuelume-emphasis="subtle" on:click={closeModal}>
+            <!-- Outside the sheet on purpose. The sheet is position:relative,
+                 so a button nested inside it is anchored to the PAPER — a
+                 white glyph on cream paper, which is why this read as "no
+                 close button at all". On the board it has dark wood behind
+                 it and can actually be seen. -->
+            <button type="button" class="notebook-close-btn" id="notebookCloseBtn"
+                aria-label="Close notebook" title="Close (Esc)"
+                data-cuelume-close="close" data-cuelume-emphasis="subtle"
+                on:click={closeModal}>
                 <HugeIcon name="cancel-01" />
             </button>
 
+            <div class="notebook-sheet">
             <div class="notebook-header">
                 <div class="notebook-title-section">
                     <span class="notebook-icon" style={coverStyle(currentCover)}><HugeIcon name="book-open-02" /></span>

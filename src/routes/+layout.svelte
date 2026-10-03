@@ -3,6 +3,7 @@
   import { page } from '$app/stores';
   import { pushState, replaceState } from '$app/navigation';
   import Header from '$lib/components/Header.svelte';
+  import FloatingWindowControls from '$lib/components/FloatingWindowControls.svelte';
   import PdfReaderModal from '$lib/components/PdfReaderModal.svelte';
   import AiChatModal from '$lib/components/AiChatModal.svelte';
   import DynamicFormsModal from '$lib/components/DynamicFormsModal.svelte';
@@ -420,6 +421,13 @@
   covers the app chrome, the landing pages and all the global overlays. No-ops
   on web; the audio module is never imported there. -->
 <SoundEngine />
+
+<!-- Window caption buttons stay reachable on every desktop (Tauri) route —
+     on pages where the app header (which normally hosts them) is hidden. -->
+{#if hideGlobalHeader}
+<FloatingWindowControls />
+{/if}
+
 {#if !hideGlobalHeader}
 <ThemeManager />
 <Header />

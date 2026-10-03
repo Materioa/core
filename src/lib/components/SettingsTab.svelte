@@ -1373,32 +1373,6 @@
                         <span class="sounds-volume-value" id="soundVolumeValue">{Math.round($soundVolume * 100)}%</span>
                     </div>
                 </div>
-                <!-- Preview -->
-                <div class="sounds-option-row sounds-preview-row">
-                    <div class="paper-mode-info">
-                        <div class="paper-mode-title" style="font-size: 13px;">Preview</div>
-                        <div class="paper-mode-description" style="font-size: 11px;">Hear each cue in the current material</div>
-                    </div>
-                    <div class="sounds-preview-buttons">
-                        <button type="button" class="sounds-preview-btn" data-cuelume-tap title="Tap"
-                            on:click={() => sfx('tap')}>Tap</button>
-                        <button type="button" class="sounds-preview-btn" data-cuelume-toggle title="Toggle"
-                            on:click={() => sfx('toggle')}>Toggle</button>
-                        <button type="button" class="sounds-preview-btn" data-cuelume-navigate title="Navigate"
-                            on:click={() => sfx('navigate')}>Navigate</button>
-                        <button type="button" class="sounds-preview-btn" data-cuelume-open title="Open"
-                            on:click={() => sfx('open')}>Open</button>
-                        <button type="button" class="sounds-preview-btn" data-cuelume-close title="Close"
-                            on:click={() => sfx('close')}>Close</button>
-                        <button type="button" class="sounds-preview-btn" data-cuelume-tap="ready" title="Ready"
-                            on:click={() => sfx('ready')}>Ready</button>
-                        <button type="button" class="sounds-preview-btn" data-cuelume-tap="success" data-cuelume-emphasis="strong" title="Success"
-                            on:click={() => sfx('success', { emphasis: 'strong' })}>Success</button>
-                        <button type="button" class="sounds-preview-btn sounds-preview-btn-danger" data-cuelume-close="error" title="Error"
-                            on:click={() => sfx('error')}>Error</button>
-                    </div>
-                    <p class="sounds-preview-note">Cues play once, never stacked.</p>
-                </div>
             </div>
         {/if}
     </div>
