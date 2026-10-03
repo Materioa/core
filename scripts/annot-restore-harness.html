@@ -47,7 +47,19 @@ window.addEventListener('message', (e) => {
     const st = (d.annotations && d.annotations.storage) || {};
     const n = Object.keys(st).length;
     window.__lastSync = st;
-    log('<- ' + d.type + '  entries=' + n + (n === 0 ? '   <-- EMPTY' : ''));
+    window.__lastChanged = st;
+    window.__lastRemoved = d.removed || [];
+    log('<- ' + d.type + '  entries=' + n + (n === 0 ? '   <-- EMPTY' : '') +
+        '  removed=' + JSON.stringify(window.__lastRemoved));
+  } else if (d.type === 'materioAnnotChanged') {
+    // Routine edits. Recorded separately from the sync so a test can prove a
+    // DELETION actually leaves the record - the parent refuses a shrink it
+    // cannot attribute to a removal, so `removed` is the whole contract.
+    const st = (d.annotations && d.annotations.storage) || {};
+    window.__lastChanged = st;
+    window.__lastRemoved = d.removed || [];
+    log('<- materioAnnotChanged  entries=' + Object.keys(st).length +
+        '  removed=' + JSON.stringify(window.__lastRemoved));
   } else if (d.type === 'materioAnnotDiag') {
     log('   DIAG ' + d.line);
   }

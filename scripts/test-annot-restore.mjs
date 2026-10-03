@@ -307,6 +307,34 @@ try {
       }
       let inLayer = 'n/a';
       try { inLayer = w.__ui ? w.__ui.getEditors(e.pageIndex).size : 'no ui'; } catch (x) { inLayer = 'err'; }
+      // Is the annotation's OWN page even painted by PDF.js? The DrawLayer
+      // <svg> lives in the page's canvas wrapper, and PDF.js only builds the
+      // canvas wrapper for pages inside its render buffer. A viewer restored
+      // onto a far-away page leaves the annotation's page as an unloaded
+      // placeholder - the editor still deserialises into the layer (that path
+      // does not need a canvas), but there is no wrapper to draw into, so
+      // "svg.highlight" is legitimately zero. Without this reported alongside
+      // paint, a missing canvas looks identical to a broken highlight.
+      let page = null;
+      try {
+        const pvg = pv.getPageView(e ? e.pageIndex : 0);
+        const el = pvg && pvg.div;
+        // The "rendered" flag must be measured from the DOM. PDF.js's own
+        // flags are private in this build, so reading them always yields false
+        // and the field would then say "not rendered" even for a page whose
+        // canvas and DrawLayer are right there - a diagnostic that lies is
+        // worse than none.
+        page = {
+          annPage: e ? e.pageIndex : null,
+          currentPage: pv.currentPageNumber,
+          canvases: el ? el.querySelectorAll('canvas').length : null,
+          drawSvgsOnPage: el ? el.querySelectorAll('svg').length : null,
+          divClass: el ? String(el.className).slice(0, 60) : null,
+          hasDrawLayer: !!(pvg && pvg.annotationEditorLayer &&
+            pvg.annotationEditorLayer.annotationEditorLayer &&
+            pvg.annotationEditorLayer.annotationEditorLayer.drawLayer),
+        };
+      } catch (x) { page = { err: String(x.message) }; }
       let empty = 'n/a', rect = null;
       try { empty = e.isEmpty(); } catch (x) { empty = 'threw'; }
       try { const g = e.getRect(0, 0); rect = Array.from(g).map((n) => Math.round(n * 100) / 100); } catch (x) { /* n/a */ }
@@ -337,8 +365,19 @@ try {
           const f = w.getComputedStyle(p).fill;
           if (f) fills.push(f);
         }
+        // What IS in the DrawLayer, so a failing run names the class that
+        // actually got written instead of just "zero highlights". PDF.js draws
+        // the fill as svg.highlight and the focus outline as
+        // svg.highlightOutline, and an ink stroke as svg.ink - a selector that
+        // only knows about the first would report "nothing painted" for a
+        // perfectly visible annotation.
+        const drawLayerSvgs = [...wd.querySelectorAll('svg')].map((s) => {
+          const cls = s.getAttribute('class') || '(none)';
+          return cls + ':' + s.querySelectorAll('path').length;
+        }).slice(0, 12);
         paint = {
           drawSvgs: hlSvgs.length,
+          allDrawSvgs: drawLayerSvgs,
           pages: wd.querySelectorAll('.page').length,
           svgPaths: paths.length,
           pathLen: ds.length,
@@ -364,6 +403,7 @@ try {
         editorOpacity: cs ? cs.opacity : null,
         elementAtEditorCentre: onTop,
         onTopNote,
+        page,
         ctor: e ? e.constructor.name : null,
         isEmpty: empty,
         attachedToDom: e ? !!e.isAttachedToDOM : null,
@@ -516,7 +556,14 @@ try {
       structTreeParentId: null,
       id: null,
     };
-    const rf = JSON.parse(await restore({ pdfjs_internal_editor_0: freeHl }));
+    // startPage 1 = the annotation's own page (pageIndex 0). PHASE 2b left the
+    // viewer's stored position on page 3, and PDF.js restores that on every
+    // later open that does not name a page - so without this the annotation's
+    // page is a page PDF.js never rendered, and whether its canvas wrapper
+    // exists at sample time is a coin flip. That is what made the paint checks
+    // below pass in one run and fail in the next; it is not the annotation's
+    // fault, and asserting paint needs the page actually on screen.
+    const rf = JSON.parse(await restore({ pdfjs_internal_editor_0: freeHl }, 1));
     console.log('  ' + JSON.stringify(rf));
     check('free highlight restores into storage', rf.storage > 0, `storage=${rf.storage}`);
     check('free highlight editor is not empty', rf.isEmpty === false, `isEmpty=${rf.isEmpty}`);
@@ -567,7 +614,9 @@ try {
       structTreeParentId: null,
       id: null,
     };
-    const rl = JSON.parse(await restore({ pdfjs_internal_editor_0: legacy }));
+    // Same reasoning as 2d: land on the annotation's page so the DrawLayer is
+    // guaranteed to exist rather than depending on PDF.js's render buffer.
+    const rl = JSON.parse(await restore({ pdfjs_internal_editor_0: legacy }, 1));
     console.log('  ' + JSON.stringify(rl));
     check('legacy capture restores into storage', rl.storage > 0, `storage=${rl.storage}`);
     check('legacy editor is not empty', rl.isEmpty === false, `isEmpty=${rl.isEmpty}`);
@@ -587,6 +636,85 @@ try {
       !!rl.paint && rl.paint.pathHasNaN === false && rl.paint.pathHasUndefined === false,
       `NaN=${rl.paint && rl.paint.pathHasNaN}`);
     check('legacy capture serialises', rl.serializeThrew === null, rl.serializeThrew || 'ok');
+
+    // ---------------- PHASE 4: deleting must actually stick ---------------
+    // Restore works now, but deleting a restored highlight did not. Two things
+    // have to happen for a deletion to reach the record:
+    //
+    //   1. snapshotPlain() must stop re-adding the entry from restoredFallback;
+    //   2. sidecar's st.remove wrapper must record it in removedSinceEmit, so
+    //      the parent can attribute the smaller snapshot to a real deletion
+    //      (otherwise its shrink guard refuses it, by design).
+    //
+    // Both depend on st.remove correctly identifying the victim - and pdf.js's
+    // AnnotationStorage.getValue(key) is `Object.assign(defaultValue, value)`,
+    // which THROWS when called with one argument. The sidecar caught that and
+    // set victim=null, classifying every deletion as a harmless #cleanup()
+    // destroy: fallback kept, no removal reported, and healEditors() put the
+    // highlight straight back on the page 2s later.
+    console.log('\nPHASE 4  delete a restored annotation');
+    // Land on the annotation's page for the same reason as 2d/2e: the paint
+    // check below has to observe a real DrawLayer, not PDF.js's render buffer
+    // happening to still hold page 0.
+    const delBefore = JSON.parse(await restore({ del01: payload }, 1));
+    check('pre-delete restore worked', delBefore.storage > 0, `storage=${delBefore.storage}`);
+    check('pre-delete annotation is painted', !!delBefore.paint && delBefore.paint.svgPaths > 0,
+      JSON.stringify(delBefore.paint));
+
+    // Use the reader's own path: select it and run the real Delete command.
+    const delRes = JSON.parse(await ev(`(() => {
+      const w = document.getElementById('fr').contentWindow;
+      const A = w.PDFViewerApplication;
+      const all = A.pdfDocument.annotationStorage.getAll() || {};
+      const k = Object.keys(all)[0];
+      const e = all[k];
+      if (!e) return JSON.stringify({ err: 'nothing to delete' });
+      const out = { key: k, before: Object.keys(all).length, ctor: e.constructor.name };
+      try {
+        w.__ui.select(e);
+        out.selected = true;
+      } catch (x) { out.selectErr = String(x.message); }
+      try {
+        // The exact call the Delete key's command makes.
+        e.remove();
+        out.removed = true;
+      } catch (x) { out.removeErr = String(x.message); }
+      out.afterRemove = Object.keys(A.pdfDocument.annotationStorage.getAll() || {}).length;
+      return JSON.stringify(out);
+    })()`));
+    console.log('  ' + JSON.stringify(delRes));
+    check('delete did not throw', delRes.removed === true, delRes.removeErr || 'ok');
+    check('annotation left annotationStorage', delRes.afterRemove === 0,
+      `after=${delRes.afterRemove}`);
+
+    // Wait past SAVE_DEBOUNCE_MS (400) and the 2000ms poll so both the changed
+    // message and a heal cycle have had a chance to fire.
+    await sleep(5000);
+    const post = JSON.parse(await ev(`(() => {
+      const w = document.getElementById('fr').contentWindow;
+      const A = w.PDFViewerApplication;
+      const all = A.pdfDocument.annotationStorage.getAll() || {};
+      const svgs = w.document.querySelectorAll('svg.highlight');
+      return JSON.stringify({
+        storage: Object.keys(all).length,
+        changed: Object.keys(window.__lastChanged || {}).length,
+        removed: window.__lastRemoved || [],
+        paintSvgs: svgs.length,
+      });
+    })()`));
+    console.log('  post-delete ' + JSON.stringify(post));
+    check('deleted entry is gone from the emitted snapshot',
+      post.changed === 0, `changed=${post.changed}`);
+    check('sidecar REPORTED the removal to the parent (removed: list)',
+      Array.isArray(post.removed) && post.removed.length > 0,
+      JSON.stringify(post.removed));
+    check('removed list names the exact key that was deleted',
+      Array.isArray(post.removed) && post.removed.includes(delRes.key),
+      `want=${delRes.key} got=${JSON.stringify(post.removed)}`);
+    check('annotation did not come back after the heal poll',
+      post.storage === 0, `storage=${post.storage}`);
+    check('deleted highlight is no longer painted', post.paintSvgs === 0,
+      `svg.highlight=${post.paintSvgs}`);
   }
   ws.close();
 } catch (err) {

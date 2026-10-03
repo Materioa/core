@@ -711,10 +711,30 @@
                 //      go, including the fallback that snapshotPlain() would
                 //      otherwise resurrect, and the heal entry that would put
                 //      the editor back on the next poll.
+                //
+                // Read the value with getRawValue(). AnnotationStorage.getValue()
+                // is literally `Object.assign(defaultValue, value)`, so calling
+                // it the obvious way - st.getValue(k) - THROWS the moment the
+                // entry exists ("Cannot convert undefined or null to object").
+                // The catch below then sets victim = null, which reads as "no
+                // editor here", so EVERY deletion fell through to case (a):
+                // the fallback survived, nothing was reported in `removed`, and
+                // healEditors() restored the highlight two seconds later. That
+                // is why deleting a restored annotation had no effect at all.
+                // getRawValue() returns the stored AnnotationEditor itself, so
+                // isEmpty() below is the real emptiness test.
                 var victim = null;
                 var wasEmpty = false;
                 try {
-                    victim = (typeof st.getValue === 'function') ? st.getValue(k) : null;
+                    if (typeof st.getRawValue === 'function') {
+                        victim = st.getRawValue(k);
+                    } else if (typeof st.getValue === 'function') {
+                        // Older PDF.js: hand getValue a target so it cannot
+                        // throw. The copy has no isEmpty(), so emptiness is
+                        // reported as false - i.e. treated as a real deletion,
+                        // which is the side that must never be swallowed.
+                        victim = st.getValue(k, {});
+                    }
                     wasEmpty = !!(victim && typeof victim.isEmpty === 'function' && victim.isEmpty());
                 } catch (e0) { victim = null; }
                 var r = origRemove(k);
