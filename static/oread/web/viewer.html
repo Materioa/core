@@ -75,15 +75,37 @@ See https://github.com/adobe-type-tools/cmap-resources
   </script>
 
   <script src="intelligence.js"></script>
-  <script src="sidecar.js"></script>
   <script src="viewer.mjs" type="module"></script>
-  <script src="showbtnrq.js"></script>
-  <script src="dictionary-settings.js"></script>
-  <script src="dictionary.js"></script>
-  <script src="external-links.js"></script>
-  <script src="thinklet.js"></script>
-  <script src="overlays.js"></script>
-  <script src="keybinds.js"></script>
+  <script>
+    /* Shell-conditional bundle list. The desktop-only files (annotation
+       sidecar, dictionary + its settings, external-link bridge) self-gate at
+       runtime, but static <script src> tags still download them first — so
+       every reader open on the web paid for four requests that immediately
+       returned. The stamp above already resolved the shell, so write only
+       what this shell runs, preserving the original document order.
+       document.write is deliberate: parser-inserted scripts keep the exact
+       blocking order the static tags had (a dynamically injected list would
+       race the parser as soon as a fetch finished early). */
+    (function () {
+      var desktop =
+        document.documentElement.getAttribute('data-materio-shell') === 'desktop';
+      var tail =
+        '<script src="thinklet.js"><\/script>' +
+        '<script src="overlays.js"><\/script>' +
+        '<script src="keybinds.js"><\/script>';
+      if (desktop) {
+        document.write(
+          '<script src="sidecar.js"><\/script>' +
+          '<script src="showbtnrq.js"><\/script>' +
+          '<script src="dictionary-settings.js"><\/script>' +
+          '<script src="dictionary.js"><\/script>' +
+          '<script src="external-links.js"><\/script>' + tail
+        );
+      } else {
+        document.write('<script src="showbtnrq.js"><\/script>' + tail);
+      }
+    })();
+  </script>
   <style>
     /* Mobile scrolling optimization - Target ONLY touch devices */
     @media (hover: none) and (pointer: coarse) {

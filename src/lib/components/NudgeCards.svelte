@@ -333,6 +333,16 @@
 		filter: brightness(0) invert(1);
 	}
 
+	/* The offline nudge is the exception: its full-colour illustration is
+	   never recoloured — no filter in any dark theme. Leaderboard nudges and
+	   the updater keep theirs. */
+	:global(body.dark-mode) #offlineNudgeCard .leaderboard-nudge-image,
+	:global(body.coffee-dark-mode) #offlineNudgeCard .leaderboard-nudge-image,
+	:global(body.amoled-mode) #offlineNudgeCard .leaderboard-nudge-image,
+	:global(html.dark) #offlineNudgeCard .leaderboard-nudge-image {
+		filter: none;
+	}
+
 	.leaderboard-nudge-content {
 		display: grid;
 		gap: 4px;

@@ -481,6 +481,208 @@ fn open_external_url(url: String) -> Result<(), String> {
     open::that(u).map_err(|e| e.to_string())
 }
 
+// ---------------------------------------------------------------------------
+// "Back to app" — floating button injection + way-to-app interception.
+//
+// The main webview loads three kinds of pages: the bundled app, first-party
+// remote pages (accounts/auth, opened for SSO) and third-party sites opened
+// in-window (room/chat). They share no markup, so the button cannot live in a
+// Svelte layout: it is injected as a Tauri init script, which lands in every
+// main-frame document before any page script runs. The on_navigation hook is
+// the one layer that sees every navigation attempt — including ones no click
+// handler would catch — so links to the marketing site or the web app are
+// cancelled there and turned into a jump back to the bundled app instead of
+// loading the site in the app's window.
+// ---------------------------------------------------------------------------
+
+/// Where the webview started — the bundled app. Recorded at setup and from
+/// the first local navigation, so dev (`http://localhost:1420`) and production
+/// (`http://tauri.localhost` on Windows, `tauri://localhost` elsewhere) all
+/// resolve without hardcoding a scheme. Mutex<Option<..>> because plugin setup
+/// runs before the window exists and on_navigation may fire before `.setup()`.
+static APP_HOME: Mutex<Option<String>> = Mutex::new(None);
+static APP_HANDLE: Mutex<Option<AppHandle>> = Mutex::new(None);
+
+fn is_app_origin(url: &tauri::Url) -> bool {
+    url.scheme() == "tauri"
+        || matches!(
+            url.host_str().unwrap_or(""),
+            "tauri.localhost" | "localhost" | "127.0.0.1"
+        )
+}
+
+/// Remember the FIRST local URL as the app's home. Later local hard loads
+/// must not overwrite it — home is where the window started.
+fn record_app_home(url: &tauri::Url) {
+    if !is_app_origin(url) {
+        return;
+    }
+    let mut home = APP_HOME.lock().unwrap_or_else(|e| e.into_inner());
+    if home.is_none() {
+        *home = Some(url.to_string());
+    }
+}
+
+/// A way-to-app navigation was cancelled; bring the webview back to the
+/// bundled app instead. Deferred through `run_on_main_thread` because
+/// on_navigation runs inside WebView2's navigation-policy callback, where
+/// re-entering `navigate` would re-enter the webview mid-decision.
+fn go_back_to_app() {
+    let home = APP_HOME.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let handle = APP_HANDLE.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let (home, handle) = match (home, handle) {
+        (Some(h), Some(w)) => (h, w),
+        _ => return,
+    };
+    let Ok(url) = tauri::Url::parse(&home) else { return };
+    let nav_handle = handle.clone();
+    let _ = handle.run_on_main_thread(move || {
+        if let Some(w) = nav_handle.get_webview_window("main") {
+            let _ = w.navigate(url);
+        }
+    });
+}
+
+/// Floating "Back to app" pill, injected into every main-frame page the
+/// webview shows. Hidden on core app routes (they render the header, whose
+/// logo already links home); shown on the header-less app routes and on every
+/// remote/third-party page. Styled through CSSOM, not a <style> element or
+/// style attribute, so strict remote-page CSPs (`style-src` without
+/// `unsafe-inline`) cannot strip it. The click goes to the app's web URL when
+/// the current page is remote — the on_navigation hook catches that and
+/// redirects it to the bundled app, so the site itself never loads.
+const BACK_TO_APP_JS: &str = r#"
+(function () {
+  if (window.top !== window) return;
+
+  var WAY_TO_APP = 'https://beta.getmaterio.app/';
+  // Local routes that already render the app header (whose logo links home)
+  // get no button; every header-less route and every remote/third-party page
+  // does.
+  var NON_CORE = ['/pricing', '/interviewer', '/downloads'];
+
+  function isLocalShell() {
+    return (
+      location.protocol === 'tauri:' ||
+      location.hostname === 'tauri.localhost' ||
+      location.hostname === 'localhost' ||
+      location.hostname === '127.0.0.1'
+    );
+  }
+
+  function wantsButton() {
+    if (!isLocalShell()) return true;
+    // Prefix match mirrors the layout's startsWith() header-hiding checks so
+    // the button's visibility tracks the header (and its logo → home) exactly.
+    var path = location.pathname;
+    for (var i = 0; i < NON_CORE.length; i++) {
+      if (path.indexOf(NON_CORE[i]) === 0) return true;
+    }
+    return false;
+  }
+
+  var button = null;
+
+  function build() {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.title = 'Back to the Materio app';
+    b.setAttribute('aria-label', 'Back to app');
+    var ns = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('width', '13');
+    svg.setAttribute('height', '13');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '2.2');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    var path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', 'M3 10.8 12 3.5l9 7.3M5.5 9.6V20.5h13V9.6');
+    svg.appendChild(path);
+    var label = document.createElement('span');
+    label.textContent = 'Back to app';
+    b.appendChild(svg);
+    b.appendChild(label);
+    var s = b.style;
+    s.position = 'fixed';
+    s.right = '14px';
+    s.bottom = '14px';
+    s.zIndex = '2147483647';
+    s.display = 'inline-flex';
+    s.alignItems = 'center';
+    s.gap = '6px';
+    s.margin = '0';
+    s.padding = '7px 13px 7px 11px';
+    s.borderRadius = '999px';
+    s.background = 'rgba(28, 26, 25, 0.92)';
+    s.color = '#fafaf9';
+    s.border = '1px solid rgba(255, 255, 255, 0.18)';
+    s.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.35)';
+    s.backdropFilter = 'blur(8px)';
+    s.fontFamily = 'system-ui, -apple-system, sans-serif';
+    s.fontSize = '12px';
+    s.fontWeight = '600';
+    s.lineHeight = '1';
+    s.cursor = 'pointer';
+    s.opacity = '0.9';
+    s.transition = 'opacity 120ms ease';
+    b.addEventListener('mouseenter', function () { s.opacity = '1'; });
+    b.addEventListener('mouseleave', function () { s.opacity = '0.9'; });
+    b.addEventListener('click', function () {
+      // Inside the bundled app this is a plain trip home. On remote or
+      // third-party pages it navigates to the app's web URL, which the
+      // shell's on_navigation hook catches and turns into a jump back to
+      // the bundled app — the site itself is never opened.
+      location.href = isLocalShell() ? '/' : WAY_TO_APP;
+    });
+    return b;
+  }
+
+  function apply() {
+    try {
+      if (wantsButton()) {
+        if (!button) button = build();
+        if (!button.isConnected) {
+          (document.body || document.documentElement).appendChild(button);
+        }
+      } else if (button && button.isConnected) {
+        button.parentNode.removeChild(button);
+      }
+    } catch (e) {}
+  }
+
+  // The app is an SPA: client-side route changes do not reload the document,
+  // so re-evaluate whenever history mutates. Wrapping (rather than listening
+  // only for popstate) also covers routers that captured these functions
+  // before this script ran — impossible here, since init scripts run first,
+  // but harmless either way.
+  try {
+    var push = history.pushState;
+    history.pushState = function () {
+      var r = push.apply(this, arguments);
+      apply();
+      return r;
+    };
+    var replace = history.replaceState;
+    history.replaceState = function () {
+      var r = replace.apply(this, arguments);
+      apply();
+      return r;
+    };
+    window.addEventListener('popstate', apply);
+    window.addEventListener('hashchange', apply);
+  } catch (e) {}
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', apply, { once: true });
+  } else {
+    apply();
+  }
+})();
+"#;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -517,7 +719,41 @@ pub fn run() {
                 }
             }
         }))
+        // Back-to-app: inject the floating button into every main-frame page
+        // the webview loads, and turn navigations to getmaterio.app /
+        // beta.getmaterio.app into a return to the bundled app — those are
+        // "the way to app", not sites to open inside the app's window.
+        .plugin(
+            tauri::plugin::Builder::<tauri::Wry>::new("materio-shell")
+                .js_init_script(BACK_TO_APP_JS)
+                .on_navigation(|_webview, url| {
+                    let host = url.host_str().unwrap_or("");
+                    if matches!(
+                        host,
+                        "getmaterio.app" | "www.getmaterio.app" | "beta.getmaterio.app"
+                    ) {
+                        go_back_to_app();
+                        return false;
+                    }
+                    record_app_home(url);
+                    true
+                })
+                .build(),
+        )
         .setup(|app| {
+            // Capture the handle the way-to-app redirect needs. Plugin setup
+            // runs before windows exist, so this is the earliest point that
+            // can pair the handle with the main window; no blocklisted
+            // navigation can fire before this closure completes.
+            *APP_HANDLE.lock().unwrap_or_else(|e| e.into_inner()) = Some(app.handle().clone());
+            // Record where the main webview started (the bundled app) — the
+            // redirect target for intercepted way-to-app navigations;
+            // on_navigation's first local load is the backup.
+            if let Some(w) = app.get_webview_window("main") {
+                if let Ok(u) = w.url() {
+                    record_app_home(&u);
+                }
+            }
             // Logging was registered ONLY in debug builds, which meant every
             // log::info!/warn! in the updater was discarded in shipped
             // releases. A failed auto-update was therefore completely
