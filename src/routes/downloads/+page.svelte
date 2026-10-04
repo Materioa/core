@@ -50,6 +50,11 @@
 					if (d.android?.available !== false && d.android?.downloadUrl) releaseData.android.downloadUrl = d.android.downloadUrl;
 					if (d.android?.available !== false && d.android?.size) releaseData.android.size = d.android.size;
 					if (d.android?.available !== false && d.android?.name) releaseData.android.name = d.android.name;
+					// Same gap the Windows block above had: without this
+					// assignment android.version stayed frozen at the hardcoded
+					// v2.1.49 — the card rendered the stale fallback forever
+					// while size/name/link all updated from the API.
+					if (d.android?.available !== false && d.android?.version) releaseData.android.version = d.android.version;
 					if (d.version) releaseData.version = d.version;
 				}
 			})
