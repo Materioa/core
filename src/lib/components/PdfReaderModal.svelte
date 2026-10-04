@@ -4,7 +4,7 @@
     import { pdfModalStore, bookmarksStore, actualThemeStore } from "$lib/stores.js";
     import { activeModalStore } from '$lib/stores.js';
     import { savePdfOffline, isPdfOffline, getOfflinePdf } from '$lib/utils/offlineDb.js';
-    import { isNative } from '$lib/config/api.js';
+    import { isNative, isTauri } from '$lib/config/api.js';
     import { bindSounds, autoAnnotate, sfx } from '$lib/sounds/index.js';
     import * as cue from '$lib/sounds/events.js';
     import { hashPdfBuffer, hashPdfUrl, getPdfAnnotations, savePdfAnnotations } from '$lib/utils/pdfAnnotations.js';
@@ -82,6 +82,12 @@
     let lastHandledPdfUrl = '';
 
     // --- PDF annotations: viewer-native data saved locally per PDF (file untouched) ---
+    // Desktop-only feature: in the web build and the Android shell the viewer's
+    // sidecar is inert (it returns before installing any listener), so nothing
+    // can arrive to make this dirty. These guards keep the app side honest with
+    // it - no flush request that would wait for an answer that never comes, no
+    // Ctrl+S save, no "annotations saved" toast, no close prompt.
+    const annotDesktopOnly = isTauri;
     let pdfHash = null;
     let annotIdentityReady = false;
     let pendingAnnotStorage = {};
@@ -187,6 +193,7 @@
     }
 
     function queueAnnotSave(storage, opts = {}) {
+        if (!annotDesktopOnly) return;
         if (!pdfHash) return;
         const incoming = storage || {};
 
@@ -226,6 +233,10 @@
     let flushWaiter = null;
     let flushWaiterResolve = null;
     function requestViewerFlush(timeoutMs = 800) {
+        // Non-desktop: the sidecar is inert, so this would always burn the
+        // whole timeout waiting for a snapshot nobody will send - which made
+        // closing a PDF on the web hang for 700ms.
+        if (!annotDesktopOnly) return Promise.resolve();
         postToViewer({ type: 'materioAnnotFlush' });
         if (flushWaiter) return flushWaiter;
         flushWaiter = new Promise((resolve) => {
@@ -274,6 +285,7 @@
     }
 
     async function saveAnnotationsNow() {
+        if (!annotDesktopOnly) return;
         if (!pdfHash) return;
         // Pull the latest strokes out of the viewer first (debounce-proof),
         // otherwise a Ctrl+S right after drawing saves a stale snapshot.

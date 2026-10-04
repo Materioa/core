@@ -144,6 +144,13 @@ try {
   // The uiManager is published once, at document load, so the hook has to be
   // installed before any page script runs.
   await send('Page.addScriptToEvaluateOnNewDocument', { source: `
+    // Annotation persistence is desktop-only; viewer.html's probe would stamp
+    // this page (plain Chrome, no Tauri) as 'other' and sidecar.js would return
+    // before installing a single listener. Declare the desktop shell via the
+    // window override (window exists at document creation, before the DOM) so
+    // the suite exercises the code path that actually ships. Injected scripts
+    // run in every frame, so the viewer iframe inherits it too.
+    window.__MATERIO_SHELL_OVERRIDE__ = 'desktop';
     window.__ui = null;
     (function poll() {
       try {
@@ -196,6 +203,31 @@ try {
     await sleep(150);
     await mouse('mouseReleased', t.x2, t.y, 0);
     await sleep(3000);
+    if (MODE === 'ink') {
+      // pdf.js 5.x ink is a MULTI-DRAWING session (InkEditor
+      // .supportMultipleDrawings === true): releasing the mouse keeps the
+      // stroke inside the layer's open draw session and the InkEditor only
+      // materialises when that session commits. Readers do that by clicking
+      // away - focus leaves the layer div -> its blur handler runs
+      // commitOrRemove() -> endDrawing() -> the editor lands in
+      // annotationStorage. Asserting before that step would measure the open
+      // session, not the product (the stroke is drawn but not yet an
+      // annotation). Focus emulation is already on, so the layer really does
+      // hold focus here and the click genuinely blurs it.
+      const away = JSON.parse(await ev(`(() => {
+        const el = document.getElementById('pageNumber');
+        if (!el) return 'null';
+        const r = el.getBoundingClientRect();
+        if (!r.width) return 'null';
+        return JSON.stringify({ x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) });
+      })()`));
+      if (away) {
+        await mouse('mouseMoved', away.x, away.y, 0); await sleep(80);
+        await mouse('mousePressed', away.x, away.y, 1); await sleep(80);
+        await mouse('mouseReleased', away.x, away.y, 0);
+        await sleep(800);
+      }
+    }
   }
   const captured = JSON.parse(await ev(`(() => {
     const all = PDFViewerApplication.pdfDocument.annotationStorage.getAll() || {};
@@ -374,12 +406,29 @@ try {
           const f = w.getComputedStyle(p).fill;
           if (f) fills.push(f);
         }
+        // An ink stroke never becomes svg.highlight: InkDrawOutline's
+        // defaultSVGProperties sets rootClass { draw: true }, so the stroke
+        // lands as svg.draw in the page's canvas wrapper (DrawLayer's parent,
+        // viewer.mjs setParent(canvasWrapper)). Scope to the page so a
+        // static UI icon that happens to carry class "draw" can never satisfy
+        // the check.
+        const inkSvgs = [...wd.querySelectorAll('svg.draw')].filter((s) => {
+          let n = s.parentElement;
+          while (n) {
+            if (n.classList && n.classList.contains('page')) return true;
+            n = n.parentElement;
+          }
+          return false;
+        });
+        const inkPaths = inkSvgs.flatMap((s) => [...s.querySelectorAll('path')]);
+        const inkDs = inkPaths.map((p) => p.getAttribute('d') || '').join(' ');
         // What IS in the DrawLayer, so a failing run names the class that
         // actually got written instead of just "zero highlights". PDF.js draws
-        // the fill as svg.highlight and the focus outline as
-        // svg.highlightOutline, and an ink stroke as svg.ink - a selector that
-        // only knows about the first would report "nothing painted" for a
-        // perfectly visible annotation.
+        // the fill as svg.highlight, the focus outline as svg.highlightOutline
+        // and an ink stroke as svg.draw (InkDrawOutline.defaultSVGProperties
+        // sets rootClass { draw: true }) - a selector that only knows about
+        // the first would report "nothing painted" for a perfectly visible
+        // annotation.
         const drawLayerSvgs = [...wd.querySelectorAll('svg')].map((s) => {
           const cls = s.getAttribute('class') || '(none)';
           return cls + ':' + s.querySelectorAll('path').length;
@@ -393,6 +442,12 @@ try {
           pathHasNaN: /NaN/.test(ds),
           pathHasUndefined: /undefined/.test(ds),
           fills,
+          // Same discipline for ink: only page-scoped svg.draw roots count.
+          inkSvgs: inkSvgs.length,
+          inkPaths: inkPaths.length,
+          inkPathLen: inkDs.length,
+          inkHasNaN: /NaN/.test(inkDs),
+          inkHasUndefined: /undefined/.test(inkDs),
           // A painted path must resolve to a real colour, never to
           // transparent / none / an unparsable string.
           hexOk: fills.length > 0 && fills.every((f) =>
@@ -557,6 +612,15 @@ try {
       `topEl=${ri.elementAtEditorCentre}${ri.onTopNote || ''}`);
     check('ink editor is serializable', ri.serializeThrew === null, ri.serializeThrew || 'ok');
     check('ink annotation is reported in the sync', ri.synced === 1, `synced=${ri.synced}`);
+    // Geometry plus attachment is not "the reader can see it": the stroke
+    // itself must be painted. Ink never renders as svg.highlight, so this
+    // phase asserts the page-scoped svg.draw metric directly (it also proves
+    // the DrawLayer parent chain - canvas wrapper inside .page - is intact).
+    check('ink stroke paints on the page (svg.draw)',
+      !!ri.paint && ri.paint.inkPaths > 0 && !ri.paint.inkHasNaN && !ri.paint.inkHasUndefined,
+      JSON.stringify(ri.paint
+        ? { inkSvgs: ri.paint.inkSvgs, inkPaths: ri.paint.inkPaths, inkPathLen: ri.paint.inkPathLen, nan: ri.paint.inkHasNaN, undef: ri.paint.inkHasUndefined }
+        : 'no paint'));
     check('restored ink comes back unselected',
       !!ri.selection && ri.selection.selectedDivs === 0 && ri.selection.editorIsSelected === false &&
       ri.selection.visibleToolbars === 0 && ri.selection.uiHasSelection === false,
@@ -799,7 +863,14 @@ try {
     // happening to still hold page 0.
     const delBefore = JSON.parse(await restore({ del01: payload }, 1));
     check('pre-delete restore worked', delBefore.storage > 0, `storage=${delBefore.storage}`);
-    check('pre-delete annotation is painted', !!delBefore.paint && delBefore.paint.svgPaths > 0,
+    // The payload differs by run: ANNOT_MODE=ink restores a stroke, which
+    // pdf.js paints as svg.draw in the page's canvas wrapper; a highlight
+    // paints as svg.highlight. Measure the class the payload actually uses,
+    // or ink runs would assert against a selector that can never match.
+    check('pre-delete annotation is painted',
+      MODE === 'ink'
+        ? !!delBefore.paint && delBefore.paint.inkPaths > 0
+        : !!delBefore.paint && delBefore.paint.svgPaths > 0,
       JSON.stringify(delBefore.paint));
 
     // Use the reader's own path: select it and run the real Delete command.

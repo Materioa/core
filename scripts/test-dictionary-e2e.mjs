@@ -146,9 +146,10 @@ function build() {
     document: doc,
     window: {
       location: { protocol: 'https:', hostname: 'getmaterio.app', search: '' },
-    // Desktop shell: the API is consulted first only outside the web build
-    // (see isNativeShell in dictionary.js). Without this the fixture models the
-    // web, which now skips the API, and the flow assertions fail.
+    // Desktop shell: sidecar/dictionary gating is Tauri-only (see
+    // isDesktopShell in dictionary.js). Without this the fixture models the
+    // web/Android, which now skips bindDictionary() entirely, and the flow
+    // assertions fail.
     __TAURI__: {},
       getSelection: doc.getSelection,
       setTimeout: (fn, ms) => setTimeout(fn, 0),

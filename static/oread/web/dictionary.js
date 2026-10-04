@@ -63,23 +63,27 @@
   var selectionStartedAt = 0;
 
   /**
-   * True inside the native desktop / Android shells, false on the web build.
+   * True ONLY inside the desktop (Tauri) app, false everywhere else - the web
+   * build and the Android shell.
    *
-   * The dictionary is a desktop feature: the Google provider's credential lives
-   * in the app server's environment, and every lookup spends it. Serving the web
-   * build would have anonymous site visitors burn that borrowed quota, for a
-   * feature they did not ask for, so the web routes to the keyless providers
-   * instead. Detection mirrors dictionaryUrl() and external-links.js.
+   * The dictionary is desktop-only by design: the Google provider's credential
+   * lives in the app server's environment and every lookup spends it, so any
+   * other surface asking for definitions burns a quota it was never provisioned
+   * for. This check used to accept every native shell (`window.Capacitor`,
+   * capacitor.localhost, …), which is exactly why the card also opened inside
+   * the Android app.
+   *
+   * Mirrors the probe in sidecar.js, which stamps data-materio-shell on
+   * <html> and gates the rest of the feature (toolbar entry included).
    */
-  function isNativeShell() {
+  function isDesktopShell() {
     try {
-      var h = window.location.hostname || '';
-      var p = window.location.protocol || '';
       return Boolean(
-        window.__TAURI_INTERNALS__ || window.__TAURI__ || window.Capacitor ||
-        p === 'tauri:' || p === 'capacitor:' ||
-        h === 'tauri.localhost' || h === 'capacitor.localhost' ||
-        (h === 'localhost' && window.location.port !== '5173')
+        window.__TAURI_INTERNALS__ ||
+        window.__TAURI__ ||
+        window.__TAURI_METADATA__ ||
+        window.location.protocol === 'tauri:' ||
+        window.location.hostname === 'tauri.localhost'
       );
     } catch (e) {
       return false;
@@ -777,7 +781,7 @@
     // Only applies to the DEFAULT provider path: an explicitly configured Custom
     // source is the reader's own credential and their own choice, so it is left
     // alone above.
-    if (!isNativeShell() && cfg.provider !== 'wiktionary') {
+    if (!isDesktopShell() && cfg.provider !== 'wiktionary') {
       return lookupDirectly(word).then(function (payload) {
         if (cache.size >= MAX_CACHE_ENTRIES) {
           var oldest = cache.keys().next().value;
@@ -962,6 +966,11 @@
   }
 
   function bindDictionary() {
+    // Desktop-only: on the web build and in the Android shell not one listener
+    // is attached, so the card can never open. lookup()/diagnose() below stay
+    // exposed but simply have nothing to do.
+    if (!isDesktopShell()) return;
+
     // selectionchange is the only event that reliably fires for drag-select,
     // double-click-select and keyboard select across browsers. mouseup and
     // keyup cover the cases where the selection is set without a change event

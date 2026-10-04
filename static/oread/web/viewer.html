@@ -47,6 +47,33 @@ See https://github.com/adobe-type-tools/cmap-resources
   <link rel="stylesheet" href="icons-inline.css">
   <link rel="stylesheet" href="themesync.css">
 
+  <!-- Desktop-only feature gate (annotation sidecar / toolbar / dictionary).
+       Stamped inline before any external script so the attribute exists even
+       if one fails to load; viewer.css hides the annotation toolbar and the
+       dictionary gear unless it reads 'desktop'. Same Tauri-only probe as
+       sidecar.js, which reuses this value. -->
+  <script>
+    (function () {
+      try {
+        // __MATERIO_SHELL_OVERRIDE__ is set only by the annotation test
+        // harness (its injected script runs in every frame before this one),
+        // so the suite exercises the desktop code path in plain Chrome.
+        var stamp = window.__MATERIO_SHELL_OVERRIDE__;
+        if (stamp !== 'desktop' && stamp !== 'other') {
+          var desktop = Boolean(
+            window.__TAURI_INTERNALS__ || window.__TAURI__ || window.__TAURI_METADATA__ ||
+            window.location.protocol === 'tauri:' ||
+            window.location.hostname === 'tauri.localhost'
+          );
+          stamp = desktop ? 'desktop' : 'other';
+        }
+        document.documentElement.setAttribute('data-materio-shell', stamp);
+      } catch (e) {
+        document.documentElement.setAttribute('data-materio-shell', 'other');
+      }
+    })();
+  </script>
+
   <script src="intelligence.js"></script>
   <script src="sidecar.js"></script>
   <script src="viewer.mjs" type="module"></script>

@@ -62,12 +62,23 @@
     custom: CUSTOM_DEFAULTS
   };
 
-  function isNativeShell() {
+  /**
+   * True ONLY inside the desktop (Tauri) app.
+   *
+   * Desktop-only by decision: the whole feature (card, settings gear, the
+   * Google provider and its translation controls) exists solely in the desktop
+   * build, so the web build and the Android shell get neither the button nor
+   * the panel. Accepting `capacitor:`/`capacitor.localhost` here previously is
+   * what let the Android app reach this UI at all.
+   *
+   * Matches isDesktopShell() in dictionary.js and the probe in sidecar.js.
+   */
+  function isDesktopShell() {
     try {
       var h = window.location.hostname || '';
       var p = window.location.protocol || '';
-      return h === 'tauri.localhost' || h === 'capacitor.localhost' ||
-        p === 'tauri:' || p === 'capacitor:' ||
+      return h === 'tauri.localhost' ||
+        p === 'tauri:' ||
         Boolean(window.__TAURI__) || Boolean(window.__TAURI_INTERNALS__);
     } catch (e) {
       return false;
@@ -356,13 +367,15 @@
     // reader never sees or supplies a key for it. Wiktionary and Custom stay
     // available; Custom is the BYO slot for a different provider or a personal
     // key.
-    // Google is a desktop-only provider (see isNativeShell in dictionary.js:
+    // Google is a desktop-only provider (see isDesktopShell in dictionary.js:
     // its credential is a borrowed, referrer-restricted key, and routing web
     // visitors through it would spend that quota for a feature they cannot own).
     // Offering it on the web would be a control that silently does nothing, so
-    // the option is omitted there rather than shown-and-ignored.
-    var native = isNativeShell();
-    var providerOptions = native
+    // the option is omitted there rather than shown-and-ignored. The panel only
+    // opens on the desktop shell anyway; this keeps the list honest if it ever
+    // is opened elsewhere.
+    var desktopShell = isDesktopShell();
+    var providerOptions = desktopShell
       ? [
         { value: 'auto', label: 'Google Dictionary' },
         { value: 'wiktionary', label: 'Wiktionary' },
@@ -381,7 +394,7 @@
     var translateBox = el('div', 'dict-translate');
     // Translation is served by the Google endpoint, so the control is desktop
     // only for the same reason the Google provider option is.
-    if (!native) translateBox.hidden = true;
+    if (!desktopShell) translateBox.hidden = true;
     // Every code here was verified against the live endpoint, not copied from a
     // language list. Probing ~86 codes with `language=X&corpus=X` showed 79 that
     // genuinely translate. The list is what actually answers, which is why it
@@ -617,6 +630,11 @@
   }
 
   function bind() {
+    // Desktop-only: never unhide the gear or wire the panel up anywhere else,
+    // so the web build and the Android shell keep the button in its initial
+    // `hidden` state for good.
+    if (!isDesktopShell()) return;
+
     var button = document.getElementById('dictSettingsButton');
     if (button) {
       button.removeAttribute('hidden');

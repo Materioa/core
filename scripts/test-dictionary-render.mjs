@@ -100,11 +100,11 @@ const ctx = {
   document: doc,
   window: {
     location: { protocol: 'https:', hostname: 'getmaterio.app', search: '', hostname: 'getmaterio.app' },
-    // Desktop shell. dictionary.js routes the WEB build straight to the keyless
-    // providers (see isNativeShell there) so site visitors do not spend the
-    // server's borrowed Google key. These suites cover the desktop path, where
-    // /api/v2/dictionary IS consulted first, so the fixture must report a
-    // native shell or every "API tried first" assertion fails by design.
+    // Desktop shell. dictionary.js is desktop-only (see isDesktopShell there):
+    // web and Android skip the API and bindDictionary() is never called at all,
+    // so this suite - which covers the desktop path, where /api/v2/dictionary
+    // IS consulted first - must report the Tauri shell or every "API tried
+    // first" assertion fails by design.
     __TAURI__: {},
     getSelection: doc.getSelection,
     setTimeout: (fn, ms) => setTimeout(fn, 0),

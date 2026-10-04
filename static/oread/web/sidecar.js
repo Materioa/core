@@ -41,6 +41,46 @@
 (function () {
     'use strict';
 
+    // ---------------------------------------------------------------------
+    // Desktop-only feature gate.
+    //
+    // Annotation persistence (this sidecar + the parent's per-PDF IndexedDB
+    // record) belongs to the desktop app alone. The same static viewer is
+    // also bundled into the Android shell and deployed to the web, and
+    // IndexedDB works fine in both, so this used to quietly save, restore
+    // and prompt ("Save Annotations?") there too - nothing looked broken,
+    // the feature simply is not supposed to exist outside the desktop app.
+    //
+    // Bail out before installing a single listener: no ready message, no
+    // snapshots, no Ctrl/Cmd+S save request, no restore. The same probe
+    // drives data-materio-shell on <html> (viewer.html stamps it inline
+    // before any external script; this file re-stamps if that ever went
+    // missing), which is what hides the annotation toolbar and the
+    // dictionary gear in viewer.css.
+    var isDesktopShell = (function () {
+        try {
+            // viewer.html stamps this inline, before any external script runs;
+            // fall back to the same probe if that stamp is ever missing.
+            var stamp = document.documentElement.getAttribute('data-materio-shell');
+            if (stamp) return stamp === 'desktop';
+            var desktop = Boolean(
+                window.__TAURI_INTERNALS__ ||
+                window.__TAURI__ ||
+                window.__TAURI_METADATA__ ||
+                window.location.protocol === 'tauri:' ||
+                window.location.hostname === 'tauri.localhost'
+            );
+            document.documentElement.setAttribute(
+                'data-materio-shell',
+                desktop ? 'desktop' : 'other'
+            );
+            return desktop;
+        } catch (e) {
+            return false;
+        }
+    })();
+    if (!isDesktopShell) return;
+
     // Diagnostic marker: grep the app log for ANNOTDIAG.
     function diag() {
         try {

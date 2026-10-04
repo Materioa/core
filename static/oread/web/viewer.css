@@ -7138,3 +7138,18 @@ body.dark-mode #pageNumber,
 body.dark-mode #scaleSelect {
   color: var(--text-primary-color);
 }
+
+
+/* ---------------------------------------------------------------------------
+   Desktop-only features.
+
+   sidecar.js stamps data-materio-shell on <html> before viewer.mjs runs. In
+   the web build and the Android shell the annotation sidecar is inert (it
+   returns immediately), so leaving these entries visible would offer tools
+   that could draw but never save anything. The dictionary looks up against an
+   app-server credential and is likewise desktop-only.
+   --------------------------------------------------------------------------- */
+html:not([data-materio-shell='desktop']) #editorModeButtons,
+html:not([data-materio-shell='desktop']) #dictSettingsButton {
+  display: none !important;
+}

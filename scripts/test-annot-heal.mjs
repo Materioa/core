@@ -60,7 +60,7 @@ try {
     pageIndex: 0, rect: [120, 640, 340, 668], rotation: 0,
     structTreeParentId: null, id: null,
   };
-  await send('Page.addScriptToEvaluateOnNewDocument', { source: 'window.__P = ' + JSON.stringify({ pdfjs_internal_editor_0: payload }) + ';' });
+  await send('Page.addScriptToEvaluateOnNewDocument', { source: 'window.__MATERIO_SHELL_OVERRIDE__ = "desktop"; window.__P = ' + JSON.stringify({ pdfjs_internal_editor_0: payload }) + ';' });
   await send('Page.navigate', { url: `${ORIGIN}/scripts/annot-restore-harness.html` });
   for (let i = 0; i < 40; i++) {
     if (await ev(`(() => { try { const w = document.getElementById('fr').contentWindow;
