@@ -379,8 +379,7 @@ import { NOTEBOOK_COVERS, DEFAULT_COVER, coverStyle, getRibbon } from '$lib/util
 
 <div class="notebooks-tab-header notebooks-shelf-header">
     <div class="notebooks-shelf-heading">
-        <h1>Notebook</h1>
-        <span class="notebooks-count">{filteredNotebooks.length} {filteredNotebooks.length === 1 ? 'entry' : 'entries'}</span>
+        <h1>Notebooks</h1>
     </div>
     <div class="notebooks-tab-actions">
         <select id="notebookFilter" class="notebook-filter-select" aria-label="Filter Notebooks" style="display: none;"

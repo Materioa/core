@@ -758,7 +758,9 @@
 
                 <!-- The occasional tools: checkbox, image, code, math, rule,
                      link a PDF, attach a file. -->
-                <div class="nb-menu-wrap" style="margin-left:auto">
+                <!-- is-right: right-aligned, so the menu grows leftwards from
+                     the trigger instead of off the right edge of the screen. -->
+                <div class="nb-menu-wrap is-right" style="margin-left:auto">
                     <button type="button" class="toolbar-btn" data-action="insertMore"
                         aria-haspopup="true" aria-expanded={showMoreMenu}
                         title="More tools" aria-label="More tools"

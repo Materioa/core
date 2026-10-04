@@ -72,6 +72,11 @@
        instead of floating a few pixels above every one. */
     --nb-rule-y: calc(var(--nb-line) / 2 + var(--nb-font) * 0.35);
     --nb-margin-x: 92px;  /* where the pink rule sits on the page */
+
+    /* Scrollbar. A warm translucent ink rather than grey: the scroller sits on
+       cream paper, and a neutral grey thumb there reads as a foreign object. */
+    --nb-scroll-thumb: rgba(94, 80, 58, 0.28);
+    --nb-scroll-thumb-hover: rgba(94, 80, 58, 0.46);
 }
 
 body.dark-mode {
@@ -95,6 +100,8 @@ body.dark-mode {
     --nb-ink-soft: #948c7d;
     --nb-clip-hi: #555d64;
     --nb-clip-lo: #262b2f;
+    --nb-scroll-thumb: rgba(226, 218, 202, 0.22);
+    --nb-scroll-thumb-hover: rgba(226, 218, 202, 0.4);
 }
 
 /* AMOLED: true black, borders carried by the page tokens. */
@@ -119,6 +126,8 @@ body.amoled-mode {
     --nb-ink-soft: #8f887a;
     --nb-clip-hi: #454b51;
     --nb-clip-lo: #1a1d20;
+    --nb-scroll-thumb: rgba(232, 226, 212, 0.26);
+    --nb-scroll-thumb-hover: rgba(232, 226, 212, 0.46);
 }
 
 body.coffee-mode {
@@ -147,6 +156,8 @@ body.coffee-mode {
     --nb-ink-soft: #7b6a5c;
     --nb-clip-hi: #e2dccb;
     --nb-clip-lo: #97907f;
+    --nb-scroll-thumb: rgba(90, 68, 48, 0.28);
+    --nb-scroll-thumb-hover: rgba(90, 68, 48, 0.46);
 }
 
 body.coffee-dark-mode {
@@ -173,6 +184,8 @@ body.coffee-dark-mode {
     --nb-ink-soft: #9b887c;
     --nb-clip-hi: #4e4640;
     --nb-clip-lo: #211a16;
+    --nb-scroll-thumb: rgba(230, 216, 200, 0.24);
+    --nb-scroll-thumb-hover: rgba(230, 216, 200, 0.44);
 }
 
 /* ================================================
@@ -441,12 +454,23 @@ body.coffee-dark-mode {
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    /* A PDF name is unbounded, and this row sits inside the header, so an
+       un-truncated one pushed the title off the sheet on a narrow screen. */
+    max-width: 100%;
+    min-width: 0;
     padding: 4px 10px;
     background: var(--notebook-accent-light);
     border-radius: 20px;
     font-size: 11px;
     font-weight: 600;
     color: var(--notebook-accent);
+}
+
+.notebook-link span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
 }
 
 .notebook-link i {
@@ -555,7 +579,10 @@ body.dark-mode .toolbar-btn:hover {
     top: calc(100% + 6px);
     left: 0;
     z-index: 40;
+    /* max-width, not just min-width: a menu must never be wider than the
+       viewport, or it is simply unreachable on a phone. */
     min-width: 188px;
+    max-width: calc(100vw - 24px);
     padding: 5px;
     display: flex;
     flex-direction: column;
@@ -564,6 +591,14 @@ body.dark-mode .toolbar-btn:hover {
     border: 1px solid var(--color-border-light, var(--notebook-border));
     border-radius: 12px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+}
+
+/* The trailing menu is right-aligned to its trigger. It sits at the far end
+   of the toolbar, so a left-anchored menu runs off the right edge of the
+   screen — 188px of a menu the user cannot scroll to. */
+.nb-menu-wrap.is-right .nb-menu {
+    left: auto;
+    right: 0;
 }
 
 .nb-menu-item {
@@ -658,22 +693,106 @@ body.dark-mode .toolbar-btn:hover {
     background-color: var(--nb-paper);
 }
 
-/* Scrollbar styling */
-.notebook-editor::-webkit-scrollbar {
-    width: 8px;
+/* ================================================
+   SCROLLBARS
+   Themed, thin, and arrow-free.
+
+   These rules used to be scoped to `.notebook-editor`, which stopped being
+   the scroll container when scrolling moved up to `.notebook-editor-container`
+   so the page could grow and carry the rules with it. They became dead code,
+   and the notebook fell back to the browser default: a pale grey bar with
+   arrow buttons, sitting on cream paper.
+
+   Every scrollable surface in the feature is listed by name, because a
+   themed scrollbar in one pane and the default in the next reads as a bug.
+   `:where()` would be tidier, but its zero-specificity weighting is easily
+   undone by a later app-level scrollbar rule, and these need to win.
+   ================================================ */
+.notebook-editor-container,
+.notebook-view,
+.notebook-editor pre,
+.notebook-view pre,
+.notebook-view .katex-display,
+.link-pdf-list,
+.link-pdf-content,
+.notebook-preview-content {
+    /* Firefox */
+    scrollbar-width: thin;
+    scrollbar-color: var(--nb-scroll-thumb) transparent;
 }
 
-.notebook-editor::-webkit-scrollbar-track {
+.notebook-editor-container::-webkit-scrollbar,
+.notebook-view::-webkit-scrollbar,
+.notebook-editor pre::-webkit-scrollbar,
+.notebook-view pre::-webkit-scrollbar,
+.notebook-view .katex-display::-webkit-scrollbar,
+.link-pdf-list::-webkit-scrollbar,
+.link-pdf-content::-webkit-scrollbar,
+.notebook-preview-content::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+.notebook-editor-container::-webkit-scrollbar-track,
+.notebook-view::-webkit-scrollbar-track,
+.notebook-editor pre::-webkit-scrollbar-track,
+.notebook-view pre::-webkit-scrollbar-track,
+.notebook-view .katex-display::-webkit-scrollbar-track,
+.link-pdf-list::-webkit-scrollbar-track,
+.link-pdf-content::-webkit-scrollbar-track,
+.notebook-preview-content::-webkit-scrollbar-track {
+    /* Transparent track: the scroll area IS the paper, so a painted track
+       would draw a second, greyer rectangle over it. */
     background: transparent;
 }
 
-.notebook-editor::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.15);
-    border-radius: 4px;
+.notebook-editor-container::-webkit-scrollbar-thumb,
+.notebook-view::-webkit-scrollbar-thumb,
+.notebook-editor pre::-webkit-scrollbar-thumb,
+.notebook-view pre::-webkit-scrollbar-thumb,
+.notebook-view .katex-display::-webkit-scrollbar-thumb,
+.link-pdf-list::-webkit-scrollbar-thumb,
+.link-pdf-content::-webkit-scrollbar-thumb,
+.notebook-preview-content::-webkit-scrollbar-thumb {
+    /* The transparent border is inset by background-clip, so the visible
+       thumb is 6px — and it is what lets the hover state appear to thicken
+       without the bar changing width under the pointer. */
+    background-color: var(--nb-scroll-thumb);
+    background-clip: content-box;
+    border: 3px solid transparent;
+    border-radius: 999px;
 }
 
-body.dark-mode .notebook-editor::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
+.notebook-editor-container::-webkit-scrollbar-thumb:hover,
+.notebook-view::-webkit-scrollbar-thumb:hover,
+.notebook-editor pre::-webkit-scrollbar-thumb:hover,
+.notebook-view pre::-webkit-scrollbar-thumb:hover,
+.notebook-view .katex-display::-webkit-scrollbar-thumb:hover,
+.link-pdf-list::-webkit-scrollbar-thumb:hover,
+.link-pdf-content::-webkit-scrollbar-thumb:hover,
+.notebook-preview-content::-webkit-scrollbar-thumb:hover {
+    background-color: var(--nb-scroll-thumb-hover);
+}
+
+/* The arrow buttons at each end. Chrome draws them on the default bar, and
+   they are pure clutter here — this is a scroll position, not a stepper. */
+.notebook-editor-container::-webkit-scrollbar-button,
+.notebook-view::-webkit-scrollbar-button,
+.notebook-editor pre::-webkit-scrollbar-button,
+.notebook-view pre::-webkit-scrollbar-button,
+.notebook-view .katex-display::-webkit-scrollbar-button,
+.link-pdf-list::-webkit-scrollbar-button,
+.link-pdf-content::-webkit-scrollbar-button,
+.notebook-preview-content::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+.notebook-editor-container::-webkit-scrollbar-corner,
+.notebook-view::-webkit-scrollbar-corner,
+.link-pdf-list::-webkit-scrollbar-corner {
+    background: transparent;
 }
 
 /* Placeholder */
@@ -821,8 +940,22 @@ body.dark-mode .notebook-editor code {
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
     z-index: 100;
     animation: aiOverlayIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    /* Pinned to the top of the page and centred with auto margins, NOT with
+       `transform: translateX(-50%)`.
+
+       Two reasons. It had no offsets at all before, so it fell at its static
+       position — straight after the editor, i.e. below a full page of notes,
+       which made the AI button look broken on long notes. And a transform
+       here would be overwritten by aiOverlayIn, whose keyframes animate
+       `transform` outright: the box would jump sideways for the length of the
+       animation and then snap back. `width: fit-content` makes the width
+       definite, which is what lets the auto margins centre it cleanly. */
+    top: 14px;
+    left: 0;
+    right: 0;
+    margin-inline: auto;
+    width: fit-content;
     max-width: calc(100% - 32px);
-    width: 420px;
 }
 
 body.dark-mode .ai-input-overlay {
@@ -1665,15 +1798,28 @@ body.dark-mode .notebook-nav-btn:hover i {
         padding-left: 0;
     }
 
+    /* The toolbar WRAPS here rather than scrolling sideways.
+
+       `overflow-x: auto` looks like the obvious fix for a narrow screen, but
+       it is a trap: when one axis is not `visible`, the other computes to
+       `auto` too. The Block and More menus are absolutely positioned inside
+       this row, so a scrolling toolbar silently clips them — the dropdown
+       opened into a scroll container and was unreachable. Wrapping to a
+       second row costs ~32px of height and keeps every menu working. */
     .notebook-toolbar {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
+        flex-wrap: wrap;
+        overflow: visible;
+        row-gap: 2px;
+        padding: 6px 12px;
     }
 
     .notebook-toolbar::-webkit-scrollbar {
         display: none;
     }
 
+    /* Neither a button group nor a menu trigger may be squeezed: a group that
+       shrank would clip its own icons, and a trigger that shrank would move
+       its menu's anchor. */
     .toolbar-group,
     .nb-menu-wrap {
         flex-shrink: 0;
@@ -1692,10 +1838,6 @@ body.dark-mode .notebook-nav-btn:hover i {
         padding-left: calc(var(--nb-margin-x) + 14px);
     }
 
-    .notebook-toolbar {
-        padding: 6px 14px;
-    }
-
     .notebook-footer {
         flex-direction: column;
         align-items: stretch;
@@ -1703,14 +1845,21 @@ body.dark-mode .notebook-nav-btn:hover i {
         padding: 10px 14px;
     }
 
+    /* Both footer rows wrap. Their items are fixed-width labels and icons
+       whose total is around 300px, which overruns a 320px screen — and
+       `justify-content` alone cannot fix an overflow, it only shifts it. */
     .notebook-status {
         width: 100%;
+        flex-wrap: wrap;
         justify-content: space-between;
+        row-gap: 4px;
     }
 
     .notebook-footer-actions {
         width: 100%;
+        flex-wrap: wrap;
         justify-content: flex-end;
+        row-gap: 6px;
     }
 
     .notebook-btn span {
@@ -1721,13 +1870,9 @@ body.dark-mode .notebook-nav-btn:hover i {
         margin: 0;
     }
 
-    /* AI input on mobile */
-    .ai-input-overlay {
-        left: 16px !important;
-        right: 16px !important;
-        width: auto !important;
-    }
-
+    /* AI input on mobile. The base rule already handles narrow screens via
+       max-width + auto margins, so the old forced left/right/width override
+       is gone — it fought the centring and forced a full-width box. */
     .ai-prompt-input {
         min-width: 0;
         flex: 1;
@@ -2266,9 +2411,6 @@ body.coffee-dark-mode .notebook-close-btn {
 body.coffee-dark-mode .toolbar-btn:hover {
     background: rgba(255, 255, 255, 0.1);
 }
-body.coffee-dark-mode .notebook-editor::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
-}
 body.coffee-dark-mode .notebook-editor code {
     background: rgba(255, 255, 255, 0.1);
 }
@@ -2719,7 +2861,10 @@ body.coffee-dark-mode .notebook-editor hr {
     right: 0;
     z-index: 20;
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    /* minmax(0, 1fr), not 1fr. A bare `1fr` floors each track at its content
+       (min-content), so fixed-width swatches could never shrink — five 22px
+       tracks plus gaps overflowed the box and the last one was clipped. */
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 6px;
     padding: 8px;
     background: var(--notebook-bg);
@@ -2729,8 +2874,11 @@ body.coffee-dark-mode .notebook-editor hr {
 }
 
 .notebook-cover-option {
-    width: 22px;
-    height: 22px;
+    /* Track width, with aspect-ratio supplying the height, so swatches scale
+       with the palette instead of demanding a fixed size from it. */
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
     border-radius: 5px;
     background: var(--cover);
     border: 1px solid transparent;
@@ -2759,17 +2907,11 @@ body.coffee-dark-mode .notebook-editor hr {
     flex-wrap: wrap;
 }
 
+/* The heading stands alone now — the entry count beside it was noise, since
+   the grid below already shows exactly how many notes there are. */
 .notebooks-shelf-heading {
     display: flex;
     align-items: baseline;
-    gap: 10px;
-}
-
-.notebooks-count {
-    font-family: var(--font-mono, monospace);
-    font-size: 11px;
-    color: var(--color-text-muted, #999);
-    letter-spacing: 0.02em;
 }
 
 /* Wrapping shelf. Covers keep A4 proportion and shrink to fit. */
@@ -2779,6 +2921,7 @@ body.coffee-dark-mode .notebook-editor hr {
     gap: 22px 18px;
     align-items: flex-start;
     border-top: 0;
+    max-width: 100%;
 }
 
 .notebook-cover {
@@ -2952,7 +3095,7 @@ body.coffee-dark-mode .notebook-editor hr {
     right: 12px;
     z-index: 4;
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 5px;
     padding: 7px;
     background: var(--notebook-bg);
@@ -2962,8 +3105,9 @@ body.coffee-dark-mode .notebook-editor hr {
 }
 
 .notebook-cover-swatch-option {
-    width: 20px;
-    height: 20px;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
     border-radius: 4px;
     background: var(--cover);
     border: 1px solid transparent;
@@ -3006,6 +3150,72 @@ body.coffee-dark-mode .notebook-editor hr {
     .notebook-cover { flex: 0 1 150px; width: 150px; }
     .notebook-cover-face { padding: 16px 12px 12px 18px; }
     .notebook-cover-palette { left: 18px; }
+}
+
+/* Very narrow phones. At 320px the two-cover row above no longer fits:
+   2 × 150px + an 18px gap is 318px of covers alone, before the tab's own
+   side padding — so the row overflowed and the tab scrolled sideways. A
+   132px cover and a 14px gap bring that to 278px. */
+@media (max-width: 420px) {
+    .notebooks-shelf {
+        gap: 16px 14px;
+    }
+
+    .notebook-cover {
+        flex: 0 1 132px;
+        width: 132px;
+    }
+
+    .notebook-cover-face {
+        padding: 14px 10px 10px 15px;
+    }
+
+    .notebook-cover-palette {
+        left: 15px;
+        right: 8px;
+    }
+}
+
+/* Landscape phones, and any short viewport. A phone on its side is ~360px
+   tall, and the fixed chrome — board strip, header, toolbar, footer — was
+   eating most of it, leaving a sliver of paper. The frame is what gives way
+   first: it is decorative, the writing surface is not. */
+@media (max-height: 560px) and (orientation: landscape) {
+    .notebook-dialog {
+        padding-top: 26px;
+    }
+
+    .notebook-clip {
+        height: 26px;
+        top: 0;
+    }
+
+    .notebook-clip::before {
+        bottom: -6px;
+        height: 11px;
+    }
+
+    .notebook-close-btn {
+        width: 26px;
+        height: 26px;
+        font-size: 13px;
+    }
+
+    .notebook-header {
+        padding: 10px 18px 8px;
+    }
+
+    .notebook-title-input {
+        font-size: 1.1rem;
+    }
+
+    .notebook-toolbar {
+        padding: 4px 12px;
+    }
+
+    .notebook-footer {
+        padding: 6px 14px;
+    }
 }
 
 /* ================================================
