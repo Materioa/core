@@ -15,6 +15,18 @@ import { isUsableExamConfig, findRunningVivaExam, readSavedSemester } from '$lib
 	let hasVivaExam = $state(false);
 	let activeVivaExam = $state(null);
 
+	// Bounded retry for an unreadable /api/v2/examdata. Hard-capped and
+	// cancelled on unmount: this must never become a self-repeating check.
+	//
+	// The window deliberately spans edge-cache.js's DEGRADED_TTL_SECONDS (15s),
+	// which is how long a degraded answer is allowed to live at the CDN. A
+	// tighter schedule would just re-fetch the same cached "unknown" until the
+	// retries ran out and never observe recovery.
+	const MAX_DEGRADED_RETRIES = 4;
+	const DEGRADED_RETRY_MS = 5000;
+	let degradedRetries = 0;
+	let retryTimer = null;
+
 	function checkIsLanding() {
 		if (!browser) return false;
 		if ($page.url.pathname === '/home') return false;
@@ -184,18 +196,42 @@ import { isUsableExamConfig, findRunningVivaExam, readSavedSemester } from '$lib
 			// /assets/data/examdata.json fallback: that committed snapshot still
 			// carried a Practical/Viva period whose dates fell inside the
 			// show-before window, so this box auto-opened with no Mongo config
-			// saying so. The API answers { enabled:false, degraded:true } when
-			// there is no live config — that means show nothing.
-			hasVivaExam = false;
-			activeVivaExam = null;
+			// saying so. What a given answer means is decided below.
 			let data = null;
 			try {
 				const res = await fetch('/api/v2/examdata', { cache: 'no-store' });
 				if (res.ok) data = await res.json();
 			} catch {}
-			// An unreachable API or a non-authoritative answer means "unknown",
-			// and unknown must render as nothing rather than as a stale guess.
-			if (!isUsableExamConfig(data)) return;
+
+			// "Unknown" and "off" are different answers and must not be
+			// conflated. The API replies { enabled:false, degraded:true } when
+			// Mongo is unreachable — that means we were TOLD NOTHING, not that
+			// exams are off. This used to clear hasVivaExam before checking,
+			// so one blip left the box off for the rest of the session; the
+			// endpoint answers degraded intermittently, so that happened.
+			//
+			// Bounded at MAX_DEGRADED_RETRIES and cleared in onMount's
+			// teardown, so it can never become the self-repeating re-check
+			// that previously froze the page.
+			if (data === null || data.degraded === true) {
+				if (degradedRetries < MAX_DEGRADED_RETRIES) {
+					degradedRetries += 1;
+					retryTimer = setTimeout(() => {
+						retryTimer = null;
+						checkExamForVivaOrPractical();
+					}, DEGRADED_RETRY_MS);
+				}
+				return;
+			}
+			degradedRetries = 0;
+
+			// Authoritative: the admin switched exams off, or there is no
+			// config at all. Only now is "clear" the right answer.
+			if (!isUsableExamConfig(data)) {
+				hasVivaExam = false;
+				activeVivaExam = null;
+				return;
+			}
 
 			// Scan every semester entry (not just saved/first): admin keeps
 			// separate Mid/End/Practical-Viva periods and the viva entry is
@@ -214,10 +250,11 @@ import { isUsableExamConfig, findRunningVivaExam, readSavedSemester } from '$lib
 				savedSemester: readSavedSemester(),
 				now: new Date()
 			});
-			if (running) {
-				hasVivaExam = true;
-				activeVivaExam = running;
-			}
+			// Assign both unconditionally: an unanswered read leaves whatever we
+			// had (see above), but a settled read must be able to turn the box
+			// OFF again as well as on.
+			hasVivaExam = Boolean(running);
+			activeVivaExam = running || null;
 		} catch {}
 	}
 
@@ -247,6 +284,12 @@ import { isUsableExamConfig, findRunningVivaExam, readSavedSemester } from '$lib
 		window.addEventListener('materioExamVivaStatus', onExamVivaStatus);
 
 		return () => {
+			// Stop any pending degraded retry. Without this a scheduled check
+			// could outlive the component and re-run forever.
+			if (retryTimer) {
+				clearTimeout(retryTimer);
+				retryTimer = null;
+			}
 			window.removeEventListener('landingPrefsChanged', onPrefChange);
 			window.removeEventListener('materioForceAppChanged', onPrefChange);
 			window.removeEventListener('storage', onPrefChange);
