@@ -270,5 +270,31 @@ const realGreet2 = live(viva, {}, [], '', { askedLog: ['question'], subjectOptio
 ok('real fallback: consecutive greetings differ', realGreet1 !== realGreet2,
   `${realGreet1} || ${realGreet2}`);
 
+// The prompt is what invites a verbatim-copied reply, so pin that too.
+console.log('\nthe prompt cannot invite a copied reply');
+const { buildSystemPrompt } = await import(
+  pathToFileURL(join(root, 'src', 'lib', 'server', 'interviewer-extract.js')).href
+);
+const prompt = buildSystemPrompt({
+  form: { ...viva, interview: { ...viva.interview, subjectOptions: opts } },
+  priorExtracted: {},
+  skipped: [],
+  latestText: 'hi'
+});
+ok('prompt states what the visitor just said', prompt.includes('The visitor just said: "hi"'));
+ok('prompt forbids reusing an earlier reply', /NEVER reuse a reply/i.test(prompt));
+ok('prompt carries the live subject list', prompt.includes('BDA') && prompt.includes('Project II'));
+ok('example reply is an obvious placeholder', prompt.includes('<<WRITE A REAL REPLY HERE>>'));
+ok('no copyable example reply remains', !prompt.includes('"reply":"a short friendly question"'));
+
+const p2 = buildSystemPrompt({
+  form: viva, priorExtracted: { question: 'explain deadlock' }, skipped: [], latestText: 'BDA'
+});
+ok('no subject list -> makes no subject claim', !/Subjects running today/i.test(p2));
+ok('does not claim nothing was captured once one field is', !p2.includes('Nothing captured yet.'));
+ok('marks settled fields as already captured', /Already captured/.test(p2));
+ok('never leaks the whole visitor history', !prompt.includes('explain deadlock'));
+check('an empty form still renders a prompt', typeof buildSystemPrompt({ form: { fields: [] } }), 'string');
+
 console.log(`\n${pass + fail} checks, ${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

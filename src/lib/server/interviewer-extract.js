@@ -453,11 +453,16 @@ export function buildSystemPrompt({ form, priorExtracted = {}, skipped = [], req
 		// models, which then returns keys that match no field at all and every
 		// answer is discarded as unknown.
 		`Example shape (use these exact keys: ${schema.map((f) => f.name).join(', ')}):`,
+		// The example's "reply" is deliberately obviously-wrong placeholder
+		// text, because the model copies it. It previously read "a short
+		// friendly question" — plausible enough that small models returned it
+		// VERBATIM as the visitor's reply, which looked like a broken bot.
 		schema.length
-			? `{"extracted":{"${schema[0].name}":"the visitor's words"},"reply":"a short friendly question","complete":false}`
-			: '{"extracted":{},"reply":"a short friendly question","complete":false}',
+			? `{"extracted":{"${schema[0].name}":"the visitor's words"},"reply":"<<WRITE A REAL REPLY HERE>>","complete":false}`
+			: '{"extracted":{},"reply":"<<WRITE A REAL REPLY HERE>>","complete":false}',
 		`Use ONLY these field names in "extracted": ${schema.map((f) => f.name).join(', ')}. Never invent a name.`,
-		'Write "reply" in your own words — never copy the example text or these instructions.',
+		'"reply" must be real words addressed to the visitor. Never output the <<>> placeholder from the example, and never reuse a reply from an earlier turn.',
+		'Write "reply" in your own words — never copy these instructions.',
 		'ALWAYS include a non-empty "reply". If the visitor greeted you, said something unusable, or wandered off, reply warmly, acknowledge it in a sentence, and gently steer back to what you still need.',
 		'Only include fields the visitor actually answered this turn. Omit the rest.',
 		'Set "complete" to true only when every field is answered or skipped.'
