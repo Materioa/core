@@ -8,6 +8,7 @@ import {
 	withMongoTimeout
 } from '$lib/server/mongodb.js';
 import { verifyToken } from '$lib/server/supabase.js';
+import { cachedResponse } from '$lib/server/edge-cache.js';
 import {
 	normalise,
 	extractFields,
@@ -346,16 +347,35 @@ async function getEnhancedResponses(formId) {
 	}
 }
 
-export async function GET({ url }) {
+export async function GET({ request, url }) {
 	const formId = url.searchParams.get('form') || defaultForm.id;
 	const action = url.searchParams.get('action');
 
-	if (action === 'responses') {
-		const data = await getEnhancedResponses(formId);
-		return json(data);
-	}
+	// This handler was the only one here without a top-level try/catch, so any
+	// throw became a Cloudflare 500. getEnhancedResponses and loadForm each
+	// catch internally, but anything between them (or a future edit) must
+	// degrade to a usable response rather than an error page: an empty
+	// Responses tab is fine, breaking the modal is not.
+	try {
+		if (action === 'responses') {
+			// Cached for 60s like the other low-churn community reads (releases
+			// 300s, notifications 60s). This is the heaviest query on a page
+			// load — an unindexed $or scan over form_responses — so serving it
+			// from the edge keeps it off Mongo entirely. It only changes when
+			// somebody submits a question, so a minute of staleness is free.
+			return await cachedResponse(request, 60, async () =>
+				json(await getEnhancedResponses(formId))
+			);
+		}
 
-	return json({ form: await loadForm(formId) });
+		return json({ form: await loadForm(formId) });
+	} catch (error) {
+		console.error('Interviewer GET failed:', error);
+		if (action === 'responses') {
+			return json({ formId, total: 0, categories: ['All'], semesters: ['All'], items: [] });
+		}
+		return json({ form: defaultForm });
+	}
 }
 
 export async function POST({ request }) {
