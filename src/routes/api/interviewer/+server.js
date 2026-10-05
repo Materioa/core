@@ -17,7 +17,8 @@ import {
 	nextOpenField,
 	isSatisfied,
 	buildSystemPrompt,
-	isExampleValue
+	isExampleValue,
+	optionValues
 } from '$lib/server/interviewer-extract.js';
 import { askInterviewerModel } from '$lib/server/interviewer-llm.js';
 
