@@ -958,7 +958,7 @@ async function handleForms(request, url) {
 
         try {
           const collection = await getFormsCollection();
-          await collection.insertOne(submission);
+          await withMongoTimeout(collection.insertOne(submission), 5000, 'forms submission insert');
         } catch (e) {
           console.warn('Background form save failed:', e.message);
         }
@@ -977,7 +977,11 @@ async function handleForms(request, url) {
 
         const collection = await getFormsCollection();
         if (lastPart && lastPart !== 'forms' && ObjectId.isValid(lastPart)) {
-          const submission = await collection.findOne({ _id: new ObjectId(lastPart) });
+          const submission = await withMongoTimeout(
+            collection.findOne({ _id: new ObjectId(lastPart) }),
+            5000,
+            'forms submission read'
+          );
           if (!submission) return json({ error: 'Submission not found' }, { status: 404 });
           return json(submission);
         }
@@ -992,8 +996,12 @@ async function handleForms(request, url) {
         if (status) filter.status = status;
 
         const [submissions, total] = await Promise.all([
-          collection.find(filter).sort({ submittedAt: -1 }).skip(skip).limit(limit).toArray(),
-          collection.countDocuments(filter)
+          withMongoTimeout(
+            collection.find(filter).sort({ submittedAt: -1 }).skip(skip).limit(limit).toArray(),
+            5000,
+            'forms submissions list'
+          ),
+          withMongoTimeout(collection.countDocuments(filter), 5000, 'forms submissions count')
         ]);
 
         return json({
@@ -1019,16 +1027,20 @@ async function handleForms(request, url) {
         }
 
         const collection = await getFormsCollection();
-        const result = await collection.updateOne(
-          { _id: new ObjectId(lastPart) },
-          {
-            $set: {
-              status,
-              reviewedBy: user.id || user.sub,
-              reviewedAt: new Date(),
-              reviewNotes: notes || null
+        const result = await withMongoTimeout(
+          collection.updateOne(
+            { _id: new ObjectId(lastPart) },
+            {
+              $set: {
+                status,
+                reviewedBy: user.id || user.sub,
+                reviewedAt: new Date(),
+                reviewNotes: notes || null
+              }
             }
-          }
+          ),
+          5000,
+          'forms submission update'
         );
 
         if (result.matchedCount === 0) {
@@ -1048,7 +1060,11 @@ async function handleForms(request, url) {
         }
 
         const collection = await getFormsCollection();
-        const result = await collection.deleteOne({ _id: new ObjectId(lastPart) });
+        const result = await withMongoTimeout(
+          collection.deleteOne({ _id: new ObjectId(lastPart) }),
+          5000,
+          'forms submission delete'
+        );
         if (result.deletedCount === 0) {
           return json({ error: 'Submission not found' }, { status: 404 });
         }
@@ -1211,19 +1227,23 @@ async function handleContribute(request) {
     // Log to MongoDB + notify admin mailbox (parent behavior; failures non-fatal).
     try {
       const collection = await getFormsCollection();
-      await collection.insertOne({
-        contributionCid,
-        formType: 'contribution',
-        submittedAt,
-        user: { type: userType, username, githubUsername, email, displayName: contributor },
-        data: { semester, subject, category, files: uploadedFiles },
-        meta: {
-          ip: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
-          userAgent: request.headers.get('user-agent') || 'unknown',
-          commitSha: newCommit.sha
-        },
-        status: 'uploaded'
-      });
+      await withMongoTimeout(
+        collection.insertOne({
+          contributionCid,
+          formType: 'contribution',
+          submittedAt,
+          user: { type: userType, username, githubUsername, email, displayName: contributor },
+          data: { semester, subject, category, files: uploadedFiles },
+          meta: {
+            ip: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+            userAgent: request.headers.get('user-agent') || 'unknown',
+            commitSha: newCommit.sha
+          },
+          status: 'uploaded'
+        }),
+        5000,
+        'contribution insert'
+      );
 
       const mailText = [
         'New contribution received',
@@ -1351,10 +1371,14 @@ async function handleNotebooks(request, url) {
       };
       delete doc._id;
 
-      await collection.updateOne(
-        { id: noteId, $or: [{ userId }, { user_id: userId }] },
-        { $set: doc },
-        { upsert: true }
+      await withMongoTimeout(
+        collection.updateOne(
+          { id: noteId, $or: [{ userId }, { user_id: userId }] },
+          { $set: doc },
+          { upsert: true }
+        ),
+        5000,
+        'notebook upsert'
       );
       return json({ success: true, message: 'Notebook synced successfully', notebook: doc });
     }
@@ -1366,7 +1390,11 @@ async function handleNotebooks(request, url) {
       const id = url.searchParams.get('id') || body.id;
       if (!id) return json({ error: 'Note ID is required' }, { status: 400 });
 
-      await collection.deleteOne({ id, $or: [{ userId }, { user_id: userId }] });
+      await withMongoTimeout(
+        collection.deleteOne({ id, $or: [{ userId }, { user_id: userId }] }),
+        5000,
+        'notebook delete'
+      );
       return json({ success: true, message: 'Notebook deleted' });
     }
 
@@ -1527,7 +1555,11 @@ async function handlePdfShare(request, url) {
         const db = await getMongoDb();
         if (db) {
           const collection = db.collection('pdf_shares');
-          const existing = await collection.findOne({ actualUrl });
+          const existing = await withMongoTimeout(
+            collection.findOne({ actualUrl }),
+            5000,
+            'pdf share lookup by url'
+          );
           if (existing) {
             pdfShareStore.set(existing.maskId, { maskId: existing.maskId, actualUrl });
             return json({ maskId: existing.maskId, isNew: false });
@@ -1537,15 +1569,23 @@ async function handlePdfShare(request, url) {
           let isUnique = false;
           while (!isUnique) {
             maskId = crypto.randomBytes(4).toString('hex'); // 8 char hex
-            const dup = await collection.findOne({ maskId });
+            const dup = await withMongoTimeout(
+              collection.findOne({ maskId }),
+              5000,
+              'pdf share mask collision check'
+            );
             if (!dup) isUnique = true;
           }
 
-          await collection.insertOne({
-            maskId,
-            actualUrl,
-            createdAt: new Date()
-          });
+          await withMongoTimeout(
+            collection.insertOne({
+              maskId,
+              actualUrl,
+              createdAt: new Date()
+            }),
+            5000,
+            'pdf share insert'
+          );
           pdfShareStore.set(maskId, { maskId, actualUrl });
           return json({ maskId, isNew: true });
         }
@@ -1576,7 +1616,11 @@ async function handlePdfShare(request, url) {
       const db = await getMongoDb();
       if (db) {
         const collection = db.collection('pdf_shares');
-        const share = await collection.findOne({ maskId });
+        const share = await withMongoTimeout(
+          collection.findOne({ maskId }),
+          5000,
+          'pdf share resolve'
+        );
         if (share && share.actualUrl) {
           return json({ actualUrl: share.actualUrl });
         }
@@ -1598,7 +1642,11 @@ async function handlePdfShare(request, url) {
         const db = await getMongoDb();
         if (db) {
           const collection = db.collection('pdf_shares');
-          const share = await collection.findOne({ maskId: llmMaskId });
+          const share = await withMongoTimeout(
+            collection.findOne({ maskId: llmMaskId }),
+            5000,
+            'pdf share resolve llm'
+          );
           if (share && share.actualUrl) {
             return json({ actualUrl: share.actualUrl, pdfPath: share.actualUrl });
           }
@@ -1784,10 +1832,18 @@ async function handlePromotionsFeature(request, url) {
         delete cleanData._id;
 
         if (cleanData.enabled) {
-          await promoCollection.updateMany({}, { $set: { enabled: false } });
+          await withMongoTimeout(
+            promoCollection.updateMany({}, { $set: { enabled: false } }),
+            5000,
+            'promo disable others on create'
+          );
         }
 
-        const result = await promoCollection.insertOne(cleanData);
+        const result = await withMongoTimeout(
+          promoCollection.insertOne(cleanData),
+          5000,
+          'promo insert'
+        );
         return json({ 
           message: 'Promotion saved successfully', 
           id: result.insertedId,
@@ -1812,15 +1868,23 @@ async function handlePromotionsFeature(request, url) {
         updateData.updatedAt = new Date().toISOString();
 
         if (updateData.enabled) {
-          await promoCollection.updateMany(
-            { _id: { $ne: new ObjectId(String(id)) } },
-            { $set: { enabled: false } }
+          await withMongoTimeout(
+            promoCollection.updateMany(
+              { _id: { $ne: new ObjectId(String(id)) } },
+              { $set: { enabled: false } }
+            ),
+            5000,
+            'promo disable others on update'
           );
         }
 
-        const result = await promoCollection.updateOne(
-          { _id: new ObjectId(String(id)) },
-          { $set: updateData }
+        const result = await withMongoTimeout(
+          promoCollection.updateOne(
+            { _id: new ObjectId(String(id)) },
+            { $set: updateData }
+          ),
+          5000,
+          'promo update'
         );
 
         if (result.matchedCount === 0) {
@@ -1839,7 +1903,11 @@ async function handlePromotionsFeature(request, url) {
           return json({ error: 'Valid promotion ID is required' }, { status: 400 });
         }
 
-        const result = await promoCollection.deleteOne({ _id: new ObjectId(String(id)) });
+        const result = await withMongoTimeout(
+          promoCollection.deleteOne({ _id: new ObjectId(String(id)) }),
+          5000,
+          'promo delete'
+        );
         if (result.deletedCount === 0) {
           return json({ error: 'Promotion not found' }, { status: 404 });
         }
@@ -1927,7 +1995,11 @@ async function handleReleasesFeature(request, url) {
           logs: releaseData.logs
         };
 
-        const result = await releasesCollection.insertOne(newRelease);
+        const result = await withMongoTimeout(
+          releasesCollection.insertOne(newRelease),
+          5000,
+          'release insert'
+        );
         return json(
           {
             message: 'Release created successfully',
@@ -1951,9 +2023,13 @@ async function handleReleasesFeature(request, url) {
         const updateData = { ...releaseData };
         delete updateData._id;
 
-        const result = await releasesCollection.updateOne(
-          { _id: new ObjectId(id) },
-          { $set: updateData }
+        const result = await withMongoTimeout(
+          releasesCollection.updateOne(
+            { _id: new ObjectId(id) },
+            { $set: updateData }
+          ),
+          5000,
+          'release update'
         );
 
         if (result.matchedCount === 0) {
@@ -1973,7 +2049,11 @@ async function handleReleasesFeature(request, url) {
         const id = url.searchParams.get('id');
         if (!id) return json({ error: 'Release id parameter is required' }, { status: 400 });
 
-        const result = await releasesCollection.deleteOne({ _id: new ObjectId(id) });
+        const result = await withMongoTimeout(
+          releasesCollection.deleteOne({ _id: new ObjectId(id) }),
+          5000,
+          'release delete'
+        );
         if (result.deletedCount === 0) {
           return json({ error: 'Release not found' }, { status: 404 });
         }
@@ -2175,7 +2255,11 @@ async function handleNotificationsFeature(request, url) {
           created_at: new Date().toISOString()
         };
 
-        const result = await notificationsCollection.insertOne(newNotif);
+        const result = await withMongoTimeout(
+          notificationsCollection.insertOne(newNotif),
+          5000,
+          'notification insert'
+        );
         newNotif._id = result.insertedId;
 
         return json({ message: 'Notification created', notification: newNotif }, { status: 201 });
@@ -2197,9 +2281,17 @@ async function handleNotificationsFeature(request, url) {
         updateData.updated_at = new Date().toISOString();
 
         if (ObjectId.isValid(id)) {
-          await notificationsCollection.updateOne({ _id: new ObjectId(id) }, { $set: updateData });
+          await withMongoTimeout(
+            notificationsCollection.updateOne({ _id: new ObjectId(id) }, { $set: updateData }),
+            5000,
+            'notification update by _id'
+          );
         } else {
-          await notificationsCollection.updateOne({ id: id }, { $set: updateData });
+          await withMongoTimeout(
+            notificationsCollection.updateOne({ id: id }, { $set: updateData }),
+            5000,
+            'notification update by id'
+          );
         }
 
         return json({ message: 'Notification updated', notification: { _id: id, ...updateData } });
@@ -2213,9 +2305,17 @@ async function handleNotificationsFeature(request, url) {
         if (!id) return json({ error: 'Notification id parameter is required' }, { status: 400 });
 
         if (ObjectId.isValid(id)) {
-          await notificationsCollection.deleteOne({ _id: new ObjectId(id) });
+          await withMongoTimeout(
+            notificationsCollection.deleteOne({ _id: new ObjectId(id) }),
+            5000,
+            'notification delete by _id'
+          );
         } else {
-          await notificationsCollection.deleteOne({ id: id });
+          await withMongoTimeout(
+            notificationsCollection.deleteOne({ id: id }),
+            5000,
+            'notification delete by id'
+          );
         }
 
         return json({ message: 'Notification deleted' });
@@ -2297,10 +2397,14 @@ async function findActiveModerationRule({ anonId, fingerprint, ipAddress, action
     };
     if (action) query.action = normalizeModerationIdentity(action, 16);
 
-    const rule = await db.collection(MODERATION_RULES_COLLECTION).findOne(query, {
-      sort: { updatedAt: -1, createdAt: -1 },
-      projection: { _id: 0, action: 1, title: 1, body: 1, active: 1, updatedAt: 1 }
-    });
+    const rule = await withMongoTimeout(
+      db.collection(MODERATION_RULES_COLLECTION).findOne(query, {
+        sort: { updatedAt: -1, createdAt: -1 },
+        projection: { _id: 0, action: 1, title: 1, body: 1, active: 1, updatedAt: 1 }
+      }),
+      5000,
+      'moderation rule lookup'
+    );
     if (!rule) return null;
 
     return {

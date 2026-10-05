@@ -4,7 +4,7 @@ import path from 'path';
 import { json } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import { supabase } from '$lib/server/supabase.js';
-import { getMongoDb } from './mongodb.js';
+import { getMongoDb, withMongoTimeout } from './mongodb.js';
 import { cachedResponse, isCacheableRequest } from './edge-cache.js';
 import { logError, getErrorsLastHour } from './error-tracker.js';
 import { sendIncidentEmail, sendAlertEmail, ALERT_EMAIL } from './mailer.js';
@@ -24,6 +24,13 @@ const SUMMARY_MODELS = [
 ];
 
 const INCIDENT_IO_SUMMARY_URL = 'https://statuspage.incident.io/materio/api/v1/summary';
+
+// Every driver op below is bounded. See mongodb.js: a wedged checkout has
+// nothing pending, so no driver timeout fires and try/catch cannot help — the
+// event hangs and workerd kills the isolate with "code had hung", latching
+// every later request onto it as an instant 500. Racing our own timer makes
+// that wedge an ordinary caught error instead.
+const MONGO_OP_MS = 5000;
 
 const SPAM_CONFIG = {
   maxReportsPerIP: 10,
@@ -261,31 +268,43 @@ async function validateBugReport(report, clientIP, sessionId) {
     const now = new Date();
 
     const ipWindowStart = new Date(now.getTime() - SPAM_CONFIG.ipWindowMinutes * 60 * 1000);
-    const recentByIP = await reportsCollection.countDocuments({
-      'meta.ip': clientIP,
-      reportedAt: { $gte: ipWindowStart }
-    });
+    const recentByIP = await withMongoTimeout(
+      reportsCollection.countDocuments({
+        'meta.ip': clientIP,
+        reportedAt: { $gte: ipWindowStart }
+      }),
+      MONGO_OP_MS,
+      'bug report IP spam count'
+    );
     if (recentByIP >= SPAM_CONFIG.maxReportsPerIP) {
       return { valid: false, reason: 'Too many reports from this network. Please try again later.' };
     }
 
     if (sessionId) {
       const sessionWindowStart = new Date(now.getTime() - SPAM_CONFIG.sessionWindowMinutes * 60 * 1000);
-      const recentBySession = await reportsCollection.countDocuments({
-        'meta.sessionId': sessionId,
-        reportedAt: { $gte: sessionWindowStart }
-      });
+      const recentBySession = await withMongoTimeout(
+        reportsCollection.countDocuments({
+          'meta.sessionId': sessionId,
+          reportedAt: { $gte: sessionWindowStart }
+        }),
+        MONGO_OP_MS,
+        'bug report session spam count'
+      );
       if (recentBySession >= SPAM_CONFIG.maxReportsPerSession) {
         return { valid: false, reason: 'You have submitted too many reports recently. Please wait before submitting again.' };
       }
     }
 
     const dupWindowStart = new Date(now.getTime() - SPAM_CONFIG.duplicateWindowMinutes * 60 * 1000);
-    const recentReports = await reportsCollection
-      .find({ reportedAt: { $gte: dupWindowStart } }, { projection: { title: 1, description: 1 } })
-      .sort({ reportedAt: -1 })
-      .limit(50)
-      .toArray();
+    const recentReports = await withMongoTimeout(
+      reportsCollection
+        .find({ reportedAt: { $gte: dupWindowStart } }, { projection: { title: 1, description: 1 } })
+        .sort({ reportedAt: -1 })
+        .limit(50)
+        .toArray(),
+      MONGO_OP_MS,
+      'bug report duplicate scan'
+    );
 
     for (const existing of recentReports) {
       const titleSim = textSimilarity(report.title, existing.title || '');
@@ -422,21 +441,29 @@ async function checkAndCreateIncident() {
     const now = new Date();
 
     const cooldownStart = new Date(now.getTime() - INCIDENT_AUTO_CONFIG.cooldownMinutes * 60 * 1000);
-    const recentIncident = await incidentsCollection.findOne(
-      { createdAt: { $gte: cooldownStart } },
-      { sort: { createdAt: -1 } }
+    const recentIncident = await withMongoTimeout(
+      incidentsCollection.findOne(
+        { createdAt: { $gte: cooldownStart } },
+        { sort: { createdAt: -1 } }
+      ),
+      MONGO_OP_MS,
+      'incident cooldown check'
     );
     if (recentIncident) return null;
 
     const windowStart = new Date(now.getTime() - INCIDENT_AUTO_CONFIG.clusterWindowHours * 60 * 60 * 1000);
-    const recentReports = await reportsCollection
-      .find({
-        reportedAt: { $gte: windowStart },
-        status: { $ne: 'spam' },
-        _incidentCreated: { $ne: true }
-      })
-      .sort({ reportedAt: 1 })
-      .toArray();
+    const recentReports = await withMongoTimeout(
+      reportsCollection
+        .find({
+          reportedAt: { $gte: windowStart },
+          status: { $ne: 'spam' },
+          _incidentCreated: { $ne: true }
+        })
+        .sort({ reportedAt: 1 })
+        .toArray(),
+      MONGO_OP_MS,
+      'incident cluster window'
+    );
 
     if (recentReports.length < INCIDENT_AUTO_CONFIG.clusterThreshold) return null;
 
@@ -474,10 +501,18 @@ async function checkAndCreateIncident() {
         : null
     };
 
-    await incidentsCollection.insertOne(incidentRecord);
-    await reportsCollection.updateMany(
-      { _id: { $in: cluster.map((r) => r._id) } },
-      { $set: { _incidentCreated: true, _incidentId: incidentRecord._id } }
+    await withMongoTimeout(
+      incidentsCollection.insertOne(incidentRecord),
+      MONGO_OP_MS,
+      'incident insert'
+    );
+    await withMongoTimeout(
+      reportsCollection.updateMany(
+        { _id: { $in: cluster.map((r) => r._id) } },
+        { $set: { _incidentCreated: true, _incidentId: incidentRecord._id } }
+      ),
+      MONGO_OP_MS,
+      'incident flag reports'
     );
 
     return incidentRecord;
@@ -544,7 +579,11 @@ async function handleBugReport(request) {
   try {
     const db = await getMongoDb();
     const reportsCollection = db.collection('bug_reports');
-    const insertResult = await reportsCollection.insertOne(report);
+    const insertResult = await withMongoTimeout(
+      reportsCollection.insertOne(report),
+      MONGO_OP_MS,
+      'bug report insert'
+    );
 
     try {
       await checkAndCreateIncident();

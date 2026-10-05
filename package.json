@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "vite dev",
-    "test": "node scripts/test-analytics-payload.mjs && node scripts/test-interviewer-extract.mjs && node scripts/test-interviewer-llm.mjs && node scripts/test-parse-model-json.mjs && node scripts/test-interviewer-mongo-guard.mjs && node scripts/test-exam-modal-close.mjs && node scripts/test-dictionary.mjs && node scripts/test-dictionary-trigger.mjs && node scripts/test-dictionary-placement.mjs && node scripts/test-dictionary-render.mjs && node scripts/test-dictionary-e2e.mjs && node scripts/test-dictionary-web-split.mjs",
+    "test": "node scripts/test-analytics-payload.mjs && node scripts/test-interviewer-extract.mjs && node scripts/test-interviewer-llm.mjs && node scripts/test-parse-model-json.mjs && node scripts/test-mongo-guard.mjs && node scripts/test-exam-modal-close.mjs && node scripts/test-dictionary.mjs && node scripts/test-dictionary-trigger.mjs && node scripts/test-dictionary-placement.mjs && node scripts/test-dictionary-render.mjs && node scripts/test-dictionary-e2e.mjs && node scripts/test-dictionary-web-split.mjs",
     "test:dictionary": "node scripts/test-dictionary.mjs && node scripts/test-dictionary-trigger.mjs && node scripts/test-dictionary-placement.mjs && node scripts/test-dictionary-render.mjs && node scripts/test-dictionary-e2e.mjs && node scripts/test-dictionary-providers.mjs && node scripts/test-dictionary-settings.mjs && node scripts/test-dictionary-custom.mjs && node scripts/test-dictionary-web-split.mjs",
     "test:exam": "node scripts/test-exam-gate.mjs && node scripts/test-viva-load-guard.mjs",
     "prebuild": "node scripts/prebuild.mjs",

@@ -1,6 +1,13 @@
 import webpush from 'web-push';
-import { getMongoDb } from './mongodb.js';
+import { getMongoDb, withMongoTimeout } from './mongodb.js';
 import { env } from '$env/dynamic/private';
+
+// Every driver op below is bounded. See mongodb.js: a wedged checkout has
+// nothing pending, so no driver timeout fires and try/catch cannot help —
+// the event hangs and workerd kills the isolate with "code had hung", which
+// then latches every later request onto it as an instant 500. Racing our own
+// timer makes that wedge an ordinary caught error instead.
+const MONGO_OP_MS = 5000;
 
 const VAPID_PUBLIC_KEY = env.VAPID_PUBLIC_KEY || process.env.VAPID_PUBLIC_KEY || '';
 const VAPID_PRIVATE_KEY = env.VAPID_PRIVATE_KEY || process.env.VAPID_PRIVATE_KEY || '';
@@ -57,23 +64,27 @@ export async function upsertWebPushSubscription(subscription, meta = {}) {
   const collection = await getPushCollection();
   const now = new Date();
 
-  await collection.updateOne(
-    { endpoint: normalized.endpoint },
-    {
-      $set: {
-        subscription: normalized,
-        endpoint: normalized.endpoint,
-        userAgent: meta.userAgent || null,
-        ip: meta.ip || null,
-        enabled: true,
-        updatedAt: now,
-        lastSeenAt: now
+  await withMongoTimeout(
+    collection.updateOne(
+      { endpoint: normalized.endpoint },
+      {
+        $set: {
+          subscription: normalized,
+          endpoint: normalized.endpoint,
+          userAgent: meta.userAgent || null,
+          ip: meta.ip || null,
+          enabled: true,
+          updatedAt: now,
+          lastSeenAt: now
+        },
+        $setOnInsert: {
+          createdAt: now
+        }
       },
-      $setOnInsert: {
-        createdAt: now
-      }
-    },
-    { upsert: true }
+      { upsert: true }
+    ),
+    MONGO_OP_MS,
+    'webpush upsert subscription'
   );
 
   return { endpoint: normalized.endpoint };
@@ -83,7 +94,11 @@ export async function removeWebPushSubscription(endpoint) {
   if (!endpoint) return { removed: 0 };
 
   const collection = await getPushCollection();
-  const result = await collection.deleteOne({ endpoint });
+  const result = await withMongoTimeout(
+    collection.deleteOne({ endpoint }),
+    MONGO_OP_MS,
+    'webpush delete subscription'
+  );
   return { removed: result.deletedCount || 0 };
 }
 
@@ -95,7 +110,11 @@ export async function sendWebPushToAll(payload) {
   ensureVapidConfigured();
 
   const collection = await getPushCollection();
-  const subscriptions = await collection.find({ enabled: { $ne: false } }).toArray();
+  const subscriptions = await withMongoTimeout(
+    collection.find({ enabled: { $ne: false } }).toArray(),
+    MONGO_OP_MS,
+    'webpush list subscriptions'
+  );
 
   if (!subscriptions.length) {
     return { sent: 0, failed: 0, removed: 0, skipped: false };
@@ -113,7 +132,11 @@ export async function sendWebPushToAll(payload) {
       failed += 1;
       const statusCode = error?.statusCode;
       if (statusCode === 404 || statusCode === 410) {
-        await collection.deleteOne({ endpoint: doc.endpoint });
+        await withMongoTimeout(
+          collection.deleteOne({ endpoint: doc.endpoint }),
+          MONGO_OP_MS,
+          'webpush prune stale endpoint'
+        );
         removed += 1;
       }
     }
