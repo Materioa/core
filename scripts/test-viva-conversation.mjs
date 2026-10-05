@@ -342,5 +342,68 @@ check('empty is not an example', isExampleValue(''), false);
 check('undefined is safe', isExampleValue(undefined), false);
 check('a real viva question survives', isExampleValue('What is a deadlock?'), false);
 
+// The whole-turn budget. Each provider used to get its own 25s and they were
+// tried in sequence, so with every provider down a turn took ~26s — past the
+// platform's practical response window for an interactive POST, and the visitor
+// got a 500 instead of the regex answer waiting behind the timeout.
+console.log('\nturn budget bounds the whole ladder');
+const TURN_BUDGET_MS = 9000;
+// Real timers, real elapsed time. A simulation that never actually waited
+// would happily pass against a broken deadline.
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function runLadder(budget, providers) {
+  const deadline = Date.now() + budget;
+  const started = Date.now();
+  const tried = [];
+  for (const p of providers) {
+    if (Date.now() >= deadline) break;
+    const remaining = Math.max(50, deadline - Date.now());
+    if (p.delay > remaining) break; // withTimeout rejects; move to the next
+    tried.push(p.id);
+    await sleep(p.delay); // consume the time that provider would have taken
+  }
+  return { tried, elapsed: Date.now() - started };
+}
+
+const slow = await runLadder(300, [
+  { id: 'a', delay: 200 },
+  { id: 'b', delay: 200 },
+  { id: 'c', delay: 200 },
+  { id: 'd', delay: 200 }
+]);
+ok('a slow ladder is bounded, not walked in full',
+  slow.tried.length < 4, `tried ${slow.tried.join(',')}`);
+ok('a bounded ladder stops near its budget', slow.elapsed <= 340, `took ${slow.elapsed}ms`);
+
+const fast = await runLadder(300, [
+  { id: 'a', delay: 10 },
+  { id: 'b', delay: 10 },
+  { id: 'c', delay: 10 },
+  { id: 'd', delay: 10 }
+]);
+ok('a healthy ladder still tries every provider',
+  fast.tried.length === 4, `tried ${fast.tried.join(',')}`);
+ok('a healthy ladder stays well inside the budget', fast.elapsed <= 140, `took ${fast.elapsed}ms`);
+
+const clamped = await runLadder(300, [{ id: 'slow', delay: 5000 }]);
+ok('one slow provider cannot spend the whole budget',
+  clamped.elapsed <= 340, `took ${clamped.elapsed}ms`);
+
+// resetMongoDb on timeout was the orphan-promise 500.
+console.log('\na timed-out op does not close the pool it is still using');
+const mongodbSrc = readFileSync(
+  new URL('../src/lib/server/mongodb.js', import.meta.url),
+  'utf8'
+);
+const timeoutBlock = mongodbSrc.slice(mongodbSrc.indexOf('export function withMongoTimeout'));
+ok('withMongoTimeout no longer calls resetMongoDb',
+  !/setTimeout\([\s\S]{0,400}resetMongoDb\(\)/.test(timeoutBlock));
+ok('withMongoTimeout forgets the client instead', /forgetMongoDb\(\)/.test(timeoutBlock));
+ok('forgetMongoDb exists and does not close', /export function forgetMongoDb\(\)\s*\{[^}]*cachedDb = null;[^}]*\}/.test(mongodbSrc));
+ok('forgetMongoDb never closes the client',
+  !/export function forgetMongoDb\(\)\s*\{[\s\S]{0,300}?\.close\(/.test(mongodbSrc));
+ok('resetMongoDb is still available for explicit recovery',
+  /export function resetMongoDb\(\)/.test(mongodbSrc));
+
 console.log(`\n${pass + fail} checks, ${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

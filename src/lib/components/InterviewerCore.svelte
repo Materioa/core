@@ -412,9 +412,13 @@
 			// the interviewer's own reply. Parse defensively and translate it.
 			const data = await response.json().catch(() => null);
 			if (!data) {
+				// A 5xx here is usually not "slow". When every LLM provider is
+				// unavailable the turn can outrun the platform's response window,
+				// and the visitor was told the server was still thinking when in
+				// fact it had nothing to answer with. Say what actually happened.
 				throw new Error(
 					response.status >= 500
-						? 'The interview server took too long to answer. Please try again.'
+						? 'The assistant is having trouble right now. Please try again in a moment.'
 						: 'That could not be saved right now. Please try again.'
 				);
 			}

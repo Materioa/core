@@ -19,6 +19,23 @@ import { env } from '$env/dynamic/private';
 
 const DEFAULT_TIMEOUT_MS = 25_000;
 
+/**
+ * Hard ceiling on one whole turn, across every provider.
+ *
+ * Previously each provider got its own 25s budget, tried in sequence. With all
+ * providers down — OpenRouter's free daily quota spent is the common case —
+ * a turn walked the entire ladder before falling back, taking ~26s. That is
+ * over Cloudflare's practical response window for an interactive POST, so the
+ * visitor saw a 500 with "the interview server took too long" instead of the
+ * perfectly good regex answer sitting right behind the timeout.
+ *
+ * The ladder is tried fast and given up on rather than waited out: a reply the
+ * visitor is still reading beats a better one they never receive. Providers
+ * stay in per-provider cooldown afterwards, so the next turn skips them
+ * immediately and costs nothing.
+ */
+const TURN_BUDGET_MS = 9_000;
+
 /** provider id -> epoch ms until which it is skipped. */
 const cooldownUntil = new Map();
 
@@ -107,6 +124,27 @@ export function parseModelJson(raw) {
 	}
 	if (end === -1) throw new Error('model returned no JSON');
 	return JSON.parse(body.slice(start, end + 1));
+}
+
+/**
+ * Reject if a promise has not settled in time.
+ *
+ * The underlying work is NOT cancellable — a provider fetch already in flight
+ * keeps running — but the caller stops waiting on it, which is what matters.
+ * The rejection is always observed by the caller's own error handling, so this
+ * cannot become an unhandled rejection.
+ */
+function withTimeout(promise, ms, message) {
+	let timer;
+	const guarded = Promise.resolve(promise);
+	guarded.then(
+		() => clearTimeout(timer),
+		() => clearTimeout(timer)
+	);
+	const timeout = new Promise((_, reject) => {
+		timer = setTimeout(() => reject(new Error(message)), Math.max(1, ms));
+	});
+	return Promise.race([guarded, timeout]);
 }
 
 async function postJson(url, { headers, body, timeout = DEFAULT_TIMEOUT_MS }) {
@@ -321,10 +359,31 @@ export async function askInterviewerModel({ system, messages }) {
 	const cached = readCache(key);
 	if (cached) return cached;
 
+	// Deadline for the whole ladder, not per provider.
+	const deadline = Date.now() + TURN_BUDGET_MS;
+
 	for (const provider of PROVIDERS) {
 		if (!available(provider.id)) continue;
+		// Nothing left to give this provider. Cooldown it so the NEXT turn skips
+		// it outright instead of re-paying the same wait.
+		if (Date.now() >= deadline) {
+			penalise(provider.id, false);
+			try {
+				console.warn(
+					`[interviewer] ${provider.id} skipped — turn budget of ${TURN_BUDGET_MS}ms exhausted`
+				);
+			} catch {}
+			continue;
+		}
 		try {
-			const parsed = await provider.run({ system, messages });
+			// Clamp each provider to whatever remains of the turn budget, so one
+			// slow provider cannot spend the whole allowance on its own.
+			const remaining = Math.max(500, deadline - Date.now());
+			const parsed = await withTimeout(
+				provider.run({ system, messages }),
+				remaining,
+				`${provider.id} exceeded the turn budget`
+			);
 			if (!parsed) continue; // provider not configured
 			// A response with no reply is a FAILED turn, not a partial success.
 			// Small models (Qwen 0.5B, for one) happily return

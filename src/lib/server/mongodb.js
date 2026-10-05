@@ -152,6 +152,20 @@ export async function getMongoDb() {
 	}
 }
 
+/**
+ * Drop the cached client WITHOUT closing it.
+ *
+ * Used by withMongoTimeout. Closing is the wrong move there: it kills sockets
+ * that a wedged operation still holds, which leaves an unsettled promise in the
+ * isolate and gets the whole request killed with "Promise will never complete."
+ * Forgotten is sufficient — the next getMongoDb() builds a fresh pool.
+ */
+export function forgetMongoDb() {
+	cachedClient = null;
+	cachedDb = null;
+	connecting = null;
+}
+
 export function resetMongoDb() {
 	// Error recovery only: drops the shared client so the next request
 	// reconnects fresh. Never call this on the happy path.
@@ -189,9 +203,18 @@ export function withMongoTimeout(promiseLike, ms = 5000, label = 'mongo op') {
 	);
 	const timeout = new Promise((_, reject) => {
 		timer = setTimeout(() => {
-			try {
-				resetMongoDb();
-			} catch {}
+			// Retire the pool by forgetting it, but DO NOT close it here.
+			//
+			// close() tears down every socket the client still has checked out,
+			// including the connection the timed-out operation is still using. That
+			// op never settles, so the isolate is left holding a promise which can
+			// never complete and workerd kills the request with "Promise will never
+			// complete." — a 500 at exactly this timeout, seen in production.
+			//
+			// Forgetting is enough: the next getMongoDb() builds a fresh pool and
+			// this one is collected once the wedged op is dropped. resetMongoDb()
+			// stays for explicit error recovery.
+			forgetMongoDb();
 			reject(new Error(`${label} timed out after ${ms}ms`));
 		}, ms);
 	});
