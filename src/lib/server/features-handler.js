@@ -306,6 +306,14 @@ async function fetchJsonNotifications() {
   return [];
 }
 
+// This read has a working fallback (fetchJsonNotifications, a CDN feed), so a
+// slow Mongo must NOT hold the response hostage: at the general 5000ms bound
+// this endpoint sat at a 5119ms p50 because it always waited the full bound,
+// then fell back. Bound it far tighter so the CDN answer wins quickly and the
+// 60s edge cache around this handler can actually do its job. A timeout here
+// degrades to real notifications, not to an empty list.
+const NOTIFICATIONS_MONGO_MS = 1200;
+
 async function getMergedNotifications() {
   let mongoItems = [];
   try {
@@ -317,7 +325,7 @@ async function getMergedNotifications() {
     // is ever rendered anyway.
     mongoItems = await withMongoTimeout(
       notificationsCollection.find({}).limit(200).toArray(),
-      5000,
+      NOTIFICATIONS_MONGO_MS,
       'notifications find'
     );
     // Decorate-sort-undecorate: same ordering as the previous inline

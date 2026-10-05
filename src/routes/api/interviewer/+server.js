@@ -246,17 +246,36 @@ function splitAndEnhanceQuestions(rawText) {
 async function getEnhancedResponses(formId) {
 	try {
 		const collection = await getFormResponsesCollection();
-		const docs = await withMongoTimeout(
+		// Deliberately NOT .sort() on the cursor. A sorted cursor wedges on
+		// workerd — this file already works around that twice, in
+		// handlePromotionsFeature and getMergedNotifications — and this query
+		// was still doing it, which is why this endpoint consistently took
+		// exactly our 5000ms bound (5052ms p50) before falling back to an
+		// empty list. limit() before a sort would also return the wrong 50, so
+		// take a bounded unsorted slice and order it here instead.
+		const scanned = await withMongoTimeout(
 			collection.find({
 				$or: [
 					{ formId },
 					{ 'values.questions': { $exists: true, $ne: '' } },
 					{ 'values.question': { $exists: true, $ne: '' } }
 				]
-			}).sort({ updatedAt: -1, createdAt: -1 }).limit(50).toArray(),
+			}).limit(500).toArray(),
 			MONGO_OP_MS,
 			'interviewer responses find'
 		);
+		const timeOf = (doc) => {
+			const v = doc?.updatedAt || doc?.createdAt;
+			if (!v) return 0;
+			return (v instanceof Date ? v.getTime() : Date.parse(v)) || 0;
+		};
+		scanned.sort((a, b) => {
+			const at = timeOf(a);
+			const bt = timeOf(b);
+			if (at !== bt) return bt - at;
+			return String(b?._id ?? '').localeCompare(String(a?._id ?? ''));
+		});
+		const docs = scanned.slice(0, 50);
 
 		const items = [];
 		const subjectSet = new Set();
