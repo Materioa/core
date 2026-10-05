@@ -97,10 +97,17 @@ const defaultForm = {
  * model has no idea what is even being asked for, because the form's `subject`
  * field is a free-text box with no options.
  */
+// Bare acknowledgements only — deliberately NOT questions.
+//
+// These used to be "what's on your mind?" style openers, which made the bot
+// look like it was dodging: with the LLM down the fallback is the only voice,
+// and it would greet "hi" with something vaguer than the form's own first
+// question. The actual ask is appended separately from the open field, so the
+// warmth varies while the substance stays on track.
 const READY_NUDGES = [
-	"No rush — whenever you're ready, what would you like to tell me about?",
-	"Still here whenever you are. What question are you thinking of?",
-	"Let's start anywhere — what's on your mind?"
+	"No rush — whenever you're ready.",
+	"Still here whenever you are.",
+	"Take your time."
 ];
 
 /** Sentinel in askedLog marking a turn that captured nothing. Never a field name. */
@@ -136,10 +143,16 @@ function questionFor(form, extracted, skipped, llmReply, conversationOpts = {}) 
 		// the same sentence again — the exact bug this was meant to fix.
 		const greetingTurns = asked.filter((n) => n === READY_MARKER).length;
 		const n = READY_NUDGES[Math.min(greetingTurns, READY_NUDGES.length - 1)];
-		if (options.length) {
-			return `${n} Today that covers ${listPhrase(options)} — pick one, or name your own.`;
+		// Name the field we are actually on. A bare greeting is not a licence to
+		// ask something vague: the visitor answered "hi", so the next question
+		// should be the one they need to answer NEXT, not a fresh open-ended one.
+		// That vagueness was my own doing and it read as the bot dodging.
+		// A select states its own options, so it is answerable in one tap.
+		const fieldOptions = optionValues(next).map((o) => String(o).trim()).filter(Boolean);
+		if (fieldOptions.length) {
+			return `${n} ${askFor(next)} — ${listPhrase(fieldOptions)}`;
 		}
-		return n;
+		return `${n} ${askFor(next)}`;
 	}
 
 	let ask = String(next.label || '').trim().replace(/[?.!]+$/, '');
@@ -202,6 +215,20 @@ function normaliseSubjectOptions(examContext, extracted) {
 		out.push(name);
 	}
 	return out;
+}
+
+/**
+ * Turn a field label into something you can actually ask out loud.
+ *
+ * "What semester is it?" already reads as a question, so it is used as-is.
+ * A bare label like "Subject or topic" gets a question mark, because reading a
+ * label verbatim is what made this sound like a form being filled in rather
+ * than a person asking.
+ */
+function askFor(field) {
+	const label = String(field?.label || '').trim();
+	if (!label) return 'anything else' + '?';
+	return label.replace(/[?.!]+$/, '') + '?';
 }
 
 /** Subjects only make sense as options for the subject-ish fields. */

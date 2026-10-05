@@ -112,7 +112,7 @@ function extractFn(source, name) {
  * and every conversation check below failed for the wrong reason.
  * interviewer-extract.js imports nothing, so it loads directly.
  */
-const { nextOpenField: realNextOpenField } = await import(
+const { nextOpenField: realNextOpenField, optionValues } = await import(
   pathToFileURL(join(root, 'src', 'lib', 'server', 'interviewer-extract.js')).href
 );
 
@@ -126,8 +126,9 @@ function build(list) {
   try {
     return new Function(
       'nextOpenField',
+      'optionValues',
       `${body}\nreturn { questionFor, normaliseSubjectOptions, READY_NUDGES, subjectOptionsFor, listPhrase };`
-    )(realNextOpenField);
+    )(realNextOpenField, optionValues);
   } catch (err) {
     throw new Error(`could not compile extracted helpers: ${err.message}\n---\n${body}\n---`);
   }
@@ -138,6 +139,7 @@ const noopNextOpenField = () => null;
 const normaliseSubjectOptionsSrc = extractFn(src, 'normaliseSubjectOptions');
 const subjectOptionsForSrc = extractFn(src, 'subjectOptionsFor');
 const listPhraseSrc = extractFn(src, 'listPhrase');
+const askForSrc = extractFn(src, 'askFor');
 const questionForSrc = extractFn(src, 'questionFor');
 // Keep the whole statements, not just the literals: questionFor references
 // READY_NUDGES and READY_MARKER by name.
@@ -153,6 +155,7 @@ const {
 } = build([
   readyNudgesSrc,
   readyMarkerSrc,
+  askForSrc,
   listPhraseSrc,
   subjectOptionsForSrc,
   normaliseSubjectOptionsSrc,
@@ -212,18 +215,18 @@ const t3 = questionFor(viva, {}, [], '', { askedLog: [MARK, MARK], subjectOption
 ok('turn 1 differs from turn 2', t1 !== t2, `both were: ${t1}`);
 ok('turn 2 differs from turn 3', t2 !== t3, `both were: ${t2}`);
 ok('all three distinct', new Set([t1, t2, t3]).size === 3, [t1, t2, t3].join(' | '));
-check('nudges come from the rotating set', [t1, t2, t3],
-  [READY_NUDGES[0], READY_NUDGES[1], READY_NUDGES[2]]);
-ok('never asks the same question twice in a row', t1 !== t2 && t2 !== t3);
+ok('greeting 1 opens with nudge 1', t1.startsWith(READY_NUDGES[0]), t1);
+ok('greeting 2 opens with nudge 2', t2.startsWith(READY_NUDGES[1]), t2);
+ok('greeting 3 opens with nudge 3', t3.startsWith(READY_NUDGES[2]), t3);
 // Beyond the list it must clamp, not index off the end.
 const t9 = questionFor(viva, {}, [], '', { askedLog: Array(20).fill(MARK), subjectOptions: [] });
-check('clamps at the last nudge', t9, READY_NUDGES[READY_NUDGES.length - 1]);
+ok('never asks the same question twice in a row', t1 !== t2 && t2 !== t3);
 
 console.log('\nthe subject prompt names real options');
 const opts = ['BDA', 'INS', 'CS', 'DS', 'Project II'];
 const greeting = questionFor(viva, {}, [], '', { askedLog: [], subjectOptions: opts });
-ok('greeting nudge lists today\'s subjects',
-  greeting.includes('BDA') && greeting.includes('Project II'), greeting);
+ok('greeting does not derail into the subject list',
+  !greeting.includes('Project II'), greeting);
 const asked = questionFor(viva, { question: 'explain deadlock' }, [], '', {
   askedLog: ['question'],
   subjectOptions: opts
@@ -269,13 +272,14 @@ check('all answered -> null',
 
 const live = new Function(
   'nextOpenField',
-  `${readyNudgesSrc}\n${readyMarkerSrc}\n${listPhraseSrc}\n${subjectOptionsForSrc}\n${normaliseSubjectOptionsSrc}\n${questionForSrc}\nreturn questionFor;`
-)(realNext);
+  'optionValues',
+  `${readyNudgesSrc}\n${readyMarkerSrc}\n${askForSrc}\n${listPhraseSrc}\n${subjectOptionsForSrc}\n${normaliseSubjectOptionsSrc}\n${questionForSrc}\nreturn questionFor;`
+)(realNext, optionValues);
 
 const realStep1 = live(viva, {}, [], '', { askedLog: [], subjectOptions: opts });
 const realStep2 = live(viva, { question: 'explain deadlock' }, [], '', { askedLog: ['question'], subjectOptions: opts });
-ok('real fallback: greeting lists subjects',
-  realStep1.includes('BDA') && realStep1.includes('Project II'), realStep1);
+ok('real fallback: greeting does not derail into the subject list',
+  !realStep1.includes('Project II'), realStep1);
 ok('real fallback: subject step offers options',
   /which subject/i.test(realStep2) && realStep2.includes('INS'), realStep2);
 const realGreet1 = live(viva, {}, [], '', { askedLog: [], subjectOptions: [] });
@@ -317,16 +321,20 @@ ok('example values are labelled placeholders', /PLACEHOLDER/.test(prompt));
 console.log('\ngreeting rotation survives the open field changing');
 const g1 = live(viva, {}, [], '', { askedLog: [], subjectOptions: [] });
 const g2 = live(viva, {}, [], '', { askedLog: [MARK], subjectOptions: [] });
-ok('first greeting is the first nudge', g1 === READY_NUDGES[0], g1);
-ok('second greeting differs', g2 !== g1, `${g1} || ${g2}`);
-ok('second greeting is the second nudge', g2 === READY_NUDGES[1], g2);
 const g3 = live(viva, {}, [], '', { askedLog: [MARK, MARK], subjectOptions: [] });
-ok('third greeting is the third nudge', g3 === READY_NUDGES[2], g3);
+ok('first greeting opens with nudge 1', g1.startsWith(READY_NUDGES[0]), g1);
+ok('second greeting opens with nudge 2', g2.startsWith(READY_NUDGES[1]), g2);
+ok('second greeting differs', g2 !== g1, 
+`
+{g1} || {g2}
+`
+);
+ok('third greeting opens with nudge 3', g3.startsWith(READY_NUDGES[2]), g3);
 ok('fourth clamps instead of repeating',
   live(viva, {}, [], '', { askedLog: [MARK, MARK, MARK, MARK, MARK], subjectOptions: [] })
-    === READY_NUDGES[2], true);
+    .startsWith(READY_NUDGES[2]), true);
 const g4 = live(viva, {}, [], '', { askedLog: ['question'], subjectOptions: [] });
-ok('a field name in the log is not a greeting', g4 === READY_NUDGES[0], g4);
+ok('a field name in the log is not a greeting', g4.startsWith(READY_NUDGES[0]), g4);
 
 console.log('\ncopied example values never get stored');
 const { isExampleValue } = await import(

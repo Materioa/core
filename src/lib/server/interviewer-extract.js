@@ -65,6 +65,13 @@ export function looksLikeQuestion(field, value) {
 	return false;
 }
 
+/** "seventh" -> "7". A visitor answering in words is normal English. */
+const ORDINAL_WORDS = {
+	one: '1', two: '2', three: '3', four: '4', five: '5',
+	six: '6', seven: '7', eight: '8', nine: '9', ten: '10',
+	eleventh: '11', twelfth: '12'
+};
+
 /** Never a subject/topic — these used to get captured from "…for me". */
 const STOPWORDS = new Set([
 	'me', 'you', 'it', 'them', 'this', 'that', 'these', 'those', 'us', 'him', 'her',
@@ -84,7 +91,7 @@ export function isMeaningfulValue(value) {
 	return true;
 }
 
-function optionValues(field) {
+export function optionValues(field) {
 	return (field?.options || []).map((o) => (typeof o === 'string' ? o : o?.label || o?.value));
 }
 
@@ -319,10 +326,34 @@ export function extractFields(text, fields = [], known = {}, hintField = null) {
 		}
 	}
 
-	// 3. Ordinal forms: "5th semester", "3rd year", "sem 7".
-	const ordinal = answer.match(/\b(\d)\s*(?:th|st|nd|rd)\b\s*(semester|sem|year)|(?:semester|sem)\s*[-:]?\s*(\d)/i);
+	// 3. Ordinal forms: "5th semester", "3rd year", "sem 7", and the written-out
+	//    word forms.
+	//
+	// The digit-only pattern missed "seventh sem" and "seventh", so a visitor
+	// answering in plain English captured nothing at all and every field stayed
+	// "Awaiting response". Ordinal WORDS are ordinary English, so accept them.
+	const ordinal = answer.match(
+		/\b(\d+)\s*(?:th|st|nd|rd)\b\s*(?:semester|sem|year)|(?:semester|sem)\s*[-:]?\s*(\d+)/i
+	);
 	if (ordinal && fields.some((f) => f.name === 'semester') && isNew('semester')) {
-		values.semester = (ordinal[1] || ordinal[3] || '').trim();
+		values.semester = (ordinal[1] || ordinal[2] || '').trim();
+	} else if (fields.some((f) => f.name === 'semester') && isNew('semester')) {
+		// The (?:th|st|nd|rd)? suffix is load-bearing: without it \b(seven)\b cannot
+		// match "seventh", because "th" continues the word and there is no boundary.
+		// The word may also come BEFORE the term ("seventh sem") or after it ("sem
+		// seventh"). Both are ordinary ways to say it, and accepting only one
+		// order is why "seventh sem" captured nothing at all.
+		const words = answer.match(
+			/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleventh|twelfth)(?:th|st|nd|rd)?\b\s*(?:semester|sem|year)\b|\b(?:semester|sem|year)\s*(one|two|three|four|five|six|seven|eight|nine|ten|eleventh|twelfth)(?:th|st|nd|rd)?\b/i
+		);
+		if (words) {
+			const n = ORDINAL_WORDS[(words[1] || words[2] || '').toLowerCase()];
+			// Only accept it if this form actually offers that semester, otherwise
+			// "one" from "one of my friends" becomes semester 1.
+			const field = byName.get('semester');
+			const opts = optionValues(field).map((o) => String(o).trim());
+			if (n && (!opts.length || opts.includes(n))) values.semester = n;
+		}
 	}
 
 	// 4. Difficulty synonyms. Snap immediately through the field's own options —
