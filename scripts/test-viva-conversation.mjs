@@ -139,9 +139,10 @@ const normaliseSubjectOptionsSrc = extractFn(src, 'normaliseSubjectOptions');
 const subjectOptionsForSrc = extractFn(src, 'subjectOptionsFor');
 const listPhraseSrc = extractFn(src, 'listPhrase');
 const questionForSrc = extractFn(src, 'questionFor');
-// Keep the whole `const READY_NUDGES = [...]` statement, not just the literal:
-// questionFor references READY_NUDGES by name.
+// Keep the whole statements, not just the literals: questionFor references
+// READY_NUDGES and READY_MARKER by name.
 const readyNudgesSrc = src.match(/const READY_NUDGES = \[[\s\S]*?\];/)[0];
+const readyMarkerSrc = src.match(/const READY_MARKER = .*?;/)[0];
 
 const {
   questionFor,
@@ -149,7 +150,14 @@ const {
   READY_NUDGES,
   subjectOptionsFor,
   listPhrase
-} = build([readyNudgesSrc, listPhraseSrc, subjectOptionsForSrc, normaliseSubjectOptionsSrc, questionForSrc]);
+} = build([
+  readyNudgesSrc,
+  readyMarkerSrc,
+  listPhraseSrc,
+  subjectOptionsForSrc,
+  normaliseSubjectOptionsSrc,
+  questionForSrc
+]);
 
 // The live viva-question-bank field shape, from /api/interviewer.
 const viva = {
@@ -192,10 +200,15 @@ check('absurdly long value dropped',
   normaliseSubjectOptions({ subjects: ['x'.repeat(200), 'OK'] }, {}), ['OK']);
 
 console.log('\nthe fallback never repeats itself (the reported bug)');
+// MARK is the sentinel the route records for a turn that captured nothing.
+// One MARK already logged means that turn has been through questionFor once.
+const MARK = '__no_answer__';
 // Reproduces the screenshot exactly: "hi", then "i am ready", nothing captured.
+// Index is the number of MARKs already logged, so 0/1/2 markers are the first
+// three greetings of a session.
 const t1 = questionFor(viva, {}, [], '', { askedLog: [], subjectOptions: [] });
-const t2 = questionFor(viva, {}, [], '', { askedLog: ['question'], subjectOptions: [] });
-const t3 = questionFor(viva, {}, [], '', { askedLog: ['question', 'question'], subjectOptions: [] });
+const t2 = questionFor(viva, {}, [], '', { askedLog: [MARK], subjectOptions: [] });
+const t3 = questionFor(viva, {}, [], '', { askedLog: [MARK, MARK], subjectOptions: [] });
 ok('turn 1 differs from turn 2', t1 !== t2, `both were: ${t1}`);
 ok('turn 2 differs from turn 3', t2 !== t3, `both were: ${t2}`);
 ok('all three distinct', new Set([t1, t2, t3]).size === 3, [t1, t2, t3].join(' | '));
@@ -203,7 +216,7 @@ check('nudges come from the rotating set', [t1, t2, t3],
   [READY_NUDGES[0], READY_NUDGES[1], READY_NUDGES[2]]);
 ok('never asks the same question twice in a row', t1 !== t2 && t2 !== t3);
 // Beyond the list it must clamp, not index off the end.
-const t9 = questionFor(viva, {}, [], '', { askedLog: Array(20).fill('question'), subjectOptions: [] });
+const t9 = questionFor(viva, {}, [], '', { askedLog: Array(20).fill(MARK), subjectOptions: [] });
 check('clamps at the last nudge', t9, READY_NUDGES[READY_NUDGES.length - 1]);
 
 console.log('\nthe subject prompt names real options');
@@ -256,7 +269,7 @@ check('all answered -> null',
 
 const live = new Function(
   'nextOpenField',
-  `${listPhraseSrc}\n${subjectOptionsForSrc}\n${normaliseSubjectOptionsSrc}\n${readyNudgesSrc}\n${questionForSrc}\nreturn questionFor;`
+  `${readyNudgesSrc}\n${readyMarkerSrc}\n${listPhraseSrc}\n${subjectOptionsForSrc}\n${normaliseSubjectOptionsSrc}\n${questionForSrc}\nreturn questionFor;`
 )(realNext);
 
 const realStep1 = live(viva, {}, [], '', { askedLog: [], subjectOptions: opts });
@@ -266,7 +279,7 @@ ok('real fallback: greeting lists subjects',
 ok('real fallback: subject step offers options',
   /which subject/i.test(realStep2) && realStep2.includes('INS'), realStep2);
 const realGreet1 = live(viva, {}, [], '', { askedLog: [], subjectOptions: [] });
-const realGreet2 = live(viva, {}, [], '', { askedLog: ['question'], subjectOptions: [] });
+const realGreet2 = live(viva, {}, [], '', { askedLog: [MARK], subjectOptions: [] });
 ok('real fallback: consecutive greetings differ', realGreet1 !== realGreet2,
   `${realGreet1} || ${realGreet2}`);
 
@@ -296,6 +309,24 @@ ok('marks settled fields as already captured', /Already captured/.test(p2));
 ok('never leaks the whole visitor history', !prompt.includes('explain deadlock'));
 check('an empty form still renders a prompt', typeof buildSystemPrompt({ form: { fields: [] } }), 'string');
 ok('example values are labelled placeholders', /PLACEHOLDER/.test(prompt));
+
+// The rotation is keyed to a sentinel, not a field name. Keying it per field
+// let a session that moved between open fields restart the cycle, so two
+// greetings in a row produced the SAME sentence again — precisely the bug this
+// exists to prevent. Reproduced live before this was fixed.
+console.log('\ngreeting rotation survives the open field changing');
+const g1 = live(viva, {}, [], '', { askedLog: [], subjectOptions: [] });
+const g2 = live(viva, {}, [], '', { askedLog: [MARK], subjectOptions: [] });
+ok('first greeting is the first nudge', g1 === READY_NUDGES[0], g1);
+ok('second greeting differs', g2 !== g1, `${g1} || ${g2}`);
+ok('second greeting is the second nudge', g2 === READY_NUDGES[1], g2);
+const g3 = live(viva, {}, [], '', { askedLog: [MARK, MARK], subjectOptions: [] });
+ok('third greeting is the third nudge', g3 === READY_NUDGES[2], g3);
+ok('fourth clamps instead of repeating',
+  live(viva, {}, [], '', { askedLog: [MARK, MARK, MARK, MARK, MARK], subjectOptions: [] })
+    === READY_NUDGES[2], true);
+const g4 = live(viva, {}, [], '', { askedLog: ['question'], subjectOptions: [] });
+ok('a field name in the log is not a greeting', g4 === READY_NUDGES[0], g4);
 
 console.log('\ncopied example values never get stored');
 const { isExampleValue } = await import(

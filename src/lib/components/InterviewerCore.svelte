@@ -286,13 +286,12 @@
 
 	// Context-aware, appropriate placeholder derived dynamically from form and active field
 	let appropriatePlaceholder = $derived.by(() => {
-		// Guard against a stale placeholder that no longer matches this field.
-		// The viva form asks question/subject/difficulty/notes, but its config
-		// carried a "What semester is it?" placeholder from when this was a
-		// semester form, so the input asked for a field the form does not have.
-		const rawPlaceholder = String(nextField?.placeholder || '');
-		const placeholderStale = /semester/i.test(rawPlaceholder);
-		if (rawPlaceholder && !placeholderStale) return rawPlaceholder;
+		// No placeholder filtering here. An earlier version of this assumed a
+		// stale "What semester is it?" placeholder, on the belief that the form
+		// had no semester field. It does: the published config collects
+		// semester, subject, questions, difficulty, faculty and notes, so the
+		// prompt is legitimate and suppressing it would hide a real field.
+		if (nextField?.placeholder) return nextField.placeholder;
 		if (nextField?.label) {
 			const raw = nextField.label.trim();
 			if (/^(what|which|where|when|who|how|why)\b/i.test(raw) || raw.endsWith('?')) {
@@ -304,9 +303,7 @@
 		if (fId.includes('viva')) return 'Share a viva question, topic, or concept...';
 		if (fId.includes('bug')) return 'Describe what happened or steps to reproduce...';
 		if (fId.includes('feedback') || fId.includes('review')) return 'Write your thoughts or feedback...';
-		// A stale placeholder on fields[0] is no better than one on nextField.
-		const firstPlaceholder = String(form?.fields?.[0]?.placeholder || '');
-		if (firstPlaceholder && !/semester/i.test(firstPlaceholder)) return firstPlaceholder;
+		if (form?.fields?.[0]?.placeholder) return form.fields[0].placeholder;
 		return 'Type your response here...';
 	});
 

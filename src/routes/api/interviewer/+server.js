@@ -103,6 +103,9 @@ const READY_NUDGES = [
 	"Let's start anywhere — what's on your mind?"
 ];
 
+/** Sentinel in askedLog marking a turn that captured nothing. Never a field name. */
+const READY_MARKER = '__no_answer__';
+
 function questionFor(form, extracted, skipped, llmReply, conversationOpts = {}) {
 	// Defensive normalisation of the options bag. These values come straight off
 	// `await request.json()` on a public endpoint, so an explicit null (or a
@@ -124,9 +127,15 @@ function questionFor(form, extracted, skipped, llmReply, conversationOpts = {}) 
 		// name the live subjects straight away: on a bare greeting this is the
 		// one turn with nothing to anchor on, so it is the moment a name helps
 		// most. Not gated on the field being the subject one — on the viva form
-		// the first required field IS the question, and offering subjects there
-		// is exactly the context the visitor needs to answer it.
-		const n = READY_NUDGES[Math.min(timesAsked(next.name), READY_NUDGES.length - 1)];
+		// the first required field is the semester, and naming today's subjects
+		// is exactly the context needed to answer it.
+		//
+		// Rotation is indexed on TOTAL greeting turns, not per-field. Keying it to
+		// the field meant a session that started on 'semester' and later moved to
+		// 'subject' restarted the cycle, and two consecutive greetings produced
+		// the same sentence again — the exact bug this was meant to fix.
+		const greetingTurns = asked.filter((n) => n === READY_MARKER).length;
+		const n = READY_NUDGES[Math.min(greetingTurns, READY_NUDGES.length - 1)];
 		if (options.length) {
 			return `${n} Today that covers ${listPhrase(options)} — pick one, or name your own.`;
 		}
@@ -619,6 +628,13 @@ export async function POST({ request }) {
 		// the same value" complaint in its purest form.
 		const askedLog = Array.isArray(existing?.asked) ? [...existing.asked] : [];
 		if (hintField) askedLog.push(hintField);
+		// A turn that captured nothing is recorded as READY_MARKER, not under the
+		// field name. The fallback rotates its greeting nudges by counting these,
+		// so two greetings in a row can never produce the same sentence — even
+		// when the open field changed in between, which per-field counting got
+		// wrong and reintroduced the repeat.
+		const capturedNothing = Object.keys(extracted).length === 0;
+		if (capturedNothing) askedLog.push(READY_MARKER);
 		let activeSkipped = priorSkipped;
 		let nextField = nextOpenField({ ...form, fields }, extracted, activeSkipped);
 		if (nextField && hintField === nextField.name) {
