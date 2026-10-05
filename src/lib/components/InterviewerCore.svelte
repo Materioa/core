@@ -154,7 +154,10 @@
 		try {
 			const res = await fetch(`/api/interviewer?form=${encodeURIComponent(formId)}&action=responses`);
 			if (!res.ok) throw new Error('Could not load responses');
-			responsesData = await res.json();
+			// An HTML error page here would otherwise surface as a raw
+			// "Unexpected token '<'" string in the Responses tab.
+			responsesData = await res.json().catch(() => null);
+			if (!responsesData) throw new Error('Could not load responses. Please refresh and try again.');
 		} catch (err) {
 			responsesError = err.message || 'Failed to load community responses';
 		} finally {
@@ -322,7 +325,8 @@
 		try {
 			const response = await fetch(`/api/interviewer?form=${encodeURIComponent(formId)}`);
 			if (!response.ok) throw new Error('Could not load the interview form');
-			const data = await response.json();
+			const data = await response.json().catch(() => null);
+			if (!data) throw new Error('Could not load the interview form. Please refresh and try again.');
 			form = data.form;
 
 			const opening = form?.interview?.openingQuestion || form?.description || 'What would you like to share today?';
@@ -376,7 +380,18 @@
 					examContext: { code: examCode, subject: examSubject }
 				})
 			});
-			const data = await response.json();
+			// A Cloudflare error page (HTML) reaches this path whenever the worker
+			// can't answer in time — and JSON.parse then threw
+			// "Unexpected token '<'" whose raw text was rendered to the user as
+			// the interviewer's own reply. Parse defensively and translate it.
+			const data = await response.json().catch(() => null);
+			if (!data) {
+				throw new Error(
+					response.status >= 500
+						? 'The interview server took too long to answer. Please try again.'
+						: 'That could not be saved right now. Please try again.'
+				);
+			}
 			if (!response.ok) throw new Error(data.error || 'Server error');
 
 			if (data.extracted) {

@@ -32,6 +32,11 @@ jobs:
       - name: Interviewer provider-chain tests
         run: node scripts/test-interviewer-llm.mjs
 
+      # Drives the SHIPPED parseModelJson, not a copy — test-interviewer-llm
+      # mirrors that function, so it could never catch a change to it.
+      - name: Interviewer model-reply parser tests
+        run: node scripts/test-parse-model-json.mjs
+
       # Fails if any addEventListener call passes a function where an event
       # name belongs. That mistake throws, and the surrounding try/catch eats
       # it, so it once left every activity listener unregistered and silently

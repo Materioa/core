@@ -75,8 +75,37 @@ export function parseModelJson(raw) {
 	const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
 	const body = fenced ? fenced[1] : text;
 	const start = body.indexOf('{');
-	const end = body.lastIndexOf('}');
-	if (start === -1 || end === -1 || end <= start) throw new Error('model returned no JSON');
+	if (start === -1) throw new Error('model returned no JSON');
+
+	// Walk for the matching close rather than slicing to the final brace.
+	//
+	// The old approach took everything from the first open brace to the LAST
+	// close brace in the reply, so any trailing content that itself contained
+	// one (a second object, a stray close brace in prose, a fence closer) was
+	// concatenated onto the first object and JSON.parse died with
+	// "Unexpected non-whitespace character after JSON". That surfaced as
+	// "openrouter failed" on every turn and pushed the whole ladder down to the
+	// regex extractor — an AI that answered correctly still counted as down.
+	let depth = 0;
+	let end = -1;
+	let inString = false;
+	let escaped = false;
+	for (let i = start; i < body.length; i++) {
+		const ch = body[i];
+		if (inString) {
+			if (escaped) escaped = false;
+			else if (ch === '\\') escaped = true;
+			else if (ch === '"') inString = false;
+			continue;
+		}
+		if (ch === '"') inString = true;
+		else if (ch === '{') depth++;
+		else if (ch === '}') {
+			depth--;
+			if (depth === 0) { end = i; break; }
+		}
+	}
+	if (end === -1) throw new Error('model returned no JSON');
 	return JSON.parse(body.slice(start, end + 1));
 }
 
