@@ -37,11 +37,8 @@ jobs:
       - name: Interviewer model-reply parser tests
         run: node scripts/test-parse-model-json.mjs
 
-      # Guards the activeModalStore release in closeExamModal: overlay tap and
-      # Escape used to leave it latched on 'examModal', which both stopped the
-      # modal reopening and suppressed the viva box.
-      - name: Exam modal close-store tests
-        run: node scripts/test-exam-modal-close.mjs
+      # NOTE: test-exam-modal-close.mjs imports svelte/store, so it has to run
+      # in the build job below — this job has no install step by design.
 
       # Fails if any addEventListener call passes a function where an event
       # name belongs. That mistake throws, and the surrounding try/catch eats
@@ -62,6 +59,13 @@ jobs:
 
       - name: Install
         run: npm install
+
+      # Guards the activeModalStore release in closeExamModal: overlay tap and
+      # Escape used to leave it latched on 'examModal', which both stopped the
+      # modal reopening and suppressed the viva box. Imports svelte/store, so it
+      # runs here rather than in the no-install test job above.
+      - name: Exam modal close-store tests
+        run: node scripts/test-exam-modal-close.mjs
 
       - name: svelte-check (errors only)
         # The repo has a long-standing tail of pre-existing errors
