@@ -4,7 +4,8 @@ import {
 	getFormConfigsCollection,
 	getInterviewerSessionsCollection,
 	getFormResponsesCollection,
-	getFormsCollection
+	getFormsCollection,
+	withMongoTimeout
 } from '$lib/server/mongodb.js';
 import { verifyToken } from '$lib/server/supabase.js';
 import {
@@ -17,6 +18,25 @@ import {
 	buildSystemPrompt
 } from '$lib/server/interviewer-extract.js';
 import { askInterviewerModel } from '$lib/server/interviewer-llm.js';
+
+/**
+ * Every driver op below is raced against this bound (withMongoTimeout).
+ *
+ * When the Mongo pool is poisoned, a queued checkout wedges with NOTHING
+ * pending — no driver timeout fires and try/catch can't help, because
+ * nothing ever throws. The event is then left open forever and workerd
+ * kills it with "detected that your Worker's code had hung and would never
+ * generate a response". That kill latches the isolate, so every later
+ * request routed to it dies in ~7ms with a Cloudflare HTML 500 — which is
+ * why this endpoint was failing in a perfect 500/200 alternation while
+ * incognito, retries and a fresh browser made no difference.
+ *
+ * Racing our own timer turns that wedge into an ordinary caught error, and
+ * drops the poisoned pool so the next request reconnects fresh.
+ * features-handler.js has bounded all 11 of its ops this way for the same
+ * reason; this route was the only one with none.
+ */
+const MONGO_OP_MS = 5000;
 
 function tokenUserId(request) {
 	try {
@@ -126,7 +146,11 @@ async function loadForm(formId) {
 	let value;
 	try {
 		const configs = await getFormConfigsCollection();
-		const configured = await configs.findOne({ id: formId, published: true });
+		const configured = await withMongoTimeout(
+			configs.findOne({ id: formId, published: true }),
+			MONGO_OP_MS,
+			'interviewer form config find'
+		);
 		if (configured) {
 			const { _id, ...rest } = configured;
 			value = rest;
@@ -222,13 +246,17 @@ function splitAndEnhanceQuestions(rawText) {
 async function getEnhancedResponses(formId) {
 	try {
 		const collection = await getFormResponsesCollection();
-		const docs = await collection.find({
-			$or: [
-				{ formId },
-				{ 'values.questions': { $exists: true, $ne: '' } },
-				{ 'values.question': { $exists: true, $ne: '' } }
-			]
-		}).sort({ updatedAt: -1, createdAt: -1 }).limit(50).toArray();
+		const docs = await withMongoTimeout(
+			collection.find({
+				$or: [
+					{ formId },
+					{ 'values.questions': { $exists: true, $ne: '' } },
+					{ 'values.question': { $exists: true, $ne: '' } }
+				]
+			}).sort({ updatedAt: -1, createdAt: -1 }).limit(50).toArray(),
+			MONGO_OP_MS,
+			'interviewer responses find'
+		);
 
 		const items = [];
 		const subjectSet = new Set();
@@ -328,7 +356,11 @@ export async function POST({ request }) {
 		let existing = null;
 		try {
 			sessions = await getInterviewerSessionsCollection();
-			existing = await sessions.findOne({ sessionId });
+			existing = await withMongoTimeout(
+				sessions.findOne({ sessionId }),
+				MONGO_OP_MS,
+				'interviewer session find'
+			);
 		} catch (err) {
 			console.warn('Interviewer session store unavailable, continuing without persistence:', err?.message);
 		}
@@ -337,14 +369,18 @@ export async function POST({ request }) {
 
 		if (sessions) {
 			try {
-				await sessions.updateOne(
-					{ sessionId },
-					{
-						$setOnInsert: { sessionId, formId: form.id, userId, createdAt: new Date() },
-						$set: { updatedAt: new Date(), status: 'in_progress', examContext, ...(userId ? { userId } : {}) },
-						$push: { messages: { role: 'user', content: text, createdAt: new Date() } }
-					},
-					{ upsert: true }
+				await withMongoTimeout(
+					sessions.updateOne(
+						{ sessionId },
+						{
+							$setOnInsert: { sessionId, formId: form.id, userId, createdAt: new Date() },
+							$set: { updatedAt: new Date(), status: 'in_progress', examContext, ...(userId ? { userId } : {}) },
+							$push: { messages: { role: 'user', content: text, createdAt: new Date() } }
+						},
+						{ upsert: true }
+					),
+					MONGO_OP_MS,
+					'interviewer session push user'
 				);
 			} catch (err) {
 				console.warn('Interviewer session persist failed:', err?.message);
@@ -425,19 +461,23 @@ export async function POST({ request }) {
 
 		if (sessions) {
 			try {
-				await sessions.updateOne(
-					{ sessionId },
-					{
-						$set: {
-							updatedAt: new Date(),
-							extracted,
-							skipped: activeSkipped,
-							asked: askedLog.slice(-20),
-							status: isFinished ? 'completed' : 'in_progress',
-							lastAsked: nextField?.name || null
-						},
-						$push: { messages: { role: 'assistant', content: reply, createdAt: new Date() } }
-					}
+				await withMongoTimeout(
+					sessions.updateOne(
+						{ sessionId },
+						{
+							$set: {
+								updatedAt: new Date(),
+								extracted,
+								skipped: activeSkipped,
+								asked: askedLog.slice(-20),
+								status: isFinished ? 'completed' : 'in_progress',
+								lastAsked: nextField?.name || null
+							},
+							$push: { messages: { role: 'assistant', content: reply, createdAt: new Date() } }
+						}
+					),
+					MONGO_OP_MS,
+					'interviewer session push assistant'
 				);
 			} catch (error) {
 				console.warn('Interviewer session persist failed:', error?.message);
@@ -445,43 +485,56 @@ export async function POST({ request }) {
 		}
 
 		// Async persist structured responses to form_responses AND form_submissions (for Admin panel visibility)
+		// Bounded: these are kicked off before we return, so an unbounded
+		// wedge here keeps the isolate's event loop occupied after we have
+		// replied — exactly the state workerd reports as "code had hung".
+		// withMongoTimeout guarantees each settles within MONGO_OP_MS, so the
+		// isolate always drains instead of latching.
 		Promise.allSettled([
 			getFormResponsesCollection().then((responses) =>
-				responses.updateOne(
-					{ sessionId },
-					{
-						$set: {
-							formId: form.id,
-							kind: form.kind || 'interview',
-							sessionId,
-							values: extracted,
-							skipped: priorSkipped,
-							status: isFinished ? 'completed' : 'in_progress',
-							userId,
-							examContext,
-							updatedAt: new Date().toISOString()
+				withMongoTimeout(
+					responses.updateOne(
+						{ sessionId },
+						{
+							$set: {
+								formId: form.id,
+								kind: form.kind || 'interview',
+								sessionId,
+								values: extracted,
+								skipped: priorSkipped,
+								status: isFinished ? 'completed' : 'in_progress',
+								userId,
+								examContext,
+								updatedAt: new Date().toISOString()
+							},
+							$setOnInsert: { createdAt: new Date().toISOString() }
 						},
-						$setOnInsert: { createdAt: new Date().toISOString() }
-					},
-					{ upsert: true }
+						{ upsert: true }
+					),
+					MONGO_OP_MS,
+					'interviewer responses upsert'
 				)
 			),
 			isFinished ? getFormsCollection().then((submissions) =>
-				submissions.updateOne(
-					{ sessionId },
-					{
-						$set: {
-							formType: form.id,
-							sessionId,
-							submittedAt: new Date().toISOString(),
-							user: { type: userId ? 'authenticated' : 'anonymous', userId },
-							data: extracted,
-							status: 'Submitted',
-							meta: { source: 'materio-interviewer', examContext }
+				withMongoTimeout(
+					submissions.updateOne(
+						{ sessionId },
+						{
+							$set: {
+								formType: form.id,
+								sessionId,
+								submittedAt: new Date().toISOString(),
+								user: { type: userId ? 'authenticated' : 'anonymous', userId },
+								data: extracted,
+								status: 'Submitted',
+								meta: { source: 'materio-interviewer', examContext }
+							},
+							$setOnInsert: { createdAt: new Date().toISOString() }
 						},
-						$setOnInsert: { createdAt: new Date().toISOString() }
-					},
-					{ upsert: true }
+						{ upsert: true }
+					),
+					MONGO_OP_MS,
+					'interviewer submissions upsert'
 				)
 			) : Promise.resolve()
 		]).catch((error) => console.error('Interviewer async persist failed:', error));
@@ -513,7 +566,11 @@ export async function PATCH({ request }) {
 			console.warn('Interviewer session store unavailable:', err?.message);
 			return json({ error: 'Interview service is temporarily unavailable. Please try again shortly.' }, { status: 503 });
 		}
-		const existing = await collection.findOne({ sessionId });
+		const existing = await withMongoTimeout(
+			collection.findOne({ sessionId }),
+			MONGO_OP_MS,
+			'interviewer patch session find'
+		);
 		if (!existing) return json({ error: 'Session not found' }, { status: 404 });
 		const form = await loadForm(existing.formId);
 		const fields = form.fields || defaultForm.fields;
@@ -539,24 +596,32 @@ export async function PATCH({ request }) {
 				? (form?.interview?.completeMessage || 'Thanks — your response has been recorded.')
 				: questionFor({ ...form, fields }, extracted, nextSkipped, '');
 
-			await collection.updateOne(
-				{ sessionId },
-				{
-					$set: {
-						skipped: nextSkipped,
-						updatedAt: new Date(),
-						status: isFinished ? 'completed' : 'in_progress',
-						lastAsked: nextField?.name || null
-					},
-					$push: { messages: { role: 'assistant', content: reply, createdAt: new Date() } }
-				}
+			await withMongoTimeout(
+				collection.updateOne(
+					{ sessionId },
+					{
+						$set: {
+							skipped: nextSkipped,
+							updatedAt: new Date(),
+							status: isFinished ? 'completed' : 'in_progress',
+							lastAsked: nextField?.name || null
+						},
+						$push: { messages: { role: 'assistant', content: reply, createdAt: new Date() } }
+					}
+				),
+				MONGO_OP_MS,
+				'interviewer patch skip'
 			);
 
 			await getFormResponsesCollection()
-				.then((responses) => responses.updateOne(
-					{ sessionId },
-					{ $set: { skipped: nextSkipped, values: extracted, status: isFinished ? 'completed' : 'in_progress', updatedAt: new Date().toISOString() } },
-					{ upsert: true }
+				.then((responses) => withMongoTimeout(
+					responses.updateOne(
+						{ sessionId },
+						{ $set: { skipped: nextSkipped, values: extracted, status: isFinished ? 'completed' : 'in_progress', updatedAt: new Date().toISOString() } },
+						{ upsert: true }
+					),
+					MONGO_OP_MS,
+					'interviewer patch responses'
 				))
 				.catch(() => {});
 
@@ -571,29 +636,41 @@ export async function PATCH({ request }) {
 		}
 
 		if (action === 'complete' || action === 'submit') {
-			await collection.updateOne({ sessionId }, { $set: { status: 'completed', updatedAt: new Date() } });
+			await withMongoTimeout(
+				collection.updateOne({ sessionId }, { $set: { status: 'completed', updatedAt: new Date() } }),
+				MONGO_OP_MS,
+				'interviewer patch complete'
+			);
 			try {
 				const responses = await getFormResponsesCollection();
-				await responses.updateOne(
-					{ sessionId },
-					{ $set: { values: extracted, skipped, status: 'completed', examContext: examContext || existing.examContext || {}, updatedAt: new Date().toISOString() } },
-					{ upsert: true }
+				await withMongoTimeout(
+					responses.updateOne(
+						{ sessionId },
+						{ $set: { values: extracted, skipped, status: 'completed', examContext: examContext || existing.examContext || {}, updatedAt: new Date().toISOString() } },
+						{ upsert: true }
+					),
+					MONGO_OP_MS,
+					'interviewer finalise responses'
 				);
 				const submissions = await getFormsCollection();
-				await submissions.updateOne(
-					{ sessionId },
-					{
-						$set: {
-							formType: form.id,
-							sessionId,
-							submittedAt: new Date().toISOString(),
-							data: extracted,
-							status: 'Submitted',
-							meta: { source: 'materio-interviewer', examContext: examContext || existing.examContext || {} }
+				await withMongoTimeout(
+					submissions.updateOne(
+						{ sessionId },
+						{
+							$set: {
+								formType: form.id,
+								sessionId,
+								submittedAt: new Date().toISOString(),
+								data: extracted,
+								status: 'Submitted',
+								meta: { source: 'materio-interviewer', examContext: examContext || existing.examContext || {} }
+							},
+							$setOnInsert: { createdAt: new Date().toISOString() }
 						},
-						$setOnInsert: { createdAt: new Date().toISOString() }
-					},
-					{ upsert: true }
+						{ upsert: true }
+					),
+					MONGO_OP_MS,
+					'interviewer finalise submissions'
 				);
 			} catch (error) {
 				console.error('form_responses finalise failed:', error);

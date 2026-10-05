@@ -37,6 +37,16 @@ jobs:
       - name: Interviewer model-reply parser tests
         run: node scripts/test-parse-model-json.mjs
 
+      # Every Mongo op in the interviewer route must be raced against
+      # withMongoTimeout. An unwrapped op that wedges leaves the event open
+      # forever, workerd kills it ("your Worker's code had hung"), and that
+      # kill LATCHES the isolate — so every later request routed to it dies
+      # in ~7ms with a Cloudflare HTML 500. Requests round-robin between
+      # isolates, which is what produced the 500/200 alternation on every
+      # other request. Dependency-free source check, so it runs pre-install.
+      - name: Interviewer Mongo timeout guard
+        run: node scripts/test-interviewer-mongo-guard.mjs
+
       # NOTE: test-exam-modal-close.mjs imports svelte/store, so it has to run
       # in the build job below — this job has no install step by design.
 
