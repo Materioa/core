@@ -198,6 +198,17 @@
     });
 
     function handleOpenExamModal() {
+        // If activeModalStore already reads 'examModal', this set() is a
+        // silent no-op (Svelte's writable skips equal values) and ExamModal's
+        // reactive never re-runs — so a modal closed behind the store's back
+        // stayed shut no matter how many times the card was tapped. The store
+        // is already correct in that case, so reopen the DOM directly.
+        if ($activeModalStore === 'examModal') {
+            import('$lib/utils/exam-card.js')
+                .then((m) => { if (typeof m.openExamModal === 'function') m.openExamModal(); })
+                .catch(() => {});
+            return;
+        }
         activeModalStore.set('examModal');
     }
 </script>

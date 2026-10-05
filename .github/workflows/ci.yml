@@ -37,6 +37,12 @@ jobs:
       - name: Interviewer model-reply parser tests
         run: node scripts/test-parse-model-json.mjs
 
+      # Guards the activeModalStore release in closeExamModal: overlay tap and
+      # Escape used to leave it latched on 'examModal', which both stopped the
+      # modal reopening and suppressed the viva box.
+      - name: Exam modal close-store tests
+        run: node scripts/test-exam-modal-close.mjs
+
       # Fails if any addEventListener call passes a function where an event
       # name belongs. That mistake throws, and the surrounding try/catch eats
       # it, so it once left every activity listener unregistered and silently

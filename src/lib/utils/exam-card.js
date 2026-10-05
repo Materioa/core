@@ -2,10 +2,16 @@
 // Handles the exam card in InsightRoom with 3 dynamic views and exam modal
 // Supports multiple semesters with semester-based filtering
 
+import { get } from 'svelte/store';
 import { isExamPeriodActive, showBeforeDaysFor, isUsableExamConfig, findRunningVivaExam, readSavedSemester } from './exam-gate.js';
+import { activeModalStore } from '../stores.js';
 
 let examData = null;
 let currentSemesterData = null;
+// Set when openExamModal() is asked to show the modal before exam data has
+// finished loading, and flushed once it lands. Without this a reload on
+// #exam-modal latched the store on a modal that never appeared.
+let pendingOpen = false;
 let examViewRotationTimer = null;
 let currentExamView = 0; // 0 = preexam, 1 = ongoing, 2 = timeline
 let hasAutoFocusedExamCard = false;
@@ -538,6 +544,14 @@ export async function loadAndDisplayExamCard() {
         }
 
         setupSemesterListeners(examData);
+
+        // Flush an open that arrived before data was ready (set by
+        // openExamModal). Deferred one tick so the card and timeline above
+        // have rendered first.
+        if (pendingOpen && currentSemesterData) {
+            pendingOpen = false;
+            setTimeout(() => openExamModal(), 0);
+        }
 
     } catch (error) {
         console.error('[ExamCard] Error loading exam data:', error);
@@ -1390,8 +1404,16 @@ export function openExamModal() {
     if (typeof document === 'undefined') return;
     if (!currentSemesterData) {
         console.error('[ExamCard] No exam data available for modal');
+        // Not a failure worth dropping: on a reload the hash->store mapping in
+        // +layout.svelte sets activeModalStore to 'examModal' during onMount,
+        // which runs well ahead of the examdata fetch, so the reactive in
+        // ExamModal fires here with nothing to render. Remember the intent and
+        // open for real once data lands — otherwise the store stays latched on
+        // a modal that never showed.
+        pendingOpen = true;
         return;
     }
+    pendingOpen = false;
 
     const modal = document.getElementById('examModal');
     if (!modal) {
@@ -1477,6 +1499,26 @@ function scrollToActiveExam() {
 
 export function closeExamModal() {
     if (typeof document === 'undefined') return;
+
+    // Release the store here rather than only in ExamModal's close button.
+    //
+    // Three paths close this modal: the X (which did clear the store), a tap
+    // on the overlay, and Escape — the last two called this function directly
+    // and left activeModalStore holding 'examModal'. Svelte's writable.set is
+    // a no-op when the new value equals the old one, so once it latched:
+    //
+    //   1. tapping the exam card did `set('examModal')` again, which notified
+    //      nothing, so ExamModal's reactive never re-ran and the modal stayed
+    //      shut — "second tap does nothing";
+    //   2. InterviewerModal.isOtherModalOpen read the stale value as "another
+    //      modal is up" and suppressed the viva box for the rest of the
+    //      session — "the interviewer never pops up".
+    //
+    // Guarded by value so Escape (which fires whether or not this modal is
+    // up) cannot close an unrelated modal.
+    pendingOpen = false;
+    if (get(activeModalStore) === 'examModal') activeModalStore.set(null);
+
     const modal = document.getElementById('examModal');
     const slider = document.getElementById('examModalSlider');
 
