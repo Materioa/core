@@ -153,3 +153,59 @@ export function showBeforeDaysFor(semester, data, { viva = 3, standard = 7 } = {
   const n = Number(value);
   return Number.isFinite(n) ? n : (isViva ? viva : standard);
 }
+
+/**
+ * The viva/practical exam currently underway, or null.
+ *
+ * Both the exam card (exam-card.js) and the viva box (InterviewerModal.svelte)
+ * need the same answer, and they used to each re-implement this scan — so a
+ * class-wise viva period could be "on" for the card and "off" for the box.
+ *
+ * Deliberately the whole scan, not just one semester: the card is driven by
+ * `userSemester` while the box reads `materio_selected_semester`, so scoping to
+ * whichever semester the caller happens to have selected made the two disagree.
+ * The optional `savedSemester` narrows it for callers that genuinely mean "only
+ * this one", using the same localStorage keys on both sides.
+ *
+ * @param {object} config                       full examdata config
+ * @param {object} [opts]
+ * @param {string|null} [opts.savedSemester]    restrict to one semester
+ * @param {Date}   [opts.now]
+ * @returns {object|null} the running viva/practical exam
+ */
+export function findRunningVivaExam(config, { savedSemester = null, now = new Date() } = {}) {
+  if (!isUsableExamConfig(config)) return null;
+
+  const candidates = (config.semesters || []).filter(
+    (s) => !savedSemester || String(s?.semester) === String(savedSemester)
+  );
+
+  for (const semester of candidates) {
+    if (!semester || !Array.isArray(semester.exams) || !semester.examPeriod?.startDate) continue;
+    const viva = findVivaOrPracticalExam(semester);
+    if (!viva) continue;
+    if (isExamPeriodRunning(semester, now)) return viva;
+  }
+  return null;
+}
+
+/**
+ * The semester the user last picked, read from the keys BOTH the exam card and
+ * the viva box already write. Kept here so `findRunningVivaExam` is called with
+ * the same scope from both sides — each reading its own preferred key was
+ * exactly how the card and the box drifted apart.
+ *
+ * Safe to call outside a browser: returns null rather than throwing.
+ */
+export function readSavedSemester() {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    return (
+      localStorage.getItem('materio_selected_semester') ||
+      localStorage.getItem('selectedSemester') ||
+      null
+    );
+  } catch {
+    return null;
+  }
+}

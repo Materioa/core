@@ -40,6 +40,31 @@ function getAuthBaseUrl(): string {
   return (process.env.AUTH_URL || "https://auth.getmaterio.app").replace(/\/+$/, "");
 }
 
+/**
+ * The real OAuth issuer.
+ *
+ * Materio ID mints the authorization codes and the access/id tokens, and it
+ * derives `iss` from its own Host header. This worker is only the protected
+ * resource server, so it must advertise Materio ID as the issuer — otherwise a
+ * strict client reads `issuer` from here, then receives a different `iss` in the
+ * callback and aborts with an RFC 9207 issuer mismatch.
+ */
+function getIssuerUrl(): string {
+  return getAuthBaseUrl();
+}
+
+/** Scopes this resource server honours, independent of what Materio ID declares. */
+const RESOURCE_SCOPES = [
+  "openid",
+  "profile",
+  "email",
+  "admin",
+  "offline_access",
+  "pro",
+  "plus",
+  "subscription",
+];
+
 function toTrimmedString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -282,25 +307,54 @@ export function checkToolAccess(
 // OAuth 2.0 / RFC 8414 & RFC 9728 Discovery Metadata
 // ─────────────────────────────────────────────────────────────
 
-export function getOAuthAuthorizationServerMetadata(origin: string) {
+export async function getOAuthAuthorizationServerMetadata(): Promise<Record<string, unknown>> {
+  const issuer = getIssuerUrl();
+
+  let remote: Record<string, any> = {};
+  try {
+    const res = await fetch(`${issuer}/api/v2/auth?action=oauth_metadata`, {
+      headers: { accept: "application/json" },
+    });
+    if (res.ok) remote = (await res.json().catch(() => ({}))) as Record<string, any>;
+  } catch {
+    // Auth metadata unreachable - fall back to the pinned baseline below so
+    // discovery still succeeds instead of taking the whole flow down.
+  }
+
   return {
-    issuer: origin,
-    authorization_endpoint: `${origin}/authorize`,
-    token_endpoint: `${origin}/token`,
-    registration_endpoint: `${origin}/register`,
-    response_types_supported: ["code"],
-    grant_types_supported: ["authorization_code", "refresh_token"],
-    token_endpoint_auth_methods_supported: ["client_secret_post", "client_secret_basic", "none"],
+    ...remote,
+    // Pinned: every endpoint must live under the issuer (RFC 8414 section 3.3).
+    issuer,
+    // Pinned: Materio ID advertises /account/sso, but no such route exists (404).
+    // The real consent + login page is /authorize.
+    authorization_endpoint: `${issuer}/authorize`,
+    token_endpoint: `${issuer}/api/v2/auth`,
+    registration_endpoint: `${issuer}/api/v2/auth?action=oauth_register_app`,
+    jwks_uri: `${issuer}/api/v2/auth?action=jwks`,
+    revocation_endpoint: `${issuer}/api/v2/auth?action=oauth_revoke`,
+    introspection_endpoint: `${issuer}/api/v2/auth?action=oauth_introspect`,
+    userinfo_endpoint: `${issuer}/api/v2/auth?action=userinfo`,
+    end_session_endpoint: `${issuer}/api/v2/auth?action=logout`,
+    response_types_supported: remote.response_types_supported ?? ["code"],
+    grant_types_supported: remote.grant_types_supported ?? ["authorization_code", "refresh_token"],
+    token_endpoint_auth_methods_supported: remote.token_endpoint_auth_methods_supported ?? [
+      "client_secret_basic",
+      "client_secret_post",
+      "none",
+    ],
     code_challenge_methods_supported: ["S256"],
-    scopes_supported: ["openid", "profile", "email", "admin", "offline_access", "pro", "plus", "subscription"]
+    // Union, not replace: Materio ID's DEFAULT_SCOPES omits pro/plus/subscription,
+    // and a client that trims to the advertised set would silently lose them.
+    scopes_supported: [...new Set([...(remote.scopes_supported ?? []), ...RESOURCE_SCOPES])],
   };
 }
 
 export function getOAuthProtectedResourceMetadata(origin: string) {
   return {
     resource: `${origin}/mcp`,
-    authorization_servers: [origin],
-    scopes_supported: ["openid", "profile", "email", "admin", "pro", "plus", "offline_access", "subscription"],
+    // The authorization server is Materio ID, not this resource server.
+    authorization_servers: [getIssuerUrl()],
+    scopes_supported: RESOURCE_SCOPES,
     bearer_methods_supported: ["header"]
   };
 }

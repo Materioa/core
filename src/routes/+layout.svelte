@@ -423,21 +423,27 @@
 <SoundEngine />
 
 <!-- Window caption buttons stay reachable on every desktop (Tauri) route —
-     on pages where the app header (which normally hosts them) is hidden. -->
-{#if hideGlobalHeader}
+     on pages where the app header (which normally hosts them) is hidden.
+     Reading pages are headerless too, so they get them as well. -->
+{#if hideGlobalHeader || bareContent}
 <FloatingWindowControls />
 {/if}
 
-{#if !hideGlobalHeader}
+<!-- bareContent is checked FIRST: hideGlobalHeader is false on every reading
+     route (/docs, /changelog, posts, legal), so putting the app-header branch
+     ahead of it made this branch unreachable and those pages rendered
+     underneath the fixed header instead of chromeless. -->
+{#if bareContent}
+<ThemeManager />
+<div class="bare-content">
+  <slot />
+</div>
+{:else if !hideGlobalHeader}
 <ThemeManager />
 <Header />
 <main>
   <slot />
 </main>
-{:else if bareContent}
-<div class="bare-content">
-  <slot />
-</div>
 {:else}
 <div class="landing-shell">
   <slot />

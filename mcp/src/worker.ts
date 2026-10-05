@@ -124,7 +124,7 @@ export default {
         url.pathname === "/.well-known/openid-configuration" ||
         url.pathname === "/oauth-metadata"
       ) {
-        return jsonResponse(getOAuthAuthorizationServerMetadata(url.origin), 200, {
+        return jsonResponse(await getOAuthAuthorizationServerMetadata(), 200, {
           "Cache-Control": "public, max-age=3600",
         });
       }
@@ -216,9 +216,9 @@ export default {
           platform: "cloudflare-workers",
           host: url.hostname,
           oauth: {
-            authServer: "https://auth.getmaterio.app",
-            authorizationEndpoint: `${url.origin}/authorize`,
-            tokenEndpoint: `${url.origin}/token`,
+            issuer: "https://auth.getmaterio.app",
+            authorizationEndpoint: "https://auth.getmaterio.app/authorize",
+            tokenEndpoint: "https://auth.getmaterio.app/api/v2/auth",
           },
         });
       }

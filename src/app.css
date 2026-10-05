@@ -7,10 +7,9 @@
    ================================================================== */
 @layer theme, base, components, utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 /* ==================================================================
-   FONTS: Quadrant (Headings), OpenRunde (Body), Melange (Secondary)
+   FONTS: Quadrant (Headings), OpenRunde (Body), system mono (Code)
    ================================================================== */
 @font-face {
   font-family: 'Quadrant';
@@ -120,75 +119,12 @@
   font-display: swap;
 }
 
-@font-face {
-  font-family: 'Melange';
-  src: local('Melange'), local('Melange-Regular'), local('KMR Melange Grotesk'), local('KMRMelangeGrotesk-Regular'),
-       url('/fonts/kmrmelangegrotesk-regular-BQ0DoJin.woff2') format('woff2'),
-       url('/assets/fonts/kmrmelangegrotesk-regular-BQ0DoJin.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
 
-@font-face {
-  font-family: 'KMR Melange Grotesk';
-  src: local('Melange'), local('Melange-Regular'), local('KMR Melange Grotesk'), local('KMRMelangeGrotesk-Regular'),
-       url('/fonts/kmrmelangegrotesk-regular-BQ0DoJin.woff2') format('woff2'),
-       url('/assets/fonts/kmrmelangegrotesk-regular-BQ0DoJin.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
 
-@font-face {
-  font-family: 'Melange';
-  src: local('Melange Book'), local('KMR Melange Grotesk Book'), local('KMRMelangeGrotesk-Book'),
-       url('/fonts/kmrmelangegrotesk-book-BWM7GPGX.woff2') format('woff2'),
-       url('/assets/fonts/kmrmelangegrotesk-book-BWM7GPGX.woff2') format('woff2');
-  font-weight: 450;
-  font-style: normal;
-  font-display: swap;
-}
 
-@font-face {
-  font-family: 'Melange';
-  src: local('Melange Light'), local('KMR Melange Grotesk Light'), local('KMRMelangeGrotesk-Light'),
-       url('/fonts/kmrmelangegrotesk-light-CYToDGwI.woff2') format('woff2'),
-       url('/assets/fonts/kmrmelangegrotesk-light-CYToDGwI.woff2') format('woff2');
-  font-weight: 300;
-  font-style: normal;
-  font-display: swap;
-}
 
-@font-face {
-  font-family: 'Melange';
-  src: local('Melange Medium'), local('KMR Melange Grotesk Medium'), local('KMRMelangeGrotesk-Medium'),
-       url('/fonts/kmrmelangegrotesk-medium-C1-hbCBJ.woff2') format('woff2'),
-       url('/assets/fonts/kmrmelangegrotesk-medium-C1-hbCBJ.woff2') format('woff2');
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
 
-@font-face {
-  font-family: 'Melange';
-  src: local('Melange Semibold'), local('KMR Melange Grotesk Semibold'), local('KMRMelangeGrotesk-Semibold'),
-       url('/fonts/kmrmelangegrotesk-semibold-BLXxgi3V.woff2') format('woff2'),
-       url('/assets/fonts/kmrmelangegrotesk-semibold-BLXxgi3V.woff2') format('woff2');
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
 
-@font-face {
-  font-family: 'Melange';
-  src: local('Melange Italic'), local('KMR Melange Grotesk Italic'), local('KMRMelangeGrotesk-Italic'),
-       url('/fonts/kmrmelangegrotesk-italic-BF6bTSX5.woff2') format('woff2'),
-       url('/assets/fonts/kmrmelangegrotesk-italic-BF6bTSX5.woff2') format('woff2');
-  font-weight: 400;
-  font-style: italic;
-  font-display: swap;
-}
 
 :root {
   --bg: #faf9f5;
@@ -203,16 +139,16 @@
   --color-primary: #ff8400;
   --color-primary-hover: #e67300;
   --color-primary-light: rgba(255, 130, 0, 0.1);
-  --font-heading: 'Quadrant', 'Quadrant Notepad', 'Playfair Display', Georgia, serif;
-  --font-quadrant: 'Quadrant', 'Quadrant Notepad', 'Playfair Display', Georgia, serif;
-  --font-serif: 'Quadrant', 'Quadrant Notepad', Georgia, serif;
-  --font-primary: 'OpenRunde', 'Open Runde', 'Melange', 'KMR Melange Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-sans: 'OpenRunde', 'Open Runde', 'Melange', 'KMR Melange Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-body: 'OpenRunde', 'Open Runde', 'Melange', 'KMR Melange Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-melange: 'Melange', 'KMR Melange Grotesk', 'OpenRunde', 'Open Runde', sans-serif;
-  --font-openrunde: 'OpenRunde', 'Open Runde', 'Melange', 'KMR Melange Grotesk', sans-serif;
+  --font-heading: 'Quadrant', 'Quadrant Notepad', serif;
+  --font-quadrant: 'Quadrant', 'Quadrant Notepad', serif;
+  --font-serif: 'Quadrant', 'Quadrant Notepad', serif;
+  --font-primary: 'OpenRunde', 'Open Runde', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-sans: 'OpenRunde', 'Open Runde', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-body: 'OpenRunde', 'Open Runde', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-secondary: 'OpenRunde', 'Open Runde', sans-serif;
+  --font-openrunde: 'OpenRunde', 'Open Runde', sans-serif;
   --font-mono: 'Berkeley Mono', 'Cascadia Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
-  --font-code: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  --font-code: Consolas, Monaco, 'Berkeley Mono', 'Cascadia Mono', monospace;
 }
 
 body.dark-mode,

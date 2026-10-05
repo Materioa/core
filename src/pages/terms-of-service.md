@@ -9,6 +9,8 @@ permalink: /terms
 no-ads: true
 ---
 
+**Last updated:** February 27, 2026
+
 These Terms of Service govern your access to and use of Materio. By accessing or using the platform, you agree to be bound by these Terms. If you do not agree, you must discontinue use of the platform.
 
 

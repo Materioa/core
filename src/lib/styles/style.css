@@ -1,5 +1,5 @@
 /* ==================================================================
-   FONTS: Quadrant (Headings), OpenRunde (Body), Melange (Secondary)
+   FONTS: Quadrant (Headings), OpenRunde (Body), system mono (Code)
    ================================================================== */
 @font-face {
   font-family: 'Quadrant';
@@ -109,85 +109,19 @@
   font-display: swap;
 }
 
-@font-face {
-  font-family: 'Melange';
-  src: local('Melange'), local('Melange-Regular'), local('KMR Melange Grotesk'), local('KMRMelangeGrotesk-Regular'),
-       url('/fonts/kmrmelangegrotesk-regular-BQ0DoJin.woff2') format('woff2'),
-       url('/assets/fonts/kmrmelangegrotesk-regular-BQ0DoJin.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
 
-@font-face {
-  font-family: 'KMR Melange Grotesk';
-  src: local('Melange'), local('Melange-Regular'), local('KMR Melange Grotesk'), local('KMRMelangeGrotesk-Regular'),
-       url('/fonts/kmrmelangegrotesk-regular-BQ0DoJin.woff2') format('woff2'),
-       url('/assets/fonts/kmrmelangegrotesk-regular-BQ0DoJin.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
 
-@font-face {
-  font-family: 'Melange';
-  src: local('Melange Book'), local('KMR Melange Grotesk Book'), local('KMRMelangeGrotesk-Book'),
-       url('/fonts/kmrmelangegrotesk-book-BWM7GPGX.woff2') format('woff2'),
-       url('/assets/fonts/kmrmelangegrotesk-book-BWM7GPGX.woff2') format('woff2');
-  font-weight: 450;
-  font-style: normal;
-  font-display: swap;
-}
 
-@font-face {
-  font-family: 'Melange';
-  src: local('Melange Light'), local('KMR Melange Grotesk Light'), local('KMRMelangeGrotesk-Light'),
-       url('/fonts/kmrmelangegrotesk-light-CYToDGwI.woff2') format('woff2'),
-       url('/assets/fonts/kmrmelangegrotesk-light-CYToDGwI.woff2') format('woff2');
-  font-weight: 300;
-  font-style: normal;
-  font-display: swap;
-}
 
-@font-face {
-  font-family: 'Melange';
-  src: local('Melange Medium'), local('KMR Melange Grotesk Medium'), local('KMRMelangeGrotesk-Medium'),
-       url('/fonts/kmrmelangegrotesk-medium-C1-hbCBJ.woff2') format('woff2'),
-       url('/assets/fonts/kmrmelangegrotesk-medium-C1-hbCBJ.woff2') format('woff2');
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
 
-@font-face {
-  font-family: 'Melange';
-  src: local('Melange Semibold'), local('KMR Melange Grotesk Semibold'), local('KMRMelangeGrotesk-Semibold'),
-       url('/fonts/kmrmelangegrotesk-semibold-BLXxgi3V.woff2') format('woff2'),
-       url('/assets/fonts/kmrmelangegrotesk-semibold-BLXxgi3V.woff2') format('woff2');
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
 
-@font-face {
-  font-family: 'Melange';
-  src: local('Melange Italic'), local('KMR Melange Grotesk Italic'), local('KMRMelangeGrotesk-Italic'),
-       url('/fonts/kmrmelangegrotesk-italic-BF6bTSX5.woff2') format('woff2'),
-       url('/assets/fonts/kmrmelangegrotesk-italic-BF6bTSX5.woff2') format('woff2');
-  font-weight: 400;
-  font-style: italic;
-  font-display: swap;
-}
 
 h1, h2, h3, h4, h5, h6,
 .font-heading,
 .font-quadrant {
-  font-family: var(--font-heading, 'Quadrant', 'Quadrant Notepad', Georgia, serif);
+  font-family: var(--font-heading, 'Quadrant', 'Quadrant Notepad', serif);
 }
 
-@import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
 
 :root {
   --bg: #faf9f5;
@@ -240,7 +174,7 @@ html.dark-mode body {
 body {
   margin: 0;
   padding: 60px 0 0;
-  font-family: var(--font-primary, 'OpenRunde', 'Open Runde', 'Melange', sans-serif);
+  font-family: var(--font-primary, 'OpenRunde', 'Open Runde', sans-serif);
   background: var(--color-bg-body);
   color: var(--text);
   transition: background 0.3s, color 0.3s;
@@ -481,7 +415,7 @@ textarea,
 
 .post-body p {
   font-size: 17px;
-  font-family: 'Libre Baskerville', serif;
+  font-family: 'OpenRunde', sans-serif;
 }
 
 .post-body h1,
@@ -490,7 +424,7 @@ textarea,
 .post-body h4,
 .post-body h5,
 .post-body h6 {
-  font-family: var(--font-primary, 'OpenRunde', 'Open Runde', 'Melange', sans-serif);
+  font-family: var(--font-primary, 'OpenRunde', 'Open Runde', sans-serif);
   font-size: 20px;
 }
 
@@ -759,7 +693,7 @@ body.dark-mode .post-body blockquote.info {
   top: -10px;
   left: 10px;
   color: rgba(0, 0, 0, 0.1);
-  font-family: Georgia, serif;
+  font-family: var(--font-heading, 'Quadrant', 'Quadrant Notepad', serif);
   line-height: 1;
 }
 
@@ -834,7 +768,7 @@ body.dark-mode .post-body blockquote.quote::before {
 }
 
 .post-description {
-  font-family: 'Libre Baskerville', serif;
+  font-family: 'OpenRunde', sans-serif;
   font-size: 1rem;
   color: #555;
   margin: 0.5rem 0 1.25rem 0;
@@ -873,7 +807,7 @@ pre code {
   overflow-x: auto;
   font-size: 0.9rem;
   line-height: 1.5;
-  font-family: "Berkeley Mono", "Cascadia Mono", "JetBrains Mono", "Space Mono", monospace;
+  font-family: Consolas, Monaco, "Berkeley Mono", "Cascadia Mono", monospace;
   min-height: 1.5rem;
 }
 
@@ -901,7 +835,7 @@ pre .code-language {
   color: #fff;
   font-size: 0.65rem;
   font-weight: 600;
-  font-family: var(--font-primary, 'OpenRunde', 'Open Runde', 'Melange', sans-serif);
+  font-family: var(--font-primary, 'OpenRunde', 'Open Runde', sans-serif);
   padding: 0.3rem 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -930,7 +864,7 @@ pre .code-copy-btn {
   transition: background 0.2s;
   z-index: 10;
   border: none;
-  font-family: var(--font-primary, 'OpenRunde', 'Open Runde', 'Melange', sans-serif);
+  font-family: var(--font-primary, 'OpenRunde', 'Open Runde', sans-serif);
   line-height: 1.3;
 }
 
@@ -1114,7 +1048,7 @@ table td code {
   border-radius: 4px;
   font-size: 0.85rem;
   font-weight: 800;
-  font-family: "Berkeley Mono", "Cascadia Mono", "JetBrains Mono", "Space Mono", monospace;
+  font-family: Consolas, Monaco, "Berkeley Mono", "Cascadia Mono", monospace;
   white-space: nowrap;
 }
 
@@ -1367,7 +1301,7 @@ table td code {
 
     @bottom-center {
       content: "Page " counter(page) " of " counter(pages);
-      font-family: 'Libre Baskerville', serif;
+      font-family: 'OpenRunde', sans-serif;
       font-size: 9pt;
       color: #666;
     }
@@ -1402,7 +1336,7 @@ table td code {
   }
 
   body {
-    font-family: 'Libre Baskerville', serif !important;
+    font-family: 'OpenRunde', sans-serif !important;
     font-size: 12pt !important;
     line-height: 1.6 !important;
     color: #000 !important;
@@ -1505,7 +1439,7 @@ table td code {
   /* Show clean date, category, and read time as normal text */
   .print-meta {
     display: block !important;
-    font-family: 'Libre Baskerville', serif !important;
+    font-family: 'OpenRunde', sans-serif !important;
     font-size: 10pt !important;
     color: #666 !important;
     margin-bottom: 1rem !important;
@@ -1522,7 +1456,7 @@ table td code {
 
   /* Post title styling */
   .post-title {
-    font-family: 'Libre Baskerville', serif !important;
+    font-family: var(--font-heading, 'Quadrant', 'Quadrant Notepad', serif) !important;
     font-size: 18pt !important;
     font-weight: bold !important;
     color: #000 !important;
@@ -1532,14 +1466,14 @@ table td code {
 
   /* Post meta styling */
   .post-date {
-    font-family: 'Libre Baskerville', serif !important;
+    font-family: 'OpenRunde', sans-serif !important;
     font-size: 10pt !important;
     color: #666 !important;
     margin-bottom: 1rem !important;
   }
 
   .post-description {
-    font-family: 'Libre Baskerville', serif !important;
+    font-family: 'OpenRunde', sans-serif !important;
     font-size: 11pt !important;
     color: #333 !important;
     font-style: italic !important;
@@ -1548,7 +1482,7 @@ table td code {
 
   /* Post body content */
   .post-body {
-    font-family: 'Libre Baskerville', serif !important;
+    font-family: 'OpenRunde', sans-serif !important;
     font-size: 11pt !important;
     line-height: 1.6 !important;
     color: #000 !important;
@@ -1561,7 +1495,7 @@ table td code {
   .post-body h4,
   .post-body h5,
   .post-body h6 {
-    font-family: 'Libre Baskerville', serif !important;
+    font-family: var(--font-heading, 'Quadrant', 'Quadrant Notepad', serif) !important;
     color: #000 !important;
     page-break-after: avoid !important;
     margin-top: 1rem !important;
@@ -1640,7 +1574,7 @@ table td code {
   }
 
   pre code {
-    font-family: 'Berkeley Mono', 'Cascadia Mono', 'JetBrains Mono', 'Space Mono', 'Courier New', monospace !important;
+    font-family: Consolas, Monaco, 'Berkeley Mono', 'Cascadia Mono', 'Courier New', monospace !important;
     font-size: 9pt !important;
     line-height: 1.4 !important;
     color: #000 !important;
@@ -1669,7 +1603,7 @@ table td code {
 
   /* Inline code */
   .post-body code:not(pre code) {
-    font-family: 'Berkeley Mono', 'Cascadia Mono', 'Space Mono', 'Courier New', monospace !important;
+    font-family: Consolas, Monaco, 'Berkeley Mono', 'Cascadia Mono', 'Courier New', monospace !important;
     font-size: 9pt !important;
     background: #f0f0f0 !important;
     padding: 1pt 2pt !important;
@@ -1907,7 +1841,7 @@ table td code {
   justify-content: center;
   align-items: center;
   color: white;
-  font-family: var(--font-primary, 'OpenRunde', 'Open Runde', 'Melange', sans-serif);
+  font-family: var(--font-primary, 'OpenRunde', 'Open Runde', sans-serif);
   transition: transform 0.5s ease-in-out;
 }
 

@@ -147,7 +147,7 @@
 
 .leaderboard-loading {
     color: var(--lb-muted);
-    font-family: 'Berkeley Mono', 'Cascadia Mono', 'JetBrains Mono', monospace;
+    font-family: Consolas, Monaco, 'Berkeley Mono', 'Cascadia Mono', monospace;
     font-size: 12px;
     letter-spacing: 0.02em;
     padding: 10px 2px;
@@ -259,7 +259,7 @@
 }
 
 .leaderboard-stage-rank {
-    font-family: 'Berkeley Mono', 'Cascadia Mono', 'JetBrains Mono', monospace;
+    font-family: Consolas, Monaco, 'Berkeley Mono', 'Cascadia Mono', monospace;
     font-size: 12px;
     font-weight: 600;
     opacity: 0.9;
@@ -276,7 +276,7 @@
 }
 
 .leaderboard-stage-value {
-    font-family: 'Berkeley Mono', 'Cascadia Mono', 'JetBrains Mono', monospace;
+    font-family: Consolas, Monaco, 'Berkeley Mono', 'Cascadia Mono', monospace;
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.01em;
@@ -320,7 +320,7 @@
 
 .leaderboard-table-rank {
     width: 68px;
-    font-family: 'Berkeley Mono', 'Cascadia Mono', 'JetBrains Mono', monospace;
+    font-family: Consolas, Monaco, 'Berkeley Mono', 'Cascadia Mono', monospace;
     font-weight: 700;
 }
 
@@ -335,7 +335,7 @@
 .leaderboard-table-metric {
     width: 120px;
     text-align: right;
-    font-family: 'Berkeley Mono', 'Cascadia Mono', 'JetBrains Mono', monospace;
+    font-family: Consolas, Monaco, 'Berkeley Mono', 'Cascadia Mono', monospace;
     font-weight: 600;
 }
 

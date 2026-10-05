@@ -1138,7 +1138,7 @@
 	.interviewer-root .complete-title,
 	.interviewer-root .topbar-title,
 	.interviewer-root .font-quadrant {
-		font-family: 'Quadrant', 'Quadrant Notepad', 'Playfair Display', 'Lora', Georgia, serif !important;
+		font-family: 'Quadrant', 'Quadrant Notepad', serif !important;
 		font-weight: 400 !important;
 		letter-spacing: -0.015em;
 	}

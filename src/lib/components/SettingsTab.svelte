@@ -1594,7 +1594,7 @@
         <div id="licensesContent"
             style="max-height: 300px; overflow-y: auto; background-color: #f3f3ee; border: 1px solid #ddd; border-radius: 5px; padding: 15px; margin: 10px auto; text-align: center; max-width: 90%;">
             <pre id="licensesText"
-                style="font-family: 'Berkeley Mono', 'Cascadia Mono', 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 12px; line-height: 1.4; margin: 0; white-space: pre-wrap; color: #333; text-align: center;">Loading licenses...</pre>
+                style="font-family: Consolas, Monaco, 'Berkeley Mono', 'Cascadia Mono', monospace; font-size: 12px; line-height: 1.4; margin: 0; white-space: pre-wrap; color: #333; text-align: center;">Loading licenses...</pre>
         </div>
     </details>
 </div>
@@ -1604,7 +1604,7 @@
         <HugeIcon name="arrow-down-01"  style="margin-left: 8px; transition: transform 0.3s ease; font-size: 12px;" />
         Misc
     </summary>
-    <div style="display: flex; flex-direction: column; gap: 4px; font-family: 'Berkeley Mono', 'Cascadia Mono', 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 12px; margin-top: 6px; align-items: center;">
+    <div style="display: flex; flex-direction: column; gap: 4px; font-family: Consolas, Monaco, 'Berkeley Mono', 'Cascadia Mono', monospace; font-size: 12px; margin-top: 6px; align-items: center;">
         <span>Materio ID: <span id="buildId">{liveBuildId}</span></span>
         {#if isTauri}
             <span>App Version: Windows v{currentAppVersion}</span>
@@ -1744,7 +1744,7 @@
         border: 1px solid rgba(0, 0, 0, 0.08);
         border-radius: 12px;
         padding: 8px 12px;
-        font-family: 'Berkeley Mono', 'Cascadia Mono', 'JetBrains Mono', monospace;
+        font-family: Consolas, Monaco, 'Berkeley Mono', 'Cascadia Mono', monospace;
         font-size: 12px;
         color: var(--color-text-secondary, #666);
     }

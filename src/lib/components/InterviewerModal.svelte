@@ -5,7 +5,7 @@
 import { get } from 'svelte/store';
 	import { page } from '$app/stores';
 	import { getSkipLanding, isForceApp } from '$lib/utils/landingPrefs.js';
-import { isExamPeriodRunning, findVivaOrPracticalExam, isUsableExamConfig } from '$lib/utils/exam-gate.js';
+import { isUsableExamConfig, findRunningVivaExam, readSavedSemester } from '$lib/utils/exam-gate.js';
 	import InterviewerCore from './InterviewerCore.svelte';
 
 	const INTERVIEW_MODAL_KEYS = ['interview', 'viva', 'viva-box', 'viva-question-bank'];
@@ -168,13 +168,16 @@ import { isExamPeriodRunning, findVivaOrPracticalExam, isUsableExamConfig } from
 	}
 
 	async function checkExamForVivaOrPractical() {
-		// NOTE: window.__materioExamHasVivaOrPractical is deliberately NOT
-		// trusted as an answer here. ExamCard.svelte used to publish it, but
-		// that component is no longer mounted (BlogPosts renders its own exam
-		// card markup), and nothing ever reset the flag — so a single stale
-		// `true` short-circuited every date check below and pinned the box open
-		// regardless of exam type or show-before window. The date logic is now
-		// the only thing that can turn this on.
+		// window.__materioExamHasVivaOrPractical is still NOT read as an answer
+		// here. It used to be published by ExamCard.svelte, which is no longer
+		// mounted, and nothing ever reset it — so one stale `true` short-circuited
+		// every date check and pinned the box open regardless of exam type or
+		// show-before window. This function always re-derives from live config.
+		//
+		// The `materioExamVivaStatus` event below IS trusted, but only because
+		// exam-card.js now recomputes it from this same gate every time (and
+		// publishes an explicit false when the config is off) rather than
+		// latching a one-shot boolean.
 
 		try {
 			// Live admin config ONLY. There is deliberately no
@@ -194,36 +197,26 @@ import { isExamPeriodRunning, findVivaOrPracticalExam, isUsableExamConfig } from
 			// and unknown must render as nothing rather than as a stale guess.
 			if (!isUsableExamConfig(data)) return;
 
-			let savedSem = null;
-			try {
-				savedSem = localStorage.getItem('materio_selected_semester') || localStorage.getItem('selectedSemester');
-			} catch {}
-
 			// Scan every semester entry (not just saved/first): admin keeps
 			// separate Mid/End/Practical-Viva periods and the viva entry is
-			// rarely semesters[0]. Gate lives in exam-gate.js.
-			const now = new Date();
-			// Running-only gate below: the exam card teases the period a few days
+			// rarely semesters[0].
+			//
+			// The scan itself now lives in exam-gate.js as
+			// findRunningVivaExam(), shared with the exam card — the card used
+			// to publish its own answer via a component that is no longer
+			// mounted, so the two could disagree about whether a class-wise
+			// viva period was underway.
+			//
+			// Running-only gate: the exam card teases the period a few days
 			// early via showBeforeDaysViva, but the question box is for a
 			// practical/viva period that is actually underway right now.
-			// No saved semester means "consider them all" — restricting to the
-			// saved one hid a genuinely active practical/viva period.
-			const candidates = (data.semesters || []).filter(s =>
-				!savedSem || String(s.semester) === String(savedSem)
-			);
-			for (const semester of candidates) {
-				if (!semester || !Array.isArray(semester.exams) || !semester.examPeriod?.startDate) continue;
-				const vivaOrPracticalExam = findVivaOrPracticalExam(semester);
-				if (!vivaOrPracticalExam) continue;
-				// The shared gate owns the date maths. The inline version this
-				// replaced read `!endDate` as "ongoing forever", so a practical
-				// period from a past semester with no endDate kept the box open
-				// indefinitely — long outside the show-before window.
-				if (isExamPeriodRunning(semester, now)) {
-					hasVivaExam = true;
-					activeVivaExam = vivaOrPracticalExam;
-					break;
-				}
+			const running = findRunningVivaExam(data, {
+				savedSemester: readSavedSemester(),
+				now: new Date()
+			});
+			if (running) {
+				hasVivaExam = true;
+				activeVivaExam = running;
 			}
 		} catch {}
 	}

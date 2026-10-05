@@ -4,6 +4,8 @@ import {
   isExamPeriodRunning,
   effectiveEndDate,
   findVivaOrPracticalExam,
+  findRunningVivaExam,
+  readSavedSemester,
   showBeforeDaysFor,
   isUsableExamConfig
 } from '../src/lib/utils/exam-gate.js';
@@ -156,6 +158,45 @@ ok('...and its dates would have gated the box during that window',
    isExamPeriodActive(staleVivaSem, staleSnapshot.showBeforeDaysViva, day('2026-04-06')), true);
 ok('...but a snapshot is never usable config, so it stays hidden',
    isUsableExamConfig({ ...staleSnapshot, degraded: true }), false);
+
+/* ---- findRunningVivaExam: the shared card <-> viva box scan ------------- */
+// This is what both the exam card and the viva box now call, so a class-wise
+// viva period can't be "on" for one and "off" for the other.
+const classwiseConfig = {
+  enabled: true,
+  semesters: [
+    // theory period first — the card used to look only at semesters[0]
+    { semester: '7', examPeriod: { startDate: '2026-10-01', endDate: '2026-10-05' }, exams: [{ type: 'theory', date: '2026-10-02' }] },
+    // the class-wise viva period, second
+    { semester: '7', examPeriod: { startDate: '2026-10-05T09:00:00', endDate: '2026-10-16T17:00:00' }, exams: [{ type: 'practical', subject: 'INS', date: '2026-10-05' }] }
+  ]
+};
+ok('finds the viva even when it is not semesters[0]',
+   findRunningVivaExam(classwiseConfig, { now: day('2026-10-06') })?.subject, 'INS');
+ok('running viva period -> exam returned',
+   Boolean(findRunningVivaExam(classwiseConfig, { now: day('2026-10-10') })), true);
+ok('before the viva period starts -> null (card may tease, box may not)',
+   findRunningVivaExam(classwiseConfig, { now: day('2026-10-04') }), null);
+ok('after the viva period ends -> null',
+   findRunningVivaExam(classwiseConfig, { now: day('2026-10-17') }), null);
+
+// savedSemester narrows the scan using the same keys both sides read.
+ok('saved semester matching the viva -> found',
+   Boolean(findRunningVivaExam(classwiseConfig, { savedSemester: '7', now: day('2026-10-10') })), true);
+ok('saved semester with no viva -> null',
+   findRunningVivaExam(classwiseConfig, { savedSemester: '4', now: day('2026-10-10') }), null);
+
+// An unusable config must never yield a viva — this is the "unknown renders
+// as nothing" rule, and it is what keeps a degraded Mongo answer from
+// switching the box on.
+ok('degraded config -> null', findRunningVivaExam({ enabled: false, semesters: [], degraded: true }, { now: day('2026-10-10') }), null);
+ok('admin-disabled config -> null', findRunningVivaExam({ enabled: false, semesters: classwiseConfig.semesters }, { now: day('2026-10-10') }), null);
+ok('null config -> null', findRunningVivaExam(null, { now: day('2026-10-10') }), null);
+ok('period with no exams array -> null',
+   findRunningVivaExam({ enabled: true, semesters: [{ semester: '7', examPeriod: { startDate: '2026-10-05', endDate: '2026-10-16' } }] }, { now: day('2026-10-10') }), null);
+
+// readSavedSemester must not throw outside a browser (this suite runs in node).
+ok('readSavedSemester is safe with no localStorage', readSavedSemester(), null);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

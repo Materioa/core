@@ -2,7 +2,7 @@
 // Handles the exam card in InsightRoom with 3 dynamic views and exam modal
 // Supports multiple semesters with semester-based filtering
 
-import { isExamPeriodActive, showBeforeDaysFor, isUsableExamConfig } from './exam-gate.js';
+import { isExamPeriodActive, showBeforeDaysFor, isUsableExamConfig, findRunningVivaExam, readSavedSemester } from './exam-gate.js';
 
 let examData = null;
 let currentSemesterData = null;
@@ -53,10 +53,20 @@ const EXAM_DATA_CACHE_KEY = 'materio_exam_data_cache';
 
 let isExamDataLoading = false;
 let hasExamDataProcessed = false;
+// How many times the config fetch came back `degraded` (backend couldn't
+// answer) without us ever having had a good copy. Bounded so a Mongo outage
+// can't schedule retries forever.
+let degradedFetchRetries = 0;
 
 let vivaData = null; // Cached viva.csv data
 let vivaDataUrl = null; // URL the cache was filled from
 let vivaDivisions = []; // Cached divisions list from viva.csv
+// The last schedule URL that produced no usable data: null = none tried,
+// '' = there is no URL at all. `vivaData === null` cannot tell "not fetched
+// yet" from "fetched, nothing there", and callers that retry on the former
+// therefore retried on the latter — forever, whenever a viva/practical period
+// had no seatingDataUrl (or a URL that 404s). See isVivaDataSettled().
+let vivaUnavailableUrl = null;
 const USER_DIV_LS_KEY = 'user_div';
 
 // viva/practical schedules are division-specific (different classes sit
@@ -80,14 +90,77 @@ function getVivaScheduleUrl() {
     return '';
 }
 
+/**
+ * Tell the viva box (InterviewerModal.svelte) whether a practical/viva period is
+ * underway, so the box and this card can never disagree.
+ *
+ * This is the half that was missing. ExamCard.svelte used to publish
+ * `materioExamVivaStatus`, but that component is no longer mounted — BlogPosts
+ * renders its own exam-card markup and drives it through this module. So for a
+ * while nothing dispatched the event and the box could only ever turn itself on
+ * from its own separate fetch.
+ *
+ * It re-reads the live config rather than trusting whatever `examData` happens
+ * to hold, because this module's cache can be a session-old snapshot. An
+ * unusable/absent config publishes an explicit `false`: silence must never be
+ * read as "yes" by the box.
+ */
+function publishVivaStatus() {
+    if (typeof window === 'undefined') return;
+
+    let exam = null;
+    try {
+        // `examData` is this module's single source: seeded from the
+        // sessionStorage cache (which is only ever written from a live
+        // /api/v2/examdata response — never from the deleted build snapshot),
+        // then overwritten by the fresh fetch. isUsableExamConfig rejects the
+        // degraded `{enabled:false, degraded:true}` "no live config" shape, so
+        // we can never publish a viva-on from an answer that means "unknown".
+        //
+        // Before either has settled, examData is null and we publish nothing
+        // rather than a guess — silence is not "yes" to the box.
+        if (examData && isUsableExamConfig(examData)) {
+            exam = findRunningVivaExam(examData, {
+                savedSemester: readSavedSemester(),
+                now: getCurrentDate()
+            });
+        } else if (hasExamDataProcessed) {
+            // Fetch settled and the config was unusable (admin disabled it, or
+            // Mongo reported degraded/no-config). That is a real, authoritative
+            // "off", so publish the false — unlike the not-yet-loaded case
+            // below, which must stay silent.
+            exam = null;
+        } else {
+            return;
+        }
+    } catch {
+        exam = null;
+    }
+
+    const hasViva = Boolean(exam);
+    window.__materioExamHasVivaOrPractical = hasViva;
+    window.__materioActiveVivaExam = exam;
+    window.dispatchEvent(
+        new CustomEvent('materioExamVivaStatus', {
+            detail: { hasViva, exam, source: 'exam-card' }
+        })
+    );
+}
+
 async function loadVivaData() {
     const url = getVivaScheduleUrl();
     if (!url) {
         vivaData = null;
         vivaDataUrl = null;
         vivaDivisions = [];
+        // '' is the sentinel: with no URL no attempt can ever succeed, so the
+        // retrying callers below must stop rather than start over.
+        vivaUnavailableUrl = '';
         return null;
     }
+    // This exact URL already yielded nothing usable. Attempting it again would
+    // fail identically, and the callers re-enter on the result.
+    if (vivaUnavailableUrl === url) return null;
     // Refetch when the period (and therefore its CSV URL) changes.
     if (vivaData && vivaDataUrl === url) return vivaData;
     vivaDataUrl = url;
@@ -111,12 +184,29 @@ async function loadVivaData() {
         vivaDivisions = [...new Set(vivaData.map(row => row.Division).filter(Boolean))].sort((a, b) => {
             return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
         });
+        vivaUnavailableUrl = null;
         return vivaData;
     } catch (e) {
         console.error('[ExamCard] Error loading viva schedule:', e);
         vivaData = null;
+        vivaUnavailableUrl = url;
         return null;
     }
+}
+
+/**
+ * True once loading has run its course for the current schedule URL: either we
+ * have data, or we have established there is none to be had.
+ *
+ * Callers must gate their re-entry on this instead of `!vivaData`, which reads
+ * "not fetched yet" and "fetched but unusable" identically. With no
+ * seatingDataUrl configured, loadVivaData() resolved null on every attempt, so
+ * `if (!vivaData) retry` never terminated — it saturated the microtask queue on
+ * entry and froze the tab before the card could paint.
+ */
+function isVivaDataSettled() {
+    if (vivaData) return true;
+    return vivaUnavailableUrl === getVivaScheduleUrl();
 }
 
 async function populateClassroomSelector() {
@@ -376,12 +466,42 @@ export async function loadAndDisplayExamCard() {
                 // Any OK response is authoritative — including
                 // { enabled: false } and the degraded "no live config" shape.
                 if (!isUsableExamConfig(freshData)) {
-                    hideExamCards();
-                    isExamDataLoading = false;
-                    hasExamDataProcessed = true;
+                    // Two very different answers reach this branch, and treating
+                    // them the same is what made the card vanish "at times":
+                    //
+                    //  - { enabled:false }        admin turned exams off — authoritative
+                    //  - { degraded:true }        backend couldn't reach Mongo at all,
+                    //                             per features-handler.js noConfig()
+                    //
+                    // The second is "I don't know", not "exams are off". Blanking
+                    // the card on it meant a single Mongo blip hid the card for the
+                    // rest of the visit, with no retry and no error anywhere.
+                    if (freshData.degraded === true) {
+                        if (examData) {
+                            // Keep the session cache loaded above and show it.
+                            loaded = true;
+                            break;
+                        }
+                        isExamDataLoading = false;
+                        if (degradedFetchRetries < 3) {
+                            degradedFetchRetries++;
+                            setTimeout(() => { loadAndDisplayExamCard(); }, 4000);
+                        }
+                        hideExamCards();
+                        return;
+                    }
+                    degradedFetchRetries = 0;
+                    // Clear FIRST. hideExamCards() publishes the viva status,
+                    // and examData may still hold the session cache from above
+                    // — publishing before nulling it would report a viva period
+                    // that this authoritative "off" just disproved.
                     examData = null;
+                    hasExamDataProcessed = true;
+                    isExamDataLoading = false;
+                    hideExamCards();
                     return;
                 }
+                degradedFetchRetries = 0;
                 if (Array.isArray(freshData.semesters) && freshData.semesters.length > 0) {
                     examData = freshData;
                     cacheExamData(freshData);
@@ -517,7 +637,11 @@ function findSemesterData(data, semester) {
     }
 
     const matches = data.semesters.filter(s => s.semester === semester);
-    if (matches.length === 0) return null;
+    // A stored semester that matches nothing is a per-device staleness problem
+    // (`userSemester` in localStorage), not evidence that no exam is running —
+    // every period here is semester 7. Returning null used to hide the card
+    // outright. Fall back to the active-period scan the null branch does.
+    if (matches.length === 0) return findSemesterData(data, null);
     if (matches.length === 1) return matches[0];
 
     const now = getCurrentDate();
@@ -581,6 +705,13 @@ export function hideExamCards() {
 
     examCards.forEach(card => card.style.display = 'none');
 
+    // Deliberately still published: the card being hidden is NOT the same as
+    // the viva interview being off (a user can dismiss the card, or it can be
+    // outside the show-before window while the period itself is underway).
+    // publishVivaStatus() derives from the period gate, not from card
+    // visibility, so this re-publishes the honest answer either way.
+    publishVivaStatus();
+
     examCards.forEach(card => {
         const insightItem = card.closest('.insight-item');
         if (insightItem) {
@@ -612,6 +743,10 @@ export function displayExamCard(data, semesterData) {
     ].filter(Boolean);
 
     if (examCards.length === 0) return;
+
+    // Card is on screen, so this is the natural moment to tell the viva box.
+    // The value still comes from the period gate, not from "the card is visible".
+    publishVivaStatus();
 
     const now = new Date();
     const startDate = new Date(semesterData.examPeriod.startDate);
@@ -748,7 +883,10 @@ function showPreExamView(exams, data, isDefault = false) {
     preexamView.style.display = 'flex';
 
     const isVivaExam = isDivisionScheduled(currentSemesterData?.exams);
-    if (isVivaExam && !vivaData) {
+    // The `isVivaDataSettled()` half is what keeps this from being an infinite
+    // loop: with no seatingDataUrl (or one that 404s) loadVivaData() resolves
+    // null on every attempt, so re-entering on `!vivaData` alone never ends.
+    if (isVivaExam && !vivaData && !isVivaDataSettled()) {
         loadVivaData().then(() => {
             showPreExamView(exams, data, isDefault);
         });
@@ -939,7 +1077,7 @@ function showTimelineView(exams, isDefault = false) {
     let sourceExams = exams;
 
     if (isVivaExam) {
-        if (!vivaData) {
+        if (!vivaData && !isVivaDataSettled()) {
             loadVivaData().then(() => {
                 showTimelineView(exams, isDefault);
             });
@@ -987,7 +1125,7 @@ function showTimelineView(exams, isDefault = false) {
             <div class="exam-mini-item ${statusClass}">
                 <div class="exam-mini-content">
                     <div class="exam-mini-subject">${exam.subject}</div>
-                    <div class="exam-mini-date">${formatDate(exam.date)}${topicStr ? ` - ${topicStr}` : ''}</div>
+                    <div class="exam-mini-date">${formatDate(exam.date)}${exam.classroom ? ` - ${exam.classroom}` : (topicStr ? ` - ${topicStr}` : '')}</div>
                 </div>
             </div>
         `;
@@ -1454,12 +1592,22 @@ export async function generateExamTimeline() {
             `;
         }
 
+        // Class-wise viva rows carry the room. Show it in place of the
+        // syllabus block (which is meaningless for a viva) so the entry reads
+        // subject + code, when, and where — the three things you need on the
+        // day. The hardcoded 09:00 is omitted when we know the room instead:
+        // "at 09:00" was never in the sheet, the room was.
+        const roomHTML = (isVivaExam && exam.classroom)
+            ? `<div class="exam-timeline-room">at ${exam.classroom}</div>`
+            : '';
+
         timelineHTML += `
             <div class="exam-timeline-item ${statusClass}" data-exam-id="${exam.id || index}">
                 <div class="exam-timeline-dot"></div>
                 <div class="exam-timeline-content">
                     <div class="exam-timeline-subject">${subjectDisplay}${exam.code ? ` (${exam.code})` : ''}</div>
-                    <div class="exam-timeline-date">${formatDateLong(exam.date)}${exam.time ? ` at ${exam.time}` : ''}</div>
+                    <div class="exam-timeline-date">${formatDateLong(exam.date)}${roomHTML ? '' : (exam.time ? ` at ${exam.time}` : '')}</div>
+                    ${roomHTML}
                     ${syllabusHTML}
                 </div>
             </div>
@@ -1480,6 +1628,13 @@ function buildVivaTimelineEntries(selectedDivision) {
     const filtered = vivaData.filter(row => normalizeClassroomValue(row.Division) === normalizedSelected);
     if (filtered.length === 0) return [];
 
+    // The class-wise sheet is a matrix: one row per (date × division) carrying
+    // subject, code AND the room the viva is held in. Older versions dropped
+    // the room, so the timeline said what and when but never where.
+    // `Classroom` is the header the admin CSV uses; the organiser sheet labels
+    // the same column "Location", so accept both.
+    const roomOf = (row) => row.Classroom || row.Location || row['Practical Room'] || '';
+
     const byDate = new Map();
     filtered.forEach(row => {
         const dateKey = row.Date;
@@ -1489,13 +1644,16 @@ function buildVivaTimelineEntries(selectedDivision) {
             byDate.set(dateKey, {
                 date: dateKey,
                 subjectSet: new Set(),
-                codeSet: new Set()
+                codeSet: new Set(),
+                roomSet: new Set()
             });
         }
 
         const day = byDate.get(dateKey);
         if (row['Subject Name']) day.subjectSet.add(row['Subject Name']);
         if (row['Subject Code']) day.codeSet.add(row['Subject Code']);
+        const room = roomOf(row);
+        if (room) day.roomSet.add(room);
     });
 
     return [...byDate.values()]
@@ -1504,6 +1662,7 @@ function buildVivaTimelineEntries(selectedDivision) {
             id: `viva-${idx + 1}`,
             subject: [...day.subjectSet].join(', '),
             code: [...day.codeSet].join(', '),
+            classroom: [...day.roomSet].join(', '),
             date: day.date,
             time: '09:00',
             duration: 'full day',

@@ -1,5 +1,4 @@
 <script>
-    import Navbar from '$lib/components/Navbar.svelte';
     export let data;
 
     let { docs } = data;
@@ -12,13 +11,20 @@
 </svelte:head>
 
 <div class="doc-page">
-    <Navbar />
+    <!-- Chromeless reading page: no app header and no rail navbar — the only
+         way back is the same Back link privacy/terms use. -->
+    <a href="/" class="back-link" aria-label="Go back to home" style="display: inline-flex; align-items: center; gap: 6px; text-decoration: none; opacity: 0.7; margin-bottom: 1.5rem;">
+        <span>Back</span>
+    </a>
 
     <main class="doc-main">
-        <header style="text-align:center; margin-bottom:3rem;">
+        <!-- <div>, not <header>: main.css styles bare `header` elements as the
+             fixed app bar (60px, pinned to top, logo background), which grabbed
+             this title block and pinned it over the grid. -->
+        <div class="docs-intro" style="text-align:center; margin-bottom:3rem;">
             <h1 style="font-size:2.5rem; font-weight:400; font-family: 'QuadrantNotepad', 'OpenRunde', sans-serif; margin: 0; letter-spacing: -0.01em;">Documentation</h1>
             <p style="color:var(--muted,#61616a); font-size:1.1rem; margin: 0.5rem 0 0 0; font-family: 'OpenRunde', sans-serif; line-height: 1.45;">Developer references for integrating systems.</p>
-        </header>
+        </div>
 
     <section class="docs-grid-section" style="max-width: 1100px; margin: 0 auto; width: 100%;">
         {#if docs.length === 0}

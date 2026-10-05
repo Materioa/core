@@ -168,12 +168,12 @@ app.use((_req, res, next) => {
 // ════════════════════════════════════════════════════
 app.get(
   ["/.well-known/oauth-authorization-server", "/.well-known/openid-configuration", "/oauth-metadata"],
-  (req, res) => {
+  async (req, res) => {
     const host = req.get("host") || "localhost:3001";
     const protocol = req.headers["x-forwarded-proto"] || req.protocol || "http";
     const origin = `${protocol}://${host}`;
     res.setHeader("Cache-Control", "public, max-age=3600");
-    res.json(getOAuthAuthorizationServerMetadata(origin));
+    res.json(await getOAuthAuthorizationServerMetadata());
   }
 );
 

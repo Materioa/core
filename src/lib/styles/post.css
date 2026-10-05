@@ -607,7 +607,7 @@ body.dark-mode #scroll-to-top:hover {
 /* Print styles for code */
 @media print {
   code {
-    font-family: 'Berkeley Mono', 'Cascadia Mono', 'JetBrains Mono', 'Consolas', 'Monaco', 'Courier New', monospace !important;
+    font-family: Consolas, Monaco, 'Berkeley Mono', 'Cascadia Mono', monospace !important;
     background: #f5f5f5 !important;
     color: #333 !important;
     padding: 2px 4px !important;

@@ -2,85 +2,139 @@
 title: Privacy Policy
 layout: post
 category: legal
-date: '2025-09-30'
+date: '2026-10-04'
 hide_author_share_row: true 
 image: null 
 permalink: /privacy
 no-ads: true
 ---
+# Privacy Policy
 
-At Materio we prioritise your privacy. This Privacy Policy describes what information we collect, how we use it, and the choices you have when you use our platform.
+**Effective date:** October 4, 2026
+**Last updated:** October 4, 2026
 
----
+Materio is a study platform built for students. This policy explains what we collect, why, who handles it, what is public, and what control you have. By using Materio or creating a Materio ID, you agree to this policy.
 
-## 1. Information We Collect
+## 1. Who we are
 
-We collect limited data to operate and improve Materio:
+Materio is built and operated by Jinansh Mehta from Gujarat, India. For privacy questions or requests, contact support@getmaterio.app.
 
-* **Device & Usage Data** — browser type, screen size, language, time spent, pages visited, and similar technical data. Collected via analytics tools to measure engagement and improve the product. 
-* **Cookies** — small files stored on your device to remember preferences and make the site work better. Some cookies are essential for the service; others are optional analytics or advertising cookies. You can manage cookies via your browser and via the Settings tab in Materio. 
-* **PDF Interaction Data (non-personal)** — scroll activity, zoom levels, fullscreen usage, and annotation actions used to improve study tools and features. 
-* **User Account Data** — when you create a Materio account (invite-only as of this policy), we store name, username, email, password (stored securely as a strong hash), and profile picture. 
+## 2. What we collect
 
+**Materio ID account data.** Name, username, Parul University email, academic details (year, major, specialization, and pass out year), profile picture, and your password as a salted hash if you sign up with a password. We never see or store your plain password. Materio ID currently supports only Parul University email addresses, which we use to confirm your affiliation.
 
+**Sign-in with Google or GitHub.** You can log in to Materio using Google or GitHub single sign-on. When you do, we receive basic profile information from that provider, such as your name, email address, and profile picture. We do not receive your Google or GitHub password.
 
-## 2. How We Use Your Data
+**Session data.** When you sign in, we create a session for that device so you stay logged in. We keep session data for each device you are signed in on. You can view your sessions and revoke them across all your devices from Materio ID at any time.
 
-We use the data we collect to:
+**Study activity and analytics.** Our own analytics records PDF interaction (scrolling, zoom, fullscreen use, annotations), reading time, pages and features used, and related metadata across Materio sites and apps. We use it to understand feature usage, generate insights, and power the leaderboard. If you are signed in, this activity is linked to your Materio ID. If you don't have an account or are logged out, it is not linked to any identity.
 
-* Understand which features are most used and improve Materio.
-* Improve performance, fix bugs, and develop new features.
-* Provide account functionality and support.
+**App and device data.** In our native apps (Android and desktop), we also collect operating system version and app version, so we know which versions and platforms people use. On the web we collect browser type, screen size, and language.
 
-We **do not** sell your personal data to third parties. Where we display advertisements (see next section), we work with ad partners who may collect data as described below. 
+**Google Analytics.** We also use Google Analytics, which collects device, browser, approximate location, and usage data through cookies or similar identifiers.
 
+**Notebooks.** Notebooks you choose to sync are stored in our cloud as plain text. Notebooks you don't sync stay on your device. Please don't store passwords, financial details, or other sensitive information in notebooks.
 
+**Materio Interviewer and Viva Box.** The Viva Box collects viva questions that users submit from practical or viva exams. Submissions are anonymous and are not linked to your account.
 
-## 3. Advertising (New)
+**Feedback, community contributions, and bug reports.** You can submit these anonymously. Anonymous submissions are not linked to your account, and we do not store your IP address with any submission.
 
-Materio now displays ads served by **Google AdSense**. When you view Materio pages that include ads, Google and its partners may collect certain information and use cookies or similar technologies to serve, personalise, and measure ads. This may include the page URL, your IP address, device information, and general location derived from IP. Third-party vendors (including Google) use advertising cookies to serve ads based on a user’s visit to this site and/or other sites on the Internet. 
+**Developer and OAuth data.** If you create developer apps, we store app details, your client ID, and a hashed client secret. If you authorize an app, we record which app and which scopes you granted.
 
-What this means for you:
+**AI features.** If you use AI Mode or Thinklet, your prompts, attachments, and any memory you enable are sent to AI providers to generate responses. By default this goes through OpenRouter. If you bring your own API key (BYOK), your requests go to the provider you choose, and your API key is encrypted at rest.
 
-* You may see **personalised ads** based on your browsing activity unless you turn off ad personalisation. Google uses advertising cookies and other technologies to limit the number of times an ad is shown, to measure ad performance, and to personalise ads. 
-* If you prefer not to receive personalised ads, you can change ad settings via Google’s controls (for example, **My Ad Center** / Ads Settings). Turning off personalised ads does not stop ads from being shown; it only makes them less tailored to your interests. 
+**Payments.** Paid plans are currently in test mode. When live, payments are processed by Razorpay. We do not receive or store your card or UPI details. We keep order, plan, and invoice records, and you can download invoices from the Materio ID app.
 
-**Our responsibilities and what we do:** We do not use the data collected by Google for separate advertising beyond what is described here, and we do not sell personal data. We display the ads as a way to support Materio’s development and hosting costs.
+**Support messages.** Anything you send us when you contact support.
+## 3. Data that stays on your device
 
+Some data is stored only in your browser or app on your device and is never sent to our servers. This includes:
 
+- **Personalization settings:** themes, accents, wallpapers, and reading modes
+- **Bookmarks** and **locally downloaded files**
+- **Feature data:** details you enter to power on-device features. For example, the Exam Card stores your classroom or enrollment number so it can show it to you, and it stays on your device.
+- **Interface state:** things like whether you have already seen a modal or popup, and other preferences that make the interface work smoothly
 
-## 4. Cookies & Similar Technologies
+We store this data using cookies, LocalStorage, SessionStorage, and IndexedDB. Because it lives on your device, clearing your browser data or uninstalling the app removes it, and it does not follow you to other devices.
 
-Some cookies are essential for site functionality; others are for analytics or advertising:
+Please note that data stored locally is only as private as your device. If other people use your device or browser, they may be able to see it.
 
-* **Essential cookies** — required for core functionality (e.g., login session). 
-* **Analytics cookies** — used to understand site usage and improve Materio. You can opt out in Settings. 
-* **Advertising cookies (third party)** — set by ad providers such as Google to serve and measure ads. Using AdSense requires that publishers notify users of the use of advertising cookies and obtain applicable consent where required by law.
+## 4. What is public
 
+**The leaderboard.** If you have a Materio ID and rank in the top 50, your username and activity stats are publicly visible on the leaderboard. Your other account data stays private. We plan to add an option to opt out of appearing on the leaderboard. Anyone can view or copy public leaderboard data, so pick a username that doesn't reveal your identity if you want to stay unlinked.
 
+## 5. Why we use your data
 
-## 5. Your Choices
+- To run your Materio ID, sign you in, and manage your sessions
+- To provide features such as annotations, notebooks, search, AI tools, and Interviewer
+- To measure usage, find bugs, decide which app versions and platforms to support, and build insights
+- To power the leaderboard
+- To process payments and issue invoices
+- To authorize third-party apps you choose to connect
+- To prevent abuse, scraping, and API misuse, and keep the platform secure
+- To meet legal obligations
+- To detect and act on violations of our rules, such as manipulated analytics data
 
-* **Cookie controls:** You can block or delete cookies through your browser settings. Some Materio features may not work if cookies are disabled. 
-* **Analytics opt-out:** You can opt out of analytics cookies from the Materio Settings tab. 
-* **Ad personalisation opt-out:** To stop personalised ads from Google, use Google’s My Ad Center or Ads Settings. Turning off personalisation does not stop ads, it only makes them non-personalised.
+We do not sell your personal data, and Materio does not show ads.
 
+## 6. Legal basis
 
+Where the law requires one, we rely on your consent (analytics, optional features such as the leaderboard), performing our service to you (accounts, sessions, notebooks, payments), our legitimate interests (security, abuse prevention, product improvement), and legal obligations. Our design follows India's Digital Personal Data Protection Act 2023 and is informed by GDPR and CCPA.
 
-## 6. Data Retention & Security
+## 7. Where your data is stored and who we share it with
 
-We retain your data only as long as necessary to provide Materio and comply with legal obligations. We use reasonable technical and organisational measures to protect account data (including hashed passwords and secure storage). No system is 100% secure; if there is a security incident impacting personal data, we will notify affected users in accordance with applicable law. 
+Our core infrastructure is hosted in India (Mumbai):
 
+- **Database and backend:** Supabase, hosted in Mumbai
+- **Additional database:** MongoDB cluster, hosted in Mumbai
+- **Hosting and CDN:** Cloudflare, Mumbai region
 
+We also use these providers:
 
-## 7. Content Disclaimer
+- **Sign-in:** Google and GitHub, if you choose to log in with them. Their handling of your data is governed by their own privacy policies.
+- **Analytics:** Google Analytics, plus our own first-party analytics
+- **AI providers:** OpenRouter by default, or the provider of your choice if you use your own API key. These providers may process your prompts outside India. Please don't enter sensitive personal information into AI features.
+- **Payments:** Razorpay
+- **Apps you authorize:** An app you connect through Materio ID receives only the data covered by the scopes you approve, and its handling of that data is governed by its own policy. You can revoke access anytime from the Materio ID app.
 
-All study materials on Materio are shared by students or collected from freely available public sources for educational use only. We do not claim ownership of posted content. If you are the original creator of any material and would like it removed or credited, please contact Materio support.
+We may also disclose data when legally required or to protect against abuse or security threats.
 
+## 8. Cookies and similar technologies
 
+We use essential cookies (such as your login session), analytics cookies, and local storage on your device. See the [Cookie Policy](/cookies). You can opt out of analytics in Settings.
 
-## 8. Contact Us
+## 9. How long we keep data
 
-If you have questions or concerns about this Privacy Policy or your privacy choices, contact [materio support].
+We keep your data for as long as your Materio ID exists. When you delete your account, your account data, sessions, linked analytics, and synced notebooks are removed. You can end individual sessions earlier by revoking them from Materio ID. Anonymous data, including anonymous analytics, anonymous feedback, bug reports, and Viva Box submissions, is not tied to any account and stays in our database. Payment and invoice records are kept for as long as Indian law requires. Backups and logs may retain data for a short additional period.
 
-[materio support]: mailto:materio.operable341@silomails.com
+## 10. Your rights and controls
+
+You can access, correct, export, or delete your data, withdraw consent, revoke your sessions and connected apps, and nominate someone to act for you. Materio ID includes a **data export** option. To delete your account or make any other request, contact support@getmaterio.app. If we don't resolve your concern, you can complain to the Data Protection Board of India.
+
+## 11. Account suspension, termination, and appeals
+
+We may suspend or terminate a Materio ID, and remove its entries from the leaderboard, if we find a violation of our Terms. Examples include:
+
+- Tampering with or manipulating our API or analytics, such as submitting reading time or activity values that are impossible within the timeframe in order to gain leaderboard rank
+- Abusing, scraping, or overloading our services
+- Other activity that threatens the security of Materio or the safety of other users
+
+To detect violations, we may review analytics, activity, and session data linked to your Materio ID. If we take action, you will lose access to your account and its leaderboard entries. We may keep the minimum record needed (such as your email address and the reason for the action) to enforce the decision and prevent repeat abuse.
+
+If you believe action was taken by mistake, you can file an appeal by emailing support@getmaterio.app with your username and an explanation. We will review it and reply. If the appeal is successful, we will restore your account.
+
+## 12. Security
+
+We use hashed passwords, encrypted connections, encryption at rest for API keys, access controls, revocable sessions, scoped OAuth tokens, and abuse monitoring. No system is perfectly secure. If a breach affects your personal data, we will notify affected users and authorities as required by law. Keep your developer client secrets private.
+
+## 13. Children
+
+Materio is for university students aged 18 or older. We do not knowingly collect data from anyone under 18. If you believe we have, contact us and we will delete it.
+
+## 14. Changes
+
+If we make material changes, we will update the date above and notify users on the site or by email.
+
+## 15. Contact
+
+support@getmaterio.app

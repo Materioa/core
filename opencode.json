@@ -1,0 +1,10 @@
+{
+  "mcp": {
+    "servers": {
+      "materio": {
+        "type": "remote",
+        "url": "https://mcp.getmaterio.app/mcp"
+      }
+    }
+  }
+}

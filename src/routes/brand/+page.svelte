@@ -1,8 +1,5 @@
 <svelte:head>
   <title>Brand Guidelines</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://site-assets.fontawesome.com/releases/v6.4.0/css/all.css" />
 </svelte:head>
 
@@ -61,15 +58,15 @@
         </div>
       </div>
       <div class="font-specimen">
-        <div class="font-name">Secondary / Editorial</div>
-        <h2 class="editorial-demo" style="font-size: 28px; font-weight: 700; margin-bottom: 5px;">Libre Baskerville</h2>
-        <p style="font-size: 13px; color: #ff8400; margin-bottom: 15px; font-weight: 600;">By Impallari Type</p>
-        <p class="editorial-demo" style="font-size: 16px; margin-bottom: 25px; color: #666;">Used for long-form reading, insights, and editorial sections to provide a classic, trustworthy feel.</p>
+        <div class="font-name">Display / Editorial</div>
+        <h2 class="editorial-demo" style="font-size: 28px; font-weight: 700; margin-bottom: 5px;">Quadrant</h2>
+        <p style="font-size: 13px; color: #ff8400; margin-bottom: 15px; font-weight: 600;">Display typeface</p>
+        <p class="editorial-demo" style="font-size: 16px; margin-bottom: 25px; color: #666;">Used for headings, titles, and editorial moments to give pages a classic, trustworthy feel.</p>
 
         <div class="font-name">Monospace / Tertiary</div>
-        <h2 class="code-demo" style="font-size: 24px; font-weight: 500; margin-bottom: 5px;">JetBrains Mono</h2>
-        <p style="font-size: 13px; color: #ff8400; margin-bottom: 15px; font-weight: 600;">By JetBrains</p>
-        <p class="code-demo" style="font-size: 14px; color: #666;">Selected for technical data, code blocks, and system outputs. Optimized for developer-centric information.</p>
+        <h2 class="code-demo" style="font-size: 24px; font-weight: 500; margin-bottom: 5px;">Consolas · Monaco · Berkeley Mono</h2>
+        <p style="font-size: 13px; color: #ff8400; margin-bottom: 15px; font-weight: 600;">System mono stack</p>
+        <p class="code-demo" style="font-size: 14px; color: #666;">Used for technical data, code blocks, and system outputs — the platform's own mono fonts, no downloads required.</p>
       </div>
     </div>
   </section>
@@ -373,8 +370,8 @@
   }
 
   .openrunde-demo { font-family: 'OpenRunde', 'Open Runde', sans-serif; }
-  .editorial-demo { font-family: 'Libre Baskerville', serif; }
-  .code-demo { font-family: 'Berkeley Mono', 'Cascadia Mono', 'JetBrains Mono', monospace; }
+  .editorial-demo { font-family: var(--font-heading, 'Quadrant', 'Quadrant Notepad', serif); }
+  .code-demo { font-family: Consolas, Monaco, 'Berkeley Mono', 'Cascadia Mono', monospace; }
 
   .size-demo { margin-top: 20px; }
 
@@ -421,7 +418,7 @@
   }
 
   .color-info code {
-    font-family: 'Berkeley Mono', 'Cascadia Mono', 'JetBrains Mono', monospace;
+    font-family: Consolas, Monaco, 'Berkeley Mono', 'Cascadia Mono', monospace;
     font-size: 13px;
     color: #666;
   }

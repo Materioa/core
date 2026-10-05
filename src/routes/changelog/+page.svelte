@@ -19,9 +19,15 @@
 </svelte:head>
 
 <main class="changelogs-page" style="font-family: 'OpenRunde', sans-serif; padding: 3rem 1rem;">
-    <header class="changelogs-header" style="text-align:center; margin-bottom:2rem;">
+    <a href="/" class="back-link" aria-label="Go back to home" style="display: inline-flex; align-items: center; gap: 6px; text-decoration: none; opacity: 0.7; margin-bottom: 1.5rem;">
+        <span>Back</span>
+    </a>
+
+    <!-- <div>, not <header>: main.css styles bare `header` elements as the fixed
+         app bar, which pinned this title block over the list. -->
+    <div class="changelogs-header" style="text-align:center; margin-bottom:2rem;">
         <h1 style="font-size:2.25rem; font-weight:400; font-family: 'QuadrantNotepad', 'OpenRunde', sans-serif;">What's New?</h1>
-    </header>
+    </div>
 
     <section class="changelogs-list" style="display:flex; justify-content:center;">
         <div class="changelogs-container" style="width:100%; max-width:600px; display:flex; flex-direction:column; gap:2rem;">

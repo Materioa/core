@@ -1,5 +1,5 @@
 /* ==================================================================
-   FONTS: Quadrant (Headings), OpenRunde (Body), Melange (Secondary)
+   FONTS: Quadrant (Headings), OpenRunde (Body), system mono (Code)
    ================================================================== */
 @font-face {
   font-family: 'Quadrant';
@@ -109,83 +109,19 @@
   font-display: swap;
 }
 
-@font-face {
-  font-family: 'Melange';
-  src: local('Melange'), local('Melange-Regular'), local('KMR Melange Grotesk'), local('KMRMelangeGrotesk-Regular'),
-       url('/fonts/kmrmelangegrotesk-regular-BQ0DoJin.woff2') format('woff2'),
-       url('/assets/fonts/kmrmelangegrotesk-regular-BQ0DoJin.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
 
-@font-face {
-  font-family: 'KMR Melange Grotesk';
-  src: local('Melange'), local('Melange-Regular'), local('KMR Melange Grotesk'), local('KMRMelangeGrotesk-Regular'),
-       url('/fonts/kmrmelangegrotesk-regular-BQ0DoJin.woff2') format('woff2'),
-       url('/assets/fonts/kmrmelangegrotesk-regular-BQ0DoJin.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
 
-@font-face {
-  font-family: 'Melange';
-  src: local('Melange Book'), local('KMR Melange Grotesk Book'), local('KMRMelangeGrotesk-Book'),
-       url('/fonts/kmrmelangegrotesk-book-BWM7GPGX.woff2') format('woff2'),
-       url('/assets/fonts/kmrmelangegrotesk-book-BWM7GPGX.woff2') format('woff2');
-  font-weight: 450;
-  font-style: normal;
-  font-display: swap;
-}
 
-@font-face {
-  font-family: 'Melange';
-  src: local('Melange Light'), local('KMR Melange Grotesk Light'), local('KMRMelangeGrotesk-Light'),
-       url('/fonts/kmrmelangegrotesk-light-CYToDGwI.woff2') format('woff2'),
-       url('/assets/fonts/kmrmelangegrotesk-light-CYToDGwI.woff2') format('woff2');
-  font-weight: 300;
-  font-style: normal;
-  font-display: swap;
-}
 
-@font-face {
-  font-family: 'Melange';
-  src: local('Melange Medium'), local('KMR Melange Grotesk Medium'), local('KMRMelangeGrotesk-Medium'),
-       url('/fonts/kmrmelangegrotesk-medium-C1-hbCBJ.woff2') format('woff2'),
-       url('/assets/fonts/kmrmelangegrotesk-medium-C1-hbCBJ.woff2') format('woff2');
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
 
-@font-face {
-  font-family: 'Melange';
-  src: local('Melange Semibold'), local('KMR Melange Grotesk Semibold'), local('KMRMelangeGrotesk-Semibold'),
-       url('/fonts/kmrmelangegrotesk-semibold-BLXxgi3V.woff2') format('woff2'),
-       url('/assets/fonts/kmrmelangegrotesk-semibold-BLXxgi3V.woff2') format('woff2');
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
 
-@font-face {
-  font-family: 'Melange';
-  src: local('Melange Italic'), local('KMR Melange Grotesk Italic'), local('KMRMelangeGrotesk-Italic'),
-       url('/fonts/kmrmelangegrotesk-italic-BF6bTSX5.woff2') format('woff2'),
-       url('/assets/fonts/kmrmelangegrotesk-italic-BF6bTSX5.woff2') format('woff2');
-  font-weight: 400;
-  font-style: italic;
-  font-display: swap;
-}
 
 h1, h2, h3, h4, h5, h6,
 .font-heading,
 .font-quadrant {
-  font-family: var(--font-heading, 'Quadrant', 'Quadrant Notepad', Georgia, serif);
+  font-family: var(--font-heading, 'Quadrant', 'Quadrant Notepad', serif);
 }
 
-@import url("https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap");
 
 /* ================================================
    DESIGN SYSTEM - CSS Custom Properties (Variables)
@@ -271,15 +207,15 @@ h1, h2, h3, h4, h5, h6,
     --color-tooltip-bg: #444444;
 
     /* Font Families */
-    --font-heading: 'Quadrant', 'Quadrant Notepad', 'Playfair Display', Georgia, serif;
-    --font-quadrant: 'Quadrant', 'Quadrant Notepad', 'Playfair Display', Georgia, serif;
-    --font-primary: 'OpenRunde', 'Open Runde', 'Melange', 'KMR Melange Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    --font-sans: 'OpenRunde', 'Open Runde', 'Melange', 'KMR Melange Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    --font-body: 'OpenRunde', 'Open Runde', 'Melange', 'KMR Melange Grotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    --font-melange: 'Melange', 'KMR Melange Grotesk', 'OpenRunde', 'Open Runde', sans-serif;
-    --font-openrunde: 'OpenRunde', 'Open Runde', 'Melange', 'KMR Melange Grotesk', sans-serif;
+    --font-heading: 'Quadrant', 'Quadrant Notepad', serif;
+    --font-quadrant: 'Quadrant', 'Quadrant Notepad', serif;
+    --font-primary: 'OpenRunde', 'Open Runde', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-sans: 'OpenRunde', 'Open Runde', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-body: 'OpenRunde', 'Open Runde', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-secondary: 'OpenRunde', 'Open Runde', sans-serif;
+    --font-openrunde: 'OpenRunde', 'Open Runde', sans-serif;
     --font-mono: "Berkeley Mono", "Cascadia Mono", "Consolas", "Monaco", "Courier New", monospace;
-    --font-code: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+    --font-code: Consolas, Monaco, "Berkeley Mono", "Cascadia Mono", monospace;
 
     /* Font Sizes */
     --font-size-xs: 10px;
@@ -2069,7 +2005,7 @@ body.dark-mode #gh .contribute-button span {
 
 .pdf-insight-info-row {
     margin: 0;
-    font-family: 'Libre Baskerville', Georgia, serif;
+    font-family: 'OpenRunde', sans-serif;
     font-size: 10px;
     line-height: 1.4;
     color: #232323;
@@ -8247,6 +8183,24 @@ body.dark-mode .seating-clear-btn {
     margin-bottom: 6px;
 }
 
+/* The room sits directly under the date, so don't double the gap. */
+.exam-timeline-date + .exam-timeline-room {
+    margin-top: -3px;
+}
+
+/* Room the class-wise viva is held in — takes the place the syllabus block
+   would occupy, so a viva entry says where instead of showing no syllabus. */
+.exam-timeline-room {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-primary-alt);
+    background: rgba(0, 0, 0, 0.04);
+    padding: 3px 9px;
+    border-radius: 999px;
+    margin-bottom: 6px;
+}
+
 .exam-timeline-empty {
     text-align: center;
     padding: 30px 20px;
@@ -8561,6 +8515,10 @@ body.dark-mode .clear-division-btn:hover {
 
 body.dark-mode .exam-timeline-date {
     color: #888;
+}
+
+body.dark-mode .exam-timeline-room {
+    background: rgba(255, 255, 255, 0.07);
 }
 
 body.dark-mode .exam-timeline-syllabus {
@@ -9262,7 +9220,7 @@ body.dark-mode .notifications-data-tab {
 }
 
 .shortcuts-header h2 {
-    font-family: 'Quadrant', 'Quadrant Notepad', Georgia, serif;
+    font-family: 'Quadrant', 'Quadrant Notepad', serif;
     font-size: 22px;
     font-weight: 700;
     color: #1a1a1a;
@@ -9342,7 +9300,7 @@ body.dark-mode .notifications-data-tab {
 }
 
 .shortcut-keys {
-    font-family: "Berkeley Mono", "Cascadia Mono", "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+    font-family: Consolas, Monaco, "Berkeley Mono", "Cascadia Mono", monospace;
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-medium);
     color: var(--color-text-secondary);
@@ -9547,7 +9505,7 @@ body.dark-mode .shortcuts-note kbd {
 
 .shortcut-edit-dialog h3 {
     margin: 0 0 8px;
-    font-family: 'Quadrant', 'Quadrant Notepad', Georgia, serif;
+    font-family: 'Quadrant', 'Quadrant Notepad', serif;
     font-size: 18px;
     font-weight: 700;
     color: #1a1a1a;
@@ -10519,7 +10477,7 @@ body.dark-mode .dynamic-form-result p {
 }
 
 .wizard-info-title {
-    font-family: 'Quadrant', 'Quadrant Notepad', Georgia, serif;
+    font-family: 'Quadrant', 'Quadrant Notepad', serif;
     font-size: 20px;
     font-weight: 700;
     color: var(--text-primary, #1a1a1a);

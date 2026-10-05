@@ -15,6 +15,13 @@
 
 import { pdfModalStore, activeTab } from '$lib/stores.js';
 import { toApiUrl } from '$lib/config/api.js';
+import {
+  todayLocalISO,
+  chooseDate,
+  mergeAnalyticsPayload,
+  hasSendableData,
+  attachDeviceState
+} from '$lib/utils/analytics-payload.js';
 
 const ANALYTICS_URL = '/api/v2/features?action=analytics';
 const STORAGE_ANON_ID = 'materio_anon_id';
@@ -33,10 +40,8 @@ const HEARTBEAT_FLUSH_MS = 10 * 60 * 1000;
 const HEARTBEAT_MIN_ENGAGEMENT_SEC = 15;
 const MAX_PDF_ENTRIES = 30; // mirrors the server cap
 
-function todayLocalISO() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
+// Server contract for p_date/device/pending-merge lives in
+// analytics-payload.js (shared with the retry path, unit-testable in Node).
 
 function generateFingerprint() {
   try {
@@ -545,42 +550,59 @@ class ExodusAnalytics {
       try {
         device = await getDeviceContext();
       } catch {}
+      let usermeta = { ...this.usermetaDiff, device };
+      // The RPC drops a top-level `device`, so also mirror it into `state`
+      // (which persists) — see attachDeviceState().
+      if (device) {
+        usermeta = attachDeviceState(usermeta, device, {
+          updated: new Date().toISOString(),
+          settings: readSettings()
+        });
+      }
       const payload = {
         metrics: { ...this.metricsDiff },
-        usermeta: { ...this.usermetaDiff, device }
+        usermeta
       };
-      const hasMetrics =
-        payload.metrics.total_reading_sec > 0 || Object.keys(payload.metrics.pdf_counts).length > 0;
-      const hasEngagement =
-        payload.usermeta.total_engagement_sec > 0 ||
-        Object.keys(payload.usermeta.engagement?.clicks || {}).length > 0;
-      if (!hasMetrics && !hasEngagement && !payload.usermeta.session) return;
-
-      this._lastFlushAt = Date.now();
-      this.userId = readUserId();
-      this.metricsDiff = { total_reading_sec: 0, pdf_counts: {} };
-      this.usermetaDiff.total_engagement_sec = 0;
-      this.usermetaDiff.session = null;
-      this.usermetaDiff.engagement = { clicks: {}, scroll: 0, zoom: 0, shortcuts: {} };
-      this.usermetaDiff.state = null;
 
       const url = toApiUrl(ANALYTICS_URL);
-      const data = {
+      // sendBeacon cannot carry custom headers, and a Blob typed
+      // application/json forces a CORS preflight that a beacon can never
+      // finish — so from a native shell it was a guaranteed silent drop on
+      // every exit. Only use it same-origin, where no preflight is needed.
+      // A beacon also gives no delivery confirmation, so it sends ONLY the
+      // live diff: folding the parked slot in with no way to clear it would
+      // double-count the next time a real flush succeeded.
+      const useBeacon =
+        isBeacon &&
+        typeof navigator.sendBeacon === 'function' &&
+        typeof window !== 'undefined' &&
+        window.location?.origin === new URL(url, 'https://getmaterio.app').origin;
+
+      this.userId = readUserId();
+      const current = {
         p_anon_id: this.anonId,
         p_date: todayLocalISO(),
         p_metrics_diff: payload.metrics,
         p_usermeta_diff: payload.usermeta,
         p_user_id: this.userId
       };
-      // sendBeacon cannot carry custom headers, and a Blob typed
-      // application/json forces a CORS preflight that a beacon can never
-      // finish — so from a native shell it was a guaranteed silent drop on
-      // every exit. Only use it same-origin, where no preflight is needed.
-      const useBeacon =
-        isBeacon &&
-        typeof navigator.sendBeacon === 'function' &&
-        typeof window !== 'undefined' &&
-        window.location?.origin === new URL(url, 'https://getmaterio.app').origin;
+      // Everything the server previously refused rides along in the SAME
+      // request. The old code overwrote the single slot on every failure, so
+      // each new rejection silently destroyed the last one — which is how a
+      // parked payload (and its reading seconds) went missing.
+      const pending = useBeacon ? null : this._readPending();
+      const data = pending ? mergeAnalyticsPayload(current, pending) : current;
+      // Checked after merging, so it is the parked data that pulls a request
+      // out when this session has nothing of its own to report yet.
+      if (!hasSendableData(data)) return;
+
+      this._lastFlushAt = Date.now();
+      this.metricsDiff = { total_reading_sec: 0, pdf_counts: {} };
+      this.usermetaDiff.total_engagement_sec = 0;
+      this.usermetaDiff.session = null;
+      this.usermetaDiff.engagement = { clicks: {}, scroll: 0, zoom: 0, shortcuts: {} };
+      this.usermetaDiff.state = null;
+
       if (useBeacon) {
         navigator.sendBeacon(url, new Blob([JSON.stringify(data)], { type: 'application/json' }));
       } else {
@@ -596,29 +618,60 @@ class ExodusAnalytics {
           // so those reading seconds and PDF opens were gone for good. Keep the
           // payload for the retry slot whenever the server refused it.
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          this._clearPending();
         } catch {
-          try {
-            localStorage.setItem(STORAGE_PENDING, JSON.stringify(data));
-          } catch {}
+          // `data` already contains anything parked before, so re-parking it
+          // keeps the whole backlog instead of replacing it.
+          this._parkPending(data);
         }
       }
     } catch {}
   }
 
-  async _retryPending() {
+  /** The single stored payload the server refused, or null. */
+  _readPending() {
     try {
       const raw = localStorage.getItem(STORAGE_PENDING);
-      if (!raw) return;
+      if (!raw) return null;
       const data = JSON.parse(raw);
-      if (!data || typeof data !== 'object') return;
+      return data && typeof data === 'object' && !Array.isArray(data) ? data : null;
+    } catch {
+      return null;
+    }
+  }
+
+  _parkPending(data) {
+    try {
+      localStorage.setItem(STORAGE_PENDING, JSON.stringify(data));
+    } catch {}
+  }
+
+  _clearPending() {
+    try {
+      localStorage.removeItem(STORAGE_PENDING);
+    } catch {}
+  }
+
+  async _retryPending() {
+    try {
+      const stored = this._readPending();
+      if (!stored) return;
+      // A slot written more than two days ago falls outside the server's
+      // p_date window and would be rejected with 400 on every attempt, i.e.
+      // unsendable forever. Re-date it to a day the server accepts, keeping
+      // the original date whenever it is still inside the window.
+      const data = { ...stored, p_date: chooseDate(todayLocalISO(), stored.p_date) };
       const res = await fetch(toApiUrl(ANALYTICS_URL), {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify(data),
         keepalive: true
       });
-      if (!res.ok) return;
-      localStorage.removeItem(STORAGE_PENDING);
+      if (!res.ok) {
+        this._parkPending(data);
+        return;
+      }
+      this._clearPending();
     } catch {}
   }
 }

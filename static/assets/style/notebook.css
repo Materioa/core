@@ -423,7 +423,7 @@ body.coffee-dark-mode {
     min-width: 0;
     border: none;
     background: transparent;
-    font-family: 'Quadrant', 'Quadrant Notepad', Georgia, serif;
+    font-family: 'Quadrant', 'Quadrant Notepad', serif;
     font-size: 1.6rem;
     font-weight: 700;
     color: var(--nb-ink);
@@ -858,7 +858,7 @@ body.dark-mode .toolbar-btn:hover {
     padding: 16px;
     border-radius: 8px;
     overflow-x: auto;
-    font-family: 'Berkeley Mono', 'Cascadia Mono', 'JetBrains Mono', 'Fira Code', monospace;
+    font-family: Consolas, Monaco, 'Berkeley Mono', 'Cascadia Mono', monospace;
     font-size: 13px;
     margin: 1em 0;
 }
@@ -867,7 +867,7 @@ body.dark-mode .toolbar-btn:hover {
     background: rgba(0, 0, 0, 0.06);
     padding: 2px 6px;
     border-radius: 4px;
-    font-family: 'Berkeley Mono', 'Cascadia Mono', 'JetBrains Mono', 'Fira Code', monospace;
+    font-family: Consolas, Monaco, 'Berkeley Mono', 'Cascadia Mono', monospace;
     font-size: 13px;
 }
 
@@ -2298,7 +2298,7 @@ body.dark-mode .notebook-card-action:hover {
 }
 
 .notebook-editor pre code {
-    font-family: 'Berkeley Mono', 'Cascadia Mono', 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    font-family: Consolas, Monaco, 'Berkeley Mono', 'Cascadia Mono', monospace;
     font-size: 13px;
     line-height: 1.5;
     color: #d4d4d4;
