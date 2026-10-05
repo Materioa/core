@@ -366,6 +366,55 @@ function getSelectedDivision() {
     return best;
 }
 
+/**
+ * The viva subjects running on a given date for the selected division.
+ *
+ * This is the authoritative answer to "which subject is this student sitting
+ * for?", and it cannot come from examdata. findVivaOrPracticalExam() returns
+ * the FIRST viva in the array, which is array order rather than the student's:
+ * on 2026-10-05 that made 7A10's BDA the badge shown to all 16 divisions, each
+ * of which has a different viva that day. The seating CSV is division-keyed and
+ * is the same data the classroom selector above already loads.
+ *
+ * Returns [] when no division is chosen or the CSV has no row for that date,
+ * so callers simply fall back to asking without offering options.
+ */
+export function getVivaSubjectsForDate(dateStr) {
+    if (!Array.isArray(vivaData) || vivaData.length === 0) return [];
+    const division = getSelectedDivision();
+    if (!division) return [];
+
+    const date = String(dateStr || '').trim() || todayISODate();
+    const wanted = String(division).trim().toLowerCase();
+
+    const subjects = [];
+    const seen = new Set();
+    for (const row of vivaData) {
+        if (String(row.Date || '').trim() !== date) continue;
+        if (String(row.Division || '').trim().toLowerCase() !== wanted) continue;
+        const subject = String(row['Subject Name'] || '').trim();
+        if (!subject) continue;
+        const key = subject.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        subjects.push({
+            subject,
+            code: String(row['Subject Code'] || '').trim(),
+            classroom: String(row.Classroom || '').trim(),
+            division: String(row.Division || '').trim()
+        });
+    }
+    return subjects;
+}
+
+/** Local calendar date as YYYY-MM-DD, matching the CSV's Date column. */
+function todayISODate(now = new Date()) {
+    const d = new Date(now);
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${m}-${day}`;
+}
+
 function updateDivisionClearButtonVisibility() {
     if (typeof document === 'undefined') return;
     const clearBtn = document.getElementById('clearDivisionBtn');

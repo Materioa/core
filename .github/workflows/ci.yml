@@ -48,6 +48,14 @@ jobs:
       - name: Mongo timeout guard
         run: node scripts/test-mongo-guard.mjs
 
+      # The viva box replied with one fixed sentence, so "hi" and then
+      # "i am ready" produced the identical line twice and it read as though the
+      # bot was ignoring the visitor. Also pins that the subject prompt names
+      # the subjects actually running today for the student's division.
+      # Dependency-free, so it runs here pre-install.
+      - name: Viva conversation tests
+        run: node scripts/test-viva-conversation.mjs
+
       # NOTE: test-exam-modal-close.mjs imports svelte/store, so it has to run
       # in the build job below — this job has no install step by design.
 

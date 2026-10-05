@@ -59,6 +59,11 @@
 		formId = 'viva-question-bank',
 		examCode = '',
 		examSubject = '',
+		// Today's viva subjects for this student's division, resolved from the
+		// seating CSV. Sent on every submit so the model and the fallback can
+		// name the real options instead of asking the visitor to recall a
+		// subject code they were never shown.
+		subjects = [],
 		onClose = null
 	} = $props();
 
@@ -120,7 +125,7 @@
 					sessionId,
 					action: 'complete',
 					values: cleaned,
-					examContext: { code: examCode, subject: examSubject }
+					examContext: examContextPayload()
 				})
 			});
 			if (res.ok) {
@@ -281,7 +286,13 @@
 
 	// Context-aware, appropriate placeholder derived dynamically from form and active field
 	let appropriatePlaceholder = $derived.by(() => {
-		if (nextField?.placeholder) return nextField.placeholder;
+		// Guard against a stale placeholder that no longer matches this field.
+		// The viva form asks question/subject/difficulty/notes, but its config
+		// carried a "What semester is it?" placeholder from when this was a
+		// semester form, so the input asked for a field the form does not have.
+		const rawPlaceholder = String(nextField?.placeholder || '');
+		const placeholderStale = /semester/i.test(rawPlaceholder);
+		if (rawPlaceholder && !placeholderStale) return rawPlaceholder;
 		if (nextField?.label) {
 			const raw = nextField.label.trim();
 			if (/^(what|which|where|when|who|how|why)\b/i.test(raw) || raw.endsWith('?')) {
@@ -293,7 +304,9 @@
 		if (fId.includes('viva')) return 'Share a viva question, topic, or concept...';
 		if (fId.includes('bug')) return 'Describe what happened or steps to reproduce...';
 		if (fId.includes('feedback') || fId.includes('review')) return 'Write your thoughts or feedback...';
-		if (form?.fields?.[0]?.placeholder) return form.fields[0].placeholder;
+		// A stale placeholder on fields[0] is no better than one on nextField.
+		const firstPlaceholder = String(form?.fields?.[0]?.placeholder || '');
+		if (firstPlaceholder && !/semester/i.test(firstPlaceholder)) return firstPlaceholder;
 		return 'Type your response here...';
 	});
 
@@ -337,6 +350,22 @@
 		}
 	});
 
+	/**
+	 * The subject list to send: the resolved division rows when we have them,
+	 * else whatever single subject the header is showing. The server flattens
+	 * the shapes, so plain strings would work too.
+	 */
+	function examContextPayload() {
+		const list = (Array.isArray(subjects) ? subjects : [])
+			.map((s) => (typeof s === 'string' ? s.trim() : String(s?.subject || '').trim()))
+			.filter(Boolean);
+		return {
+			code: examCode,
+			subject: examSubject,
+			subjects: list
+		};
+	}
+
 	async function submitAnswer() {
 		const text = answer.trim();
 		if (!text || isSending || isComplete) return;
@@ -377,7 +406,7 @@
 					sessionId,
 					form: { id: form.id },
 					text,
-					examContext: { code: examCode, subject: examSubject }
+					examContext: examContextPayload()
 				})
 			});
 			// A Cloudflare error page (HTML) reaches this path whenever the worker
@@ -410,7 +439,7 @@
 					body: JSON.stringify({
 						sessionId,
 						action: 'complete',
-						examContext: { code: examCode, subject: examSubject }
+						examContext: examContextPayload()
 					})
 				}).catch(() => {});
 			}

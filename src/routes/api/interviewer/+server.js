@@ -83,19 +83,67 @@ const defaultForm = {
  * only said "oh hi" it replied as though they had already answered something.
  * So: greet them properly when nothing has been captured, and otherwise fold
  * the label into a sentence rather than quoting it.
+ *
+ * NEVER REPEAT. This is the fallback path, so it runs whenever the model is
+ * down or slow — and it used to emit one fixed sentence, so "hi" and then
+ * "i am ready" both produced the identical "No rush — whenever you're ready…"
+ * line. It read as though the bot had not heard either message. `askedLog`
+ * counts how many times each field has been requested, which both varies the
+ * wording and escalates from "are you ready" to actually naming what we need.
+ *
+ * `subjectOptions` are the viva subjects running today for this student's
+ * division. Naming them is what makes the fallback useful: without it the
+ * model has no idea what is even being asked for, because the form's `subject`
+ * field is a free-text box with no options.
  */
-function questionFor(form, extracted, skipped, llmReply) {
+const READY_NUDGES = [
+	"No rush — whenever you're ready, what would you like to tell me about?",
+	"Still here whenever you are. What question are you thinking of?",
+	"Let's start anywhere — what's on your mind?"
+];
+
+function questionFor(form, extracted, skipped, llmReply, conversationOpts = {}) {
+	// Defensive normalisation of the options bag. These values come straight off
+	// `await request.json()` on a public endpoint, so an explicit null (or a
+	// missing 5th argument) must not throw — the fallback throwing here turns a
+	// merely degraded conversation into a 500.
+	const { askedLog = [], subjectOptions = [] } = conversationOpts || {};
+	const asked = Array.isArray(askedLog) ? askedLog : [];
+	const options = Array.isArray(subjectOptions) ? subjectOptions : [];
+
 	if (llmReply && llmReply.trim()) return llmReply.trim();
 	const next = nextOpenField(form, extracted, skipped);
 	if (!next) return form?.interview?.completeMessage || 'Thanks — your response has been recorded.';
 
 	const answered = Object.keys(extracted || {}).length > 0;
+	const timesAsked = (name) => asked.filter((n) => n === name).length;
+
 	if (!answered) {
-		return "No rush — whenever you're ready, what would you like to tell me about?";
+		// Greeting/filler that captured nothing. Rotate rather than repeat, and
+		// name the live subjects straight away: on a bare greeting this is the
+		// one turn with nothing to anchor on, so it is the moment a name helps
+		// most. Not gated on the field being the subject one — on the viva form
+		// the first required field IS the question, and offering subjects there
+		// is exactly the context the visitor needs to answer it.
+		const n = READY_NUDGES[Math.min(timesAsked(next.name), READY_NUDGES.length - 1)];
+		if (options.length) {
+			return `${n} Today that covers ${listPhrase(options)} — pick one, or name your own.`;
+		}
+		return n;
 	}
 
 	let ask = String(next.label || '').trim().replace(/[?.!]+$/, '');
 	if (!ask) ask = 'anything else';
+
+	// A select with real options is far easier to answer as a choice, and a
+	// viva subject is exactly that. Name the live list rather than asking the
+	// visitor to recall a subject code they were never shown.
+	const opts = subjectOptionsFor(next.name, options);
+	if (opts.length) {
+		const opener = timesAsked(next.name) >= 1 ? 'Still need this one —' : 'Thanks, got it.';
+		return `${opener} which subject is it for? ${listPhrase(opts)}.`;
+	}
+
 	if (/^(what|which)\b/i.test(ask)) {
 		ask = ask.replace(/^(what|which)\b/i, (m) => m.toLowerCase());
 	} else {
@@ -111,6 +159,60 @@ function questionFor(form, extracted, skipped, llmReply) {
 }
 
 /**
+ * Today's viva subjects for this student, as a plain list of names.
+ *
+ * Deliberately tolerant about shape. The client may send an array of strings,
+ * an array of {subject} objects, or the examContext may only carry the single
+ * subject it guessed. Anything unrecognised yields [] and the caller simply
+ * falls back to asking without options — never a crash, never a wrong list.
+ *
+ * A subject the visitor has ALREADY answered is dropped, so a three-option
+ * nudge does not keep offering the one they picked.
+ */
+function normaliseSubjectOptions(examContext, extracted) {
+	const raw =
+		examContext?.subjects ??
+		examContext?.subjectOptions ??
+		(examContext?.subject ? [examContext.subject] : []);
+	if (!Array.isArray(raw)) return [];
+
+	const already = String(extracted?.subject ?? '').trim().toLowerCase();
+	const seen = new Set();
+	const out = [];
+	for (const item of raw) {
+		const name =
+			typeof item === 'string'
+				? item.trim()
+				: String(item?.subject ?? item?.name ?? item?.subjectName ?? '').trim();
+		if (!name || name.length > 80) continue;
+		const key = name.toLowerCase();
+		if (seen.has(key)) continue;
+		if (already && key === already) continue;
+		seen.add(key);
+		out.push(name);
+	}
+	return out;
+}
+
+/** Subjects only make sense as options for the subject-ish fields. */
+function subjectOptionsFor(fieldName, subjectOptions) {
+	if (!Array.isArray(subjectOptions) || !subjectOptions.length) return [];
+	if (!/subject|topic|course|paper/i.test(String(fieldName || ''))) return [];
+	return subjectOptions;
+}
+
+/** "A, B or C" — never a wall of text. */
+function listPhrase(items, max = 6) {
+	const shown = items.slice(0, max);
+	const rest = items.length - shown.length;
+	if (shown.length === 1) return rest > 0 ? `${shown[0]} and a few others` : shown[0];
+	const head = shown.slice(0, -1).join(', ');
+	const tail = shown[shown.length - 1];
+	const list = `${head} or ${tail}`;
+	return rest > 0 ? `${list}, plus ${rest} more` : list;
+}
+
+/**
  * Runs the turn through the provider chain in interviewer-llm.js.
  *
  * Returns null when no provider could answer — the ONLY case where the regex
@@ -119,7 +221,10 @@ function questionFor(form, extracted, skipped, llmReply) {
  * blunt and templated.
  */
 async function extractWithLlm({ form, history, latestText, priorExtracted = {}, skipped = [] }) {
-	const system = buildSystemPrompt({ form, priorExtracted, skipped });
+	// latestText goes into the prompt so the model can be told what THIS turn
+	// actually said. Without it the prompt had no idea which message it was
+	// replying to, which is how a reply from two turns earlier got echoed back.
+	const system = buildSystemPrompt({ form, priorExtracted, skipped, latestText });
 	const messages = [
 		...(history || []).slice(-12).map((m) => ({
 			role: m.role === 'user' ? 'user' : 'assistant',
@@ -437,7 +542,23 @@ export async function POST({ request }) {
 
 		try {
 			const out = await extractWithLlm({
-				form: { ...form, fields },
+				form: {
+					...form,
+					fields,
+					// The prompt and the fallback both need the live subject list;
+					// it lives on examContext, not on the stored form config.
+					interview: {
+						...(form.interview || {}),
+						...(normaliseSubjectOptions(examContext, priorExtracted).length
+							? {
+									subjectOptions: normaliseSubjectOptions(
+										examContext,
+										priorExtracted
+									)
+								}
+							: {})
+					}
+				},
 				history: existing?.messages || [],
 				latestText: text,
 				priorExtracted,
@@ -494,9 +615,17 @@ export async function POST({ request }) {
 			}
 		}
 		const isFinished = !nextField || llmComplete;
+		// Subjects running today for THIS student's division. The client sends
+		// the list it resolved from the same seating CSV the exam card uses, so
+		// the fallback can name the real options instead of asking an open
+		// question the visitor has no way to answer well.
+		const subjectOptions = normaliseSubjectOptions(examContext, extracted);
 		const reply = isFinished
 			? (form?.interview?.completeMessage || llmReply || 'Thanks — your response has been recorded.')
-			: questionFor({ ...form, fields }, extracted, activeSkipped, llmReply);
+			: questionFor({ ...form, fields }, extracted, activeSkipped, llmReply, {
+				askedLog,
+				subjectOptions
+			});
 
 		if (sessions) {
 			try {

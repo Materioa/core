@@ -383,7 +383,7 @@ export const TONES = {
 };
 
 /** Builds the shared system prompt for every provider. */
-export function buildSystemPrompt({ form, priorExtracted = {}, skipped = [], requiredOnly = false }) {
+export function buildSystemPrompt({ form, priorExtracted = {}, skipped = [], requiredOnly = false, latestText = '' }) {
 	const fields = form?.fields || [];
 	const outstanding = requiredOnly
 		? remainingRequired(form, priorExtracted, skipped)
@@ -398,6 +398,15 @@ export function buildSystemPrompt({ form, priorExtracted = {}, skipped = [], req
 	}));
 
 	const nextField = nextOpenField(form, priorExtracted, skipped);
+
+	// Subjects running today for this student's division, when the client could
+	// resolve them. Naming these is the single biggest quality win: the form's
+	// "subject" field is a free-text box, so without them the model cannot
+	// suggest anything, and the visitor is asked to recall a subject code they
+	// were never shown.
+	const subjects = Array.isArray(form?.interview?.subjectOptions)
+		? form.interview.subjectOptions.map((s) => String(s || '').trim()).filter(Boolean)
+		: [];
 
 	return [
 		form?.interview?.systemPrompt?.trim() ||
@@ -420,9 +429,22 @@ export function buildSystemPrompt({ form, priorExtracted = {}, skipped = [], req
 		outstanding.length
 			? `Still needed, in this order: ${outstanding.map((f) => `"${f.name}" (${f.label})`).join(', ')}`
 			: 'Everything is captured. Wrap up warmly.',
+		subjects.length
+			? `Subjects running today for this student: ${subjects.join(', ')}. When you need the subject, name these — they are the real options, not examples. If they say one that is not listed, still accept it.`
+			: '',
 		nextField
 			? `Ask for "${nextField.label}" next — in your own words, not by reading the label out.`
 			: '',
+		'',
+		// The most visible failure in production: the model reused a previous
+		// turn's reply verbatim, so the visitor watched their own message get
+		// echoed back and concluded the bot was not listening. Spelled out
+		// because "be original" is not an instruction a small model follows.
+		'THIS TURN',
+		`The visitor just said: "${normalise(latestText).slice(0, 300)}"`,
+		'Read that message before you write anything. Reply to THIS message specifically.',
+		'NEVER reuse a reply you have already given. If your previous reply ended in a question, do not ask that question again — respond to what they just said and move to the next field.',
+		'A greeting ("hi", "hello", "hey") is not an answer. Reply in one short friendly line, then immediately ask for the first missing field. Never ask "are you ready?" twice.',
 		'',
 		'OUTPUT FORMAT',
 		'Reply with JSON only — no prose, no code fence, no explanation.',

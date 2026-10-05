@@ -137,12 +137,35 @@ import { isUsableExamConfig, findRunningVivaExam, readSavedSemester } from '$lib
 		($activeModalStore && !INTERVIEW_MODAL_KEYS.includes($activeModalStore) ? $activeModalStore : 'viva-question-bank')
 	);
 
+	// Today's viva subjects for THIS student's division, read from the seating CSV
+	// (which is division-keyed). An explicit ?exam=/?subject= still wins for deep
+	// links, but the fallback is no longer activeVivaExam's arbitrary first array
+	// entry — on 2026-10-05 that showed 7A10's BDA to all 16 divisions, each of
+	// which had a different viva that day.
+	let divisionSubjects = $state([]);
 	let examCode = $derived(
-		$page.url.searchParams.get('exam') || activeVivaExam?.code || ''
+		$page.url.searchParams.get('exam') || divisionSubjects[0]?.code || ''
 	);
 	let examSubject = $derived(
-		$page.url.searchParams.get('subject') || activeVivaExam?.subject || ''
+		$page.url.searchParams.get('subject') || divisionSubjects[0]?.subject || ''
 	);
+
+	/**
+	 * Best-effort: needs the CSV the exam card already loads, so it is a dynamic
+	 * import rather than a static one (that module touches the DOM at import
+	 * scope). Any failure leaves the list empty and the interviewer simply asks
+	 * without offering options — never a crash, never a wrong subject.
+	 */
+	async function refreshDivisionSubjects() {
+		try {
+			const mod = await import('$lib/utils/exam-card.js');
+			if (typeof mod.getVivaSubjectsForDate !== 'function') return;
+			const rows = mod.getVivaSubjectsForDate(new Date().toISOString().slice(0, 10));
+			if (Array.isArray(rows)) divisionSubjects = rows;
+		} catch (e) {
+			console.warn('[InterviewerModal] could not resolve division subjects:', e);
+		}
+	}
 
 	function handleClose() {
 		isDismissed = true;
@@ -265,6 +288,11 @@ import { isUsableExamConfig, findRunningVivaExam, readSavedSemester } from '$lib
 			}
 		} catch {}
 
+		// Fire-and-forget: resolves which subjects this division actually sits
+		// today. Not awaited so a slow or failed CSV read can never delay the
+		// box opening — the list simply arrives a moment later, or not at all.
+		refreshDivisionSubjects();
+
 		checkExamForVivaOrPractical();
 
 		const onPrefChange = () => { prefVersion += 1; };
@@ -304,6 +332,7 @@ import { isUsableExamConfig, findRunningVivaExam, readSavedSemester } from '$lib
 		{formId}
 		{examCode}
 		{examSubject}
+		subjects={divisionSubjects}
 		onClose={handleClose}
 	/>
 {/if}
