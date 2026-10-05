@@ -64,7 +64,22 @@ export async function getMongoDb() {
 				// retry once on a fresh connection (driver default).
 				socketTimeoutMS: 8000,
 				// MUST stay below Cloudflare's 6-connection ceiling.
-				maxPoolSize: 4,
+				//
+				// Raised 4 -> 5 because one page load fans out into ~6
+				// concurrent Mongo reads (releases, notifications, popups,
+				// notebooks, notifications-feed, interviewer responses), so a
+				// 4-socket pool queued two of them every time and the losers
+				// hit waitQueueTimeoutMS -> our 5000ms bound -> a visible 500.
+				// 5 still leaves a slot free for an outbound LLM fetch, which
+				// competes for the same ceiling.
+				//
+				// This was previously too dangerous to raise: an over-subscribed
+				// pool wedged, the wedge latched the whole isolate and killed
+				// every later request on it. Every driver op in the repo is now
+				// raced against withMongoTimeout (see test-mongo-guard.mjs), so
+				// contention surfaces as a caught error and the pool is dropped
+				// and rebuilt instead of hanging forever.
+				maxPoolSize: 5,
 				minPoolSize: 0,
 				// Keep warm sockets ALIVE between requests. A 5s idle reap was
 				// a mistake: with request gaps > 5s it forced a fresh cold
@@ -73,10 +88,12 @@ export async function getMongoDb() {
 				// slots until the isolate could no longer connect at all
 				// (symptom: alternating ~200ms / ~5000ms responses — a healthy
 				// isolate beside a permanently wedged one). Since maxPoolSize
-				// is 4, holding sockets for 30s can never breach the ceiling.
+				// is 5, holding sockets for 30s can never breach the ceiling.
 				maxIdleTimeMS: 30000,
 				// Contention should surface as an error quickly, never as a
-				// 15s stall that outlives the request.
+				// 15s stall that outlives the request. Kept BELOW the 5000ms
+				// withMongoTimeout bound so the driver's own wait-queue error
+				// is what usually surfaces: it carries the real reason.
 				waitQueueTimeoutMS: 4000
 			});
 			await client.connect();
