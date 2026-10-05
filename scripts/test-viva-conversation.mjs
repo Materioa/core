@@ -295,6 +295,21 @@ ok('does not claim nothing was captured once one field is', !p2.includes('Nothin
 ok('marks settled fields as already captured', /Already captured/.test(p2));
 ok('never leaks the whole visitor history', !prompt.includes('explain deadlock'));
 check('an empty form still renders a prompt', typeof buildSystemPrompt({ form: { fields: [] } }), 'string');
+ok('example values are labelled placeholders', /PLACEHOLDER/.test(prompt));
+
+console.log('\ncopied example values never get stored');
+const { isExampleValue } = await import(
+  pathToFileURL(join(root, 'src', 'lib', 'server', 'interviewer-extract.js')).href
+);
+const EXAMPLE_PHRASE = 'the visitor' + String.fromCharCode(39) + 's words';
+check('example extracted value recognised', isExampleValue(EXAMPLE_PHRASE), true);
+check('trailing punctuation tolerated', isExampleValue(EXAMPLE_PHRASE + '.'), true);
+check('reply placeholder recognised', isExampleValue('<<WRITE A REAL REPLY HERE>>'), true);
+check('old copyable reply text recognised', isExampleValue('a short friendly question'), true);
+check('a real answer is NOT rejected', isExampleValue('explain how a deadlock occurs'), false);
+check('empty is not an example', isExampleValue(''), false);
+check('undefined is safe', isExampleValue(undefined), false);
+check('a real viva question survives', isExampleValue('What is a deadlock?'), false);
 
 console.log(`\n${pass + fail} checks, ${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

@@ -16,7 +16,8 @@ import {
 	sanitiseValue,
 	nextOpenField,
 	isSatisfied,
-	buildSystemPrompt
+	buildSystemPrompt,
+	isExampleValue
 } from '$lib/server/interviewer-extract.js';
 import { askInterviewerModel } from '$lib/server/interviewer-llm.js';
 
@@ -565,8 +566,21 @@ export async function POST({ request }) {
 				skipped: priorSkipped
 			});
 			if (out) {
-				extractedNew = out.extracted || {};
+				// Drop example placeholders the model copied. The prompt's example
+				// JSON is unavoidable (without it these models invent field names
+				// that match nothing), so a model that copies a value verbatim must
+				// not have it stored as though the visitor said it.
+				const raw = out.extracted && typeof out.extracted === 'object' ? out.extracted : {};
+				for (const [k, v] of Object.entries(raw)) {
+					if (isExampleValue(v)) {
+						console.warn(`Discarded copied example value for "${k}"`);
+						continue;
+					}
+					extractedNew[k] = v;
+				}
 				llmReply = out.reply || '';
+				// Same for the reply: a placeholder echoed back is not a sentence.
+				if (isExampleValue(llmReply)) llmReply = '';
 				llmComplete = !!out.complete;
 			} else {
 				// Every provider is rate-limited or down. This is now the ONLY

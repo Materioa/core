@@ -88,6 +88,33 @@ function optionValues(field) {
 	return (field?.options || []).map((o) => (typeof o === 'string' ? o : o?.label || o?.value));
 }
 
+/**
+ * Placeholder values that appear in buildSystemPrompt's example JSON, which a
+ * model may copy verbatim.
+ *
+ * These are stripped from any model reply before capture. The example has to
+ * stay in the prompt — without it small models invent field names that match
+ * nothing and every answer is discarded — but a copied value is worse than a
+ * missing one, because it gets stored as though the visitor had said it. A
+ * greeting "hi" really did store "the visitor's words" as their question.
+ */
+export const EXAMPLE_VALUES = [
+	'the visitor\'s words',
+	'the visitor words',
+	'<<WRITE A REAL REPLY HERE>>',
+	'a short friendly question'
+];
+
+/** True when a value is recognisably one of the example's placeholders. */
+export function isExampleValue(value) {
+	const v = normalise(value).toLowerCase().replace(/[.!?,]+$/, '');
+	if (!v) return false;
+	return EXAMPLE_VALUES.some((e) => {
+		const ex = e.toLowerCase();
+		return v === ex || v.replace(/[.!?,]+$/, '') === ex;
+	});
+}
+
 /** Wording variants, resolved against the form's own option list. */
 const SYNONYMS = {
 	tough: ['challenging', 'hard', 'difficult'],
@@ -461,6 +488,10 @@ export function buildSystemPrompt({ form, priorExtracted = {}, skipped = [], req
 			? `{"extracted":{"${schema[0].name}":"the visitor's words"},"reply":"<<WRITE A REAL REPLY HERE>>","complete":false}`
 			: '{"extracted":{},"reply":"<<WRITE A REAL REPLY HERE>>","complete":false}',
 		`Use ONLY these field names in "extracted": ${schema.map((f) => f.name).join(', ')}. Never invent a name.`,
+		// Both example values are placeholders, never answers. Saying so matters:
+		// a bare "hi" made the model return "the visitor's words" VERBATIM, and
+		// that string got stored as the visitor's real question.
+		`Every value in the example above is a PLACEHOLDER. Never copy one into "extracted". Only put in real words the visitor actually typed. If they have not answered anything yet, return an empty "extracted" object.`,
 		'"reply" must be real words addressed to the visitor. Never output the <<>> placeholder from the example, and never reuse a reply from an earlier turn.',
 		'Write "reply" in your own words — never copy these instructions.',
 		'ALWAYS include a non-empty "reply". If the visitor greeted you, said something unusable, or wandered off, reply warmly, acknowledge it in a sentence, and gently steer back to what you still need.',
