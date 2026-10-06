@@ -692,9 +692,9 @@ import HugeIcon from './HugeIcon.svelte';
 
         initMobileSwipe();
         if ('requestIdleCallback' in window) {
-            window.requestIdleCallback(() => { setTimeout(loadAndDisplayPromotion, 2000); }, { timeout: 5000 });
+            window.requestIdleCallback(() => { setTimeout(loadAndDisplayPromotion, 5000); }, { timeout: 10000 });
         } else {
-            setTimeout(loadAndDisplayPromotion, 3000);
+            setTimeout(loadAndDisplayPromotion, 7000);
         }
     });
 
@@ -739,6 +739,9 @@ import HugeIcon from './HugeIcon.svelte';
                     src={currentMediaSrc}
                     class="promo-cover"
                     alt={promoTitle}
+                    loading="lazy"
+                    fetchpriority="low"
+                    decoding="async"
                     style="display: block; object-fit: {mediaFit};"
                 />
             {/if}
