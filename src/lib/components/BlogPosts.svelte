@@ -6,7 +6,7 @@
     import { activeModalStore } from '$lib/stores.js';
 
     const POSTS_API = 'https://room.getmaterio.app/api/posts';
-    const FALLBACK_IMG = '/assets/img/noidea.png';
+    const FALLBACK_IMG = '/assets/img/noidea.webp';
 
     const DEFAULT_POSTS = [
         {

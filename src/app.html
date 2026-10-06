@@ -46,7 +46,7 @@
 		<link rel="preconnect" href="https://cdn.getmaterio.app" crossorigin />
 
 		<!-- Preload fallback LCP card image with high priority -->
-		<link rel="preload" as="image" href="/assets/img/noidea.png" fetchpriority="high" />
+		<link rel="preload" as="image" href="/assets/img/noidea.webp" type="image/webp" fetchpriority="high" />
 
 		<!-- Core app stylesheets in head prevent FOUC and eliminate layout shifts (CLS) on app routes -->
 		<link id="app-icons-css" rel="stylesheet" href="/assets/style/icons.css" />
@@ -126,9 +126,9 @@
 						window.addEventListener(e, onInteraction, { passive: true, once: true });
 					});
 					if ('requestIdleCallback' in window) {
-						window.requestIdleCallback(initTracking, { timeout: 6000 });
+						window.requestIdleCallback(initTracking, { timeout: 12000 });
 					} else {
-						setTimeout(initTracking, 6000);
+						setTimeout(initTracking, 12000);
 					}
 				}
 			})();
