@@ -232,6 +232,14 @@ body:not(.landing-page-active) #home {
     overflow-y: visible !important;
 }
 
+body:not(.landing-page-active) #blogs {
+    min-height: 380px;
+}
+
+body:not(.landing-page-active) .blog-posts-container {
+    min-height: 300px;
+}
+
 .landing-shell {
     width: 100%;
     min-height: 100vh;

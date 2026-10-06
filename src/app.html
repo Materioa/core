@@ -38,6 +38,52 @@
 		<link rel="preload" href="/fonts/QuadrantNotepad-Regular-BZHKwHCP.woff2" as="font" type="font/woff2" crossorigin />
 		<link rel="preload" href="/fonts/OpenRunde-Regular.woff2" as="font" type="font/woff2" crossorigin />
 		<link rel="preload" href="/fonts/OpenRunde-Medium.woff2" as="font" type="font/woff2" crossorigin />
+		<link rel="preload" href="/fonts/OpenRunde-Semibold.woff2" as="font" type="font/woff2" crossorigin />
+		<link rel="preload" href="/fonts/OpenRunde-Bold.woff2" as="font" type="font/woff2" crossorigin />
+
+		<!-- Origins for API & CDN assets -->
+		<link rel="preconnect" href="https://room.getmaterio.app" crossorigin />
+		<link rel="preconnect" href="https://cdn.getmaterio.app" crossorigin />
+
+		<!-- Preload fallback LCP card image with high priority -->
+		<link rel="preload" as="image" href="/assets/img/noidea.png" fetchpriority="high" />
+
+		<!-- Core app stylesheets in head prevent FOUC and eliminate layout shifts (CLS) on app routes -->
+		<link id="app-icons-css" rel="stylesheet" href="/assets/style/icons.css" />
+		<link id="app-icon-fallback-css" rel="stylesheet" href="/assets/style/icon-fallback.css" />
+		<link id="app-main-css" rel="stylesheet" href="/assets/style/main.css?v=20260926" />
+		<link id="app-gestures-css" rel="stylesheet" href="/assets/style/gestures.css" />
+		<script>
+			(function () {
+				var p = window.location.pathname;
+				var isLanding = (p === '/' || p === '/pricing' || p.startsWith('/pricing/') || p === '/downloads' || p.startsWith('/downloads'));
+				if (isLanding) {
+					var c = document.getElementById('app-main-css');
+					if (c) c.disabled = true;
+				} else {
+					try {
+						window.__materioPosts = fetch('https://room.getmaterio.app/api/posts?num=5')
+							.then(function (r) { return r.ok ? r.json() : null; })
+							.catch(function () { return null; });
+						window.__materioPosts.then(function (d) {
+							var list = Array.isArray(d) ? d : (d && d.posts) || [];
+							for (var j = 0; j < list.length; j++) {
+								var post = list[j];
+								var img = post && (post.imgUrl || post.image);
+								if (post && post.visibility !== 'private' && img && img !== 'null') {
+									var l = document.createElement('link');
+									l.rel = 'preload'; l.as = 'image'; l.href = img;
+									l.setAttribute('fetchpriority', 'high');
+									document.head.appendChild(l);
+									break;
+								}
+							}
+						});
+					} catch (e) {}
+				}
+			})();
+		</script>
+
 		<!-- Google Tag Manager & Google Analytics (Deferred to user interaction to eliminate main-thread CPU overhead) -->
 		<script>
 			window.dataLayer = window.dataLayer || [];

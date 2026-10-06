@@ -8,9 +8,52 @@
     const POSTS_API = 'https://room.getmaterio.app/api/posts';
     const FALLBACK_IMG = '/assets/img/noidea.png';
 
-    let posts = [];
+    const DEFAULT_POSTS = [
+        {
+            title: "Introduction to IoT - Week 1 Notes",
+            link: "https://room.getmaterio.app/nptel/nptel-introduction-to-iot-week-1-notes",
+            image: FALLBACK_IMG,
+            excerpt: "Week 1 covers IoT introduction · IoT addressing (IPv4 vs IPv6) · Sensing · Actuation · Basics of IoT networking",
+            date: "24-09-2026",
+            visibility: "public"
+        },
+        {
+            title: "Assignment 1 Solutions - Introduction to Big Data",
+            link: "https://room.getmaterio.app/assignments/big-data-analytics-assignment-1-solutions-chapter-1-introduction-to-big-data",
+            image: FALLBACK_IMG,
+            excerpt: "Assignment solutions covering fundamental Big Data concepts and distributed architectures.",
+            date: "27-08-2026",
+            visibility: "public"
+        },
+        {
+            title: "BDA Assignment 2 and 3 Solutions",
+            link: "https://room.getmaterio.app/bda-assignment-2-and-3-solutions",
+            image: FALLBACK_IMG,
+            excerpt: "Complete solutions for Big Data Analytics Assignments 2 and 3.",
+            date: "27-08-2026",
+            visibility: "public"
+        },
+        {
+            title: "Concept Learning",
+            link: "https://room.getmaterio.app/originals/concept-learning-from-formal-hypotheses-to-candidate-elimination",
+            image: FALLBACK_IMG,
+            excerpt: "Concept learning through formal hypotheses, PAC guarantees, VC dimension, and Candidate Elimination.",
+            date: "20-08-2026",
+            visibility: "public"
+        },
+        {
+            title: "NoSQL Data Management",
+            link: "https://room.getmaterio.app/database-management-systems/nosql-data-management",
+            image: FALLBACK_IMG,
+            excerpt: "Exam-ready notes on NoSQL data management: types, aggregates, key-value and document models.",
+            date: "19-08-2026",
+            visibility: "public"
+        }
+    ];
+
+    let posts = [...DEFAULT_POSTS];
     let recommended = [];
-    let loading = true;
+    let loading = false;
     let recLoading = false;
     let error = false;
     let feedEnabled = true;
@@ -78,9 +121,18 @@
 
     async function loadLatest() {
         try {
-            const res = await fetch(`${POSTS_API}?num=5`);
-            if (!res.ok) throw new Error(`posts API ${res.status}`);
-            posts = toPostList(await res.json());
+            let data = null;
+            const early = typeof window !== 'undefined' ? window.__materioPosts : null;
+            if (early) {
+                window.__materioPosts = null;
+                data = await early;
+            }
+            if (!data) {
+                const res = await fetch(`${POSTS_API}?num=5`);
+                if (!res.ok) throw new Error(`posts API ${res.status}`);
+                data = await res.json();
+            }
+            posts = toPostList(data);
             error = false;
         } catch (e) {
             console.error('Failed to load posts:', e);
