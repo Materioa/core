@@ -57,9 +57,12 @@ function isRateLimited(err) {
 	const msg = String(err?.message || '');
 	return (
 		status === 429 ||
+		status === 503 ||
+		status === 404 ||
+		status === 410 ||
 		/rate.?limit|too many requests|quota/i.test(msg) ||
 		/requires more credits|max_tokens|exceeds the maximum/i.test(msg) ||
-		/not a valid model|no endpoints found/i.test(msg)
+		/not a valid model|no endpoints found|no longer available|not found|ResourceExhausted|high demand/i.test(msg)
 	);
 }
 
@@ -204,45 +207,88 @@ function assertFree(model) {
 /* Providers                                                          */
 /* ------------------------------------------------------------------ */
 
+const GEMINI_DEFAULT_MODELS = [
+	'gemini-flash-lite-latest',
+	'gemini-3.5-flash-lite',
+	'gemini-3.1-flash-lite',
+	'gemini-flash-latest'
+];
+
 async function viaGemini({ system, messages, model }) {
 	const key = env.GEMINI_API_KEY || env.GOOGLE_AI_KEY;
 	if (!key) return null;
-	const m = model || env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
-	const data = await postJson(
-		`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`,
-		{
-			headers: {},
-			body: {
-				systemInstruction: { parts: [{ text: system }] },
-				contents: messages.map((msg) => ({
-					role: msg.role === 'assistant' ? 'model' : 'user',
-					parts: [{ text: msg.content }]
-				})),
-				generationConfig: {
-					responseMimeType: 'application/json',
-					temperature: 0.7,
-					maxOutputTokens: MAX_TOKENS
+	const models = model
+		? [model]
+		: (env.GEMINI_MODELS || env.GEMINI_MODEL || GEMINI_DEFAULT_MODELS.join(','))
+				.split(',')
+				.map((m) => m.trim())
+				.filter(Boolean);
+
+	let lastErr;
+	for (const m of models) {
+		try {
+			const data = await postJson(
+				`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`,
+				{
+					headers: {},
+					body: {
+						systemInstruction: { parts: [{ text: system }] },
+						contents: messages.map((msg) => ({
+							role: msg.role === 'assistant' ? 'model' : 'user',
+							parts: [{ text: msg.content }]
+						})),
+						generationConfig: {
+							responseMimeType: 'application/json',
+							temperature: 0.7,
+							maxOutputTokens: MAX_TOKENS
+						}
+					}
 				}
-			}
+			);
+			return parseModelJson(data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join('') || '');
+		} catch (err) {
+			lastErr = err;
+			if (!isRateLimited(err)) throw err;
 		}
-	);
-	return parseModelJson(data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join('') || '');
+	}
+	throw lastErr || new Error('Gemini: no model succeeded');
 }
+
+const NVIDIA_DEFAULT_MODELS = [
+	'meta/llama-3.2-11b-vision-instruct',
+	'nvidia/nemotron-3-super-120b-a12b',
+	'openai/gpt-oss-20b'
+];
 
 async function viaNvidia({ system, messages, model }) {
 	const key = env.NVIDIA_API_KEY || env.NVIDIA_NIM_KEY;
 	if (!key) return null;
-	const m = model || env.NVIDIA_MODEL || 'meta/llama-3.3-70b-instruct';
-	const data = await postJson('https://integrate.api.nvidia.com/v1/chat/completions', {
-		headers: { Authorization: `Bearer ${key}` },
-		body: {
-			model: m,
-			temperature: 0.7,
-			max_tokens: MAX_TOKENS,
-			messages: [{ role: 'system', content: system }, ...messages]
+	const models = model
+		? [model]
+		: (env.NVIDIA_MODELS || env.NVIDIA_MODEL || NVIDIA_DEFAULT_MODELS.join(','))
+				.split(',')
+				.map((m) => m.trim())
+				.filter(Boolean);
+
+	let lastErr;
+	for (const m of models) {
+		try {
+			const data = await postJson('https://integrate.api.nvidia.com/v1/chat/completions', {
+				headers: { Authorization: `Bearer ${key}` },
+				body: {
+					model: m,
+					temperature: 0.7,
+					max_tokens: MAX_TOKENS,
+					messages: [{ role: 'system', content: system }, ...messages]
+				}
+			});
+			return parseModelJson(data?.choices?.[0]?.message?.content || '');
+		} catch (err) {
+			lastErr = err;
+			if (!isRateLimited(err)) throw err;
 		}
-	});
-	return parseModelJson(data?.choices?.[0]?.message?.content || '');
+	}
+	throw lastErr || new Error('NVIDIA: no model succeeded');
 }
 
 /**
