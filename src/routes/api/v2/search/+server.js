@@ -5,6 +5,7 @@ import path from 'path';
 import { env } from '$env/dynamic/private';
 import { corsHeaders } from '$lib/server/cors-origins.js';
 import { cachedResponse, isCacheableRequest } from '$lib/server/edge-cache.js';
+import { redisGet, redisSet } from '$lib/server/redis.js';
 
 export const prerender = false;
 
@@ -1701,6 +1702,158 @@ function getSearchClientIp(request) {
   }
 }
 
+function makeSearchCacheKey({ query, useAI, aiMode, threshold, semester }) {
+  const normQ = String(query || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const mode = useAI ? `ai:${aiMode || 'hybrid'}` : 'algo';
+  const th = threshold !== undefined && threshold !== null ? threshold : '0.4';
+  const sem = semester || 'all';
+  return `search:v2:${encodeURIComponent(normQ)}:${mode}:${th}:${sem}`;
+}
+
+async function runSearchPipeline({ query, useAI = false, aiMode = 'hybrid', threshold = 0.4, semester = null }) {
+  if (isDiscoveryQuery(query)) {
+    const resourceLib = await fetchResourceLibrary();
+    const discoveryResult = pickDiscoveryResult(resourceLib, semester);
+    if (discoveryResult) {
+      return {
+        success: true,
+        query,
+        results: [discoveryResult],
+        count: 1,
+        method: 'discovery',
+        aiUsed: false,
+        isDiscovery: true
+      };
+    }
+  }
+
+  const searchThreshold = useAI ? 0.6 : threshold;
+  const searchLimit = useAI ? 30 : 20;
+  let algorithmicResults = await searchResources(query, searchThreshold, searchLimit);
+
+  const cfg = getConfig();
+  const hasAiProvider = Boolean(
+    cfg.API_KEY ||
+      cfg.HF_LLM_URL ||
+      cfg.HF_RERANKER_URL ||
+      cfg.MCP_BASE_URL ||
+      cfg.TYPESAFE_API_KEY
+  );
+
+  // If AI mode and no results found, try fallback search for vague queries
+  if (useAI && algorithmicResults.length === 0) {
+    const vaguePhrases = ['what', 'start', 'begin', 'first', 'intro', 'help', 'need', 'show'];
+    const isVagueQuery = vaguePhrases.some((phrase) => query.toLowerCase().includes(phrase));
+    if (isVagueQuery) {
+      algorithmicResults = await searchResources('introduction chapter', 0.6, 30);
+    }
+  }
+
+  if (useAI && hasAiProvider) {
+    try {
+      const resourceLib = await fetchResourceLibrary();
+      const aiResults = await aiSearch(query, algorithmicResults, resourceLib);
+
+      if (!aiResults || !aiResults.rankings || !Array.isArray(aiResults.rankings)) {
+        throw new Error('Invalid AI response structure');
+      }
+
+      if (aiMode === 'pure' && aiResults.rankings.length > 0) {
+        const pureAIResults = aiResults.rankings.map((ranking, index) => ({
+          semester: ranking.semester,
+          subject: ranking.subject,
+          category: ranking.category,
+          topic: ranking.topic,
+          score:
+            ranking.relevance === 'high' ? 95 : ranking.relevance === 'medium' ? 75 : 50,
+          matchType: ranking.relevance,
+          aiExplanation: ranking.explanation,
+          aiRank: index + 1
+        }));
+
+        return {
+          success: true,
+          query,
+          results: pureAIResults,
+          count: pureAIResults.length,
+          ai: aiResults,
+          method: 'ai',
+          aiUsed: true
+        };
+      }
+
+      if (aiMode === 'pure' && aiResults.rankings.length === 0) {
+        return {
+          success: true,
+          query,
+          results: algorithmicResults,
+          count: algorithmicResults.length,
+          algorithmic: {
+            results: algorithmicResults,
+            count: algorithmicResults.length
+          },
+          ai: aiResults,
+          method: 'hybrid',
+          aiUsed: true,
+          pureFallback: true
+        };
+      }
+
+      if (!aiResults.rankings || aiResults.rankings.length === 0) {
+        return {
+          success: true,
+          query,
+          results: algorithmicResults,
+          count: algorithmicResults.length,
+          algorithmic: {
+            results: algorithmicResults,
+            count: algorithmicResults.length
+          },
+          ai: aiResults,
+          method: 'hybrid',
+          aiUsed: true
+        };
+      }
+
+      const mergedResults = mergeAIRankings(algorithmicResults, aiResults.rankings);
+
+      return {
+        success: true,
+        query,
+        results: mergedResults,
+        count: mergedResults.length,
+        algorithmic: {
+          results: algorithmicResults,
+          count: algorithmicResults.length
+        },
+        ai: aiResults,
+        method: 'hybrid',
+        aiUsed: true
+      };
+    } catch (aiError) {
+      console.error('AI search failed:', aiError);
+      return {
+        success: true,
+        query,
+        results: algorithmicResults,
+        count: algorithmicResults.length,
+        method: 'algorithmic',
+        aiUsed: false,
+        aiError: aiError.message
+      };
+    }
+  }
+
+  return {
+    success: true,
+    query,
+    results: algorithmicResults,
+    count: algorithmicResults.length,
+    method: 'algorithmic',
+    aiUsed: false
+  };
+}
+
 export async function GET({ url, request }) {
   const query = url.searchParams.get('q') || url.searchParams.get('query');
   const useAI = url.searchParams.get('useAI') === 'true';
@@ -1755,159 +1908,37 @@ export async function GET({ url, request }) {
     }
   }
 
-  // Heavy per-keystroke work (full-corpus BM25/Fuse, sometimes AI relays)
-  // is served from the edge on repeats; the key is the full query URL.
+  const cacheKey = makeSearchCacheKey({ query, useAI, aiMode, threshold, semester });
+
   const produceSearch = async () => {
-  try {
-    if (isDiscoveryQuery(query)) {
-      const resourceLib = await fetchResourceLibrary();
-      const discoveryResult = pickDiscoveryResult(resourceLib, semester);
-      if (discoveryResult) {
-        return json({
-          success: true,
-          query,
-          results: [discoveryResult],
-          count: 1,
-          method: 'discovery',
-          aiUsed: false,
-          isDiscovery: true
-        });
-      }
-    }
-
-    const searchThreshold = useAI ? 0.6 : threshold;
-    const searchLimit = useAI ? 30 : 20;
-    let algorithmicResults = await searchResources(query, searchThreshold, searchLimit);
-
-    const cfg = getConfig();
-    const hasAiProvider = Boolean(
-      cfg.API_KEY ||
-        cfg.HF_LLM_URL ||
-        cfg.HF_RERANKER_URL ||
-        cfg.MCP_BASE_URL ||
-        cfg.TYPESAFE_API_KEY
-    );
-
-    // If AI mode and no results found, try fallback search for vague queries
-    if (useAI && algorithmicResults.length === 0) {
-      const vaguePhrases = ['what', 'start', 'begin', 'first', 'intro', 'help', 'need', 'show'];
-      const isVagueQuery = vaguePhrases.some((phrase) => query.toLowerCase().includes(phrase));
-      if (isVagueQuery) {
-        algorithmicResults = await searchResources('introduction chapter', 0.6, 30);
-      }
-    }
-
-    if (useAI && hasAiProvider) {
+    try {
+      // 1. Try Redis cache
       try {
-        const resourceLib = await fetchResourceLibrary();
-        const aiResults = await aiSearch(query, algorithmicResults, resourceLib);
-
-        if (!aiResults || !aiResults.rankings || !Array.isArray(aiResults.rankings)) {
-          throw new Error('Invalid AI response structure');
-        }
-
-        if (aiMode === 'pure' && aiResults.rankings.length > 0) {
-          const pureAIResults = aiResults.rankings.map((ranking, index) => ({
-            semester: ranking.semester,
-            subject: ranking.subject,
-            category: ranking.category,
-            topic: ranking.topic,
-            score:
-              ranking.relevance === 'high' ? 95 : ranking.relevance === 'medium' ? 75 : 50,
-            matchType: ranking.relevance,
-            aiExplanation: ranking.explanation,
-            aiRank: index + 1
-          }));
-
-          return json({
-            success: true,
-            query,
-            results: pureAIResults,
-            count: pureAIResults.length,
-            ai: aiResults,
-            method: 'ai',
-            aiUsed: true
+        const cached = await redisGet(cacheKey);
+        if (cached) {
+          return json({ ...cached, cached: true }, {
+            headers: { 'X-Redis-Cache': 'HIT' }
           });
         }
+      } catch {}
 
-        if (aiMode === 'pure' && aiResults.rankings.length === 0) {
-          // Pure AI found nothing confident: fall back to the algorithmic
-          // list rather than an empty page. Never show "no results" when
-          // the library actually has candidates.
-          return json({
-            success: true,
-            query,
-            results: algorithmicResults,
-            count: algorithmicResults.length,
-            algorithmic: {
-              results: algorithmicResults,
-              count: algorithmicResults.length
-            },
-            ai: aiResults,
-            method: 'hybrid',
-            aiUsed: true,
-            pureFallback: true
-          });
-        }
+      // 2. Execute search pipeline
+      const result = await runSearchPipeline({ query, useAI, aiMode, threshold, semester });
 
-        if (!aiResults.rankings || aiResults.rankings.length === 0) {
-          return json({
-            success: true,
-            query,
-            results: algorithmicResults,
-            count: algorithmicResults.length,
-            algorithmic: {
-              results: algorithmicResults,
-              count: algorithmicResults.length
-            },
-            ai: aiResults,
-            method: 'hybrid',
-            aiUsed: true
-          });
-        }
-
-        const mergedResults = mergeAIRankings(algorithmicResults, aiResults.rankings);
-
-        return json({
-          success: true,
-          query,
-          results: mergedResults,
-          count: mergedResults.length,
-          algorithmic: {
-            results: algorithmicResults,
-            count: algorithmicResults.length
-          },
-          ai: aiResults,
-          method: 'hybrid',
-          aiUsed: true
-        });
-      } catch (aiError) {
-        console.error('AI search failed in GET request:', aiError);
-        return json({
-          success: true,
-          query,
-          results: algorithmicResults,
-          count: algorithmicResults.length,
-          method: 'algorithmic',
-          aiUsed: false,
-          aiError: aiError.message
-        });
+      // 3. Cache successful response in Redis (30m for AI, 1h for algorithmic)
+      if (result && result.success) {
+        redisSet(cacheKey, result, useAI ? 1800 : 3600).catch(() => {});
       }
-    }
 
-    return json({
-      success: true,
-      query,
-      results: algorithmicResults,
-      count: algorithmicResults.length,
-      method: 'algorithmic',
-      aiUsed: false
-    });
-  } catch (error) {
-    console.error('Search Error:', error);
-    return json({ success: false, error: error.message }, { status: 500 });
-  }
+      return json(result, {
+        headers: { 'X-Redis-Cache': 'MISS' }
+      });
+    } catch (error) {
+      console.error('Search Error:', error);
+      return json({ success: false, error: error.message }, { status: 500 });
+    }
   };
+
   if (request && isCacheableRequest(request, url)) {
     return cachedResponse(request, 60, produceSearch);
   }
@@ -1948,155 +1979,35 @@ export async function POST({ request }) {
       }
     }
 
-    if (isDiscoveryQuery(query)) {
-      const resourceLib = await fetchResourceLibrary();
-      const discoveryResult = pickDiscoveryResult(resourceLib, semester);
-      if (discoveryResult) {
-        return json({
-          success: true,
-          query,
-          results: [discoveryResult],
-          count: 1,
-          method: 'discovery',
-          aiUsed: false,
-          isDiscovery: true
+    const cacheKey = makeSearchCacheKey({ query, useAI, aiMode, threshold, semester });
+
+    // 1. Try Redis cache
+    try {
+      const cached = await redisGet(cacheKey);
+      if (cached) {
+        return json({ ...cached, cached: true }, {
+          headers: { 'X-Redis-Cache': 'HIT' }
         });
       }
+    } catch {}
+
+    // 2. Execute search pipeline
+    const result = await runSearchPipeline({ query, useAI, aiMode, threshold, semester });
+
+    // 3. Cache successful response in Redis (30m for AI, 1h for algorithmic)
+    if (result && result.success) {
+      redisSet(cacheKey, result, useAI ? 1800 : 3600).catch(() => {});
     }
 
-    const searchThreshold = useAI ? 0.6 : threshold;
-    const searchLimit = useAI ? 30 : 20;
-    let algorithmicResults = await searchResources(query, searchThreshold, searchLimit);
-
-    const cfg = getConfig();
-    const hasAiProvider = Boolean(
-      cfg.API_KEY ||
-        cfg.HF_LLM_URL ||
-        cfg.HF_RERANKER_URL ||
-        cfg.MCP_BASE_URL ||
-        cfg.TYPESAFE_API_KEY
-    );
-
-    // If AI mode and no results found, try fallback search for vague queries
-    if (useAI && algorithmicResults.length === 0) {
-      const vaguePhrases = ['what', 'start', 'begin', 'first', 'intro', 'help', 'need', 'show'];
-      const isVagueQuery = vaguePhrases.some((phrase) => query.toLowerCase().includes(phrase));
-      if (isVagueQuery) {
-        algorithmicResults = await searchResources('introduction chapter', 0.6, 30);
-      }
-    }
-
-    if (useAI && hasAiProvider) {
-      try {
-        const resourceLib = await fetchResourceLibrary();
-        const aiResults = await aiSearch(query, algorithmicResults, resourceLib);
-
-        if (!aiResults || !aiResults.rankings || !Array.isArray(aiResults.rankings)) {
-          throw new Error('Invalid AI response structure');
-        }
-
-        if (aiMode === 'pure' && aiResults.rankings.length > 0) {
-          const pureAIResults = aiResults.rankings.map((ranking, index) => ({
-            semester: ranking.semester,
-            subject: ranking.subject,
-            category: ranking.category,
-            topic: ranking.topic,
-            score:
-              ranking.relevance === 'high' ? 95 : ranking.relevance === 'medium' ? 75 : 50,
-            matchType: ranking.relevance,
-            aiExplanation: ranking.explanation,
-            aiRank: index + 1
-          }));
-
-          return json({
-            success: true,
-            query,
-            results: pureAIResults,
-            count: pureAIResults.length,
-            ai: aiResults,
-            method: 'ai',
-            aiUsed: true
-          });
-        }
-
-        if (aiMode === 'pure' && aiResults.rankings.length === 0) {
-          // Pure AI found nothing confident: fall back to the algorithmic
-          // list rather than an empty page. Never show "no results" when
-          // the library actually has candidates.
-          return json({
-            success: true,
-            query,
-            results: algorithmicResults,
-            count: algorithmicResults.length,
-            algorithmic: {
-              results: algorithmicResults,
-              count: algorithmicResults.length
-            },
-            ai: aiResults,
-            method: 'hybrid',
-            aiUsed: true,
-            pureFallback: true
-          });
-        }
-
-        if (!aiResults.rankings || aiResults.rankings.length === 0) {
-          return json({
-            success: true,
-            query,
-            results: algorithmicResults,
-            count: algorithmicResults.length,
-            algorithmic: {
-              results: algorithmicResults,
-              count: algorithmicResults.length
-            },
-            ai: aiResults,
-            method: 'hybrid',
-            aiUsed: true
-          });
-        }
-
-        const mergedResults = mergeAIRankings(algorithmicResults, aiResults.rankings);
-
-        return json({
-          success: true,
-          query,
-          results: mergedResults,
-          count: mergedResults.length,
-          algorithmic: {
-            results: algorithmicResults,
-            count: algorithmicResults.length
-          },
-          ai: aiResults,
-          method: 'hybrid',
-          aiUsed: true
-        });
-      } catch (aiError) {
-        console.error('AI search failed in POST request:', aiError);
-        return json({
-          success: true,
-          query,
-          results: algorithmicResults,
-          count: algorithmicResults.length,
-          method: 'algorithmic',
-          aiUsed: false,
-          aiError: aiError.message
-        });
-      }
-    }
-
-    return json({
-      success: true,
-      query,
-      results: algorithmicResults,
-      count: algorithmicResults.length,
-      method: 'algorithmic',
-      aiUsed: false
+    return json(result, {
+      headers: { 'X-Redis-Cache': 'MISS' }
     });
   } catch (error) {
     console.error('Search Error:', error);
     return json({ success: false, error: error.message }, { status: 500 });
   }
 }
+
 
 export function OPTIONS({ request }) {
   const origin = request.headers.get('origin');

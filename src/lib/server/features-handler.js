@@ -12,7 +12,7 @@ import { supabase, supabaseAdmin, verifyToken } from '$lib/server/supabase.js';
 import { corsHeaders, isAllowedOrigin } from '$lib/server/cors-origins.js';
 import { getFormsCollection, getFormConfigsCollection, getMongoDb, resetMongoDb, withMongoTimeout } from '$lib/server/mongodb.js';
 import { cachedResponse, isCacheableRequest, markDegraded } from '$lib/server/edge-cache.js';
-import { redisGet, redisSet } from '$lib/server/redis.js';
+import { redisGet, redisSet, redisDel } from '$lib/server/redis.js';
 import { sendAlertEmail, ALERT_EMAIL } from '$lib/server/mailer.js';
 import {
   isWebPushConfigured,
@@ -849,50 +849,77 @@ async function handleForms(request, url) {
   try {
     if (method === 'GET' && lastPart === 'popups') {
       // Published pop-up wizard configs from MongoDB (managed in the admin panel),
-      // plus the auto-show rules doc. The modal merges popups over the local
-      // forms-config.json fallback; the auto-show engine evaluates the rules.
+      // plus the auto-show rules doc. Projected, capped, and Redis-cached.
       try {
-        const collection = await getFormConfigsCollection();
-        // Projected + capped: these docs carry whole wizard configs, and an
-        // unprojected toArray() parsed every field of every published popup.
-        // Combined with the distinct() calls below this endpoint measured
-        // 64ms CPU — 6x over the free tier's 10ms budget (outcome:
-        // exceededCpu in the logs). We only ever render a handful of popups.
-        const docs = await withMongoTimeout(
-          collection
-            .find({ published: true, kind: { $in: ['popup', 'wizard', 'form'] } })
-            .sort({ updatedAt: -1 })
-            .limit(25)
-            .toArray(),
-          5000,
-          'popup configs find'
-        );
-        let activity = null;
+        const visitorId = url.searchParams.get('userId');
+
+        // Check Redis cache for public popup definitions & activity rules
+        let publicData = null;
         try {
-          // Was an unbounded, untimed read: no projection and no timeout, so a
-          // sick pool could hold this invocation open indefinitely and get the
-          // whole request killed on CPU/wall limits. Bound it like its
-          // neighbours.
-          activity = await withMongoTimeout(
-            collection.db.collection('form_activity').findOne({}, { projection: { _id: 0 } }),
-            5000,
-            'form activity find'
-          );
-          if (activity) {
-            const { _id, ...rest } = activity;
-            activity = rest;
-          }
+          publicData = await redisGet('popups:public_data');
         } catch {}
+
+        if (!publicData) {
+          const collection = await getFormConfigsCollection();
+          const docs = await withMongoTimeout(
+            collection
+              .find(
+                { published: true, kind: { $in: ['popup', 'wizard', 'form'] } },
+                {
+                  projection: {
+                    _id: 0,
+                    id: 1,
+                    title: 1,
+                    description: 1,
+                    kind: 1,
+                    type: 1,
+                    trigger: 1,
+                    frequency: 1,
+                    customFrequencyHours: 1,
+                    startDate: 1,
+                    endDate: 1,
+                    settings: 1,
+                    steps: 1,
+                    elements: 1,
+                    fields: 1,
+                    published: 1,
+                    updatedAt: 1
+                  }
+                }
+              )
+              .sort({ updatedAt: -1 })
+              .limit(15)
+              .toArray(),
+            5000,
+            'popup configs find'
+          );
+
+          let activity = null;
+          try {
+            activity = await withMongoTimeout(
+              collection.db.collection('form_activity').findOne({}, { projection: { _id: 0 } }),
+              5000,
+              'form activity find'
+            );
+            if (activity) {
+              const { _id, ...rest } = activity;
+              activity = rest;
+            }
+          } catch {}
+
+          publicData = {
+            popups: (docs || []).map(({ _id, ...rest }) => rest),
+            activity
+          };
+
+          redisSet('popups:public_data', publicData, 300).catch(() => {});
+        }
+
         // Forms this signed-in visitor already answered (for "once" schedules).
         let doneIds = [];
-        const visitorId = url.searchParams.get('userId');
         if (visitorId) {
           try {
-            // Bounded projected finds instead of distinct(): distinct() is an
-            // unbounded aggregation that scans the collection and materialises
-            // every distinct value in the Worker. We only need the set of form
-            // ids this visitor answered, and a visitor realistically answered a
-            // few dozen at most.
+            const collection = await getFormConfigsCollection();
             const [runs, subs] = await withMongoTimeout(
               Promise.all([
                 collection.db
@@ -917,7 +944,12 @@ async function handleForms(request, url) {
             ];
           } catch {}
         }
-        return json({ popups: docs.map(({ _id, ...rest }) => rest), activity, doneIds });
+
+        return json({
+          popups: publicData?.popups || [],
+          activity: publicData?.activity || null,
+          doneIds
+        });
       } catch (error) {
         console.error('Popup configs lookup failed:', error);
         return json({ popups: [], activity: null, doneIds: [] });
@@ -1785,16 +1817,42 @@ async function handlePromotionsFeature(request, url) {
         }
 
         const now = new Date();
-        // Cursor .sort() is deliberately NOT used on this query: on workerd
-        // the driver's sorted-cursor path is the one shape that reliably
-        // wedged (every endpoint using .sort() timed out at the Mongo
-        // ceiling, while find()/.findOne() without it returned in well under
-        // a second). This collection is tiny (single-digit docs), so sorting
-        // the fetched array in JS is equivalent and sidesteps that entirely.
+        // Check Redis cache for active promotion
+        try {
+          const cachedPromo = await redisGet('promotions:active');
+          if (cachedPromo) {
+            return json(cachedPromo, { headers: { 'X-Redis-Cache': 'HIT' } });
+          }
+        } catch {}
+
         let promos = [];
         try {
           promos = await withMongoTimeout(
-            promoCollection.find({ enabled: true }).toArray(),
+            promoCollection
+              .find(
+                { enabled: true },
+                {
+                  projection: {
+                    _id: 1,
+                    title: 1,
+                    description: 1,
+                    bannerText: 1,
+                    link: 1,
+                    ctaText: 1,
+                    isLimitedOffer: 1,
+                    startDate: 1,
+                    endDate: 1,
+                    type: 1,
+                    target: 1,
+                    badge: 1,
+                    enabled: 1,
+                    lastUpdated: 1,
+                    updatedAt: 1
+                  }
+                }
+              )
+              .limit(5)
+              .toArray(),
             5000,
             'promotions find-enabled'
           );
@@ -1810,12 +1868,9 @@ async function handlePromotionsFeature(request, url) {
         }
 
         if (promos.length === 0) {
-          // Mongo answered, and the answer is "nothing is live". Serving the
-          // bundled promo.json here resurrected promos an admin had just
-          // disabled — disabling the only promo kept showing it, because the
-          // stale build-time snapshot was treated as a fallback. Local data is
-          // only a fallback when Mongo itself is unavailable.
-          return json({ enabled: false, message: 'No active promotions' });
+          const emptyPromo = { enabled: false, message: 'No active promotions' };
+          redisSet('promotions:active', emptyPromo, 180).catch(() => {});
+          return json(emptyPromo);
         }
 
         const activePromo = promos.find(promo => {
@@ -1827,10 +1882,13 @@ async function handlePromotionsFeature(request, url) {
         });
 
         if (activePromo) {
+          redisSet('promotions:active', activePromo, 300).catch(() => {});
           return json(activePromo);
         }
 
-        return json({ enabled: false, message: 'No active promotions' });
+        const noPromo = { enabled: false, message: 'No active promotions' };
+        redisSet('promotions:active', noPromo, 180).catch(() => {});
+        return json(noPromo);
       }
 
       case 'POST': {
@@ -1862,6 +1920,7 @@ async function handlePromotionsFeature(request, url) {
           5000,
           'promo insert'
         );
+        redisDel('promotions:active').catch(() => {});
         return json({ 
           message: 'Promotion saved successfully', 
           id: result.insertedId,
@@ -1904,6 +1963,7 @@ async function handlePromotionsFeature(request, url) {
           5000,
           'promo update'
         );
+        redisDel('promotions:active').catch(() => {});
 
         if (result.matchedCount === 0) {
           return json({ error: 'Promotion not found' }, { status: 404 });
@@ -1926,6 +1986,7 @@ async function handlePromotionsFeature(request, url) {
           5000,
           'promo delete'
         );
+        redisDel('promotions:active').catch(() => {});
         if (result.deletedCount === 0) {
           return json({ error: 'Promotion not found' }, { status: 404 });
         }
@@ -1962,9 +2023,41 @@ async function handleReleasesFeature(request, url) {
 
     switch (method) {
       case 'GET': {
-        let releases = [];
+        const branch = url.searchParams.get('branch');
+        const cacheKey = branch ? 'releases:branch:' + branch : 'releases:all';
+
         try {
-          releases = await withMongoTimeout(releasesCollection.find({}).toArray(), 5000, 'releases find');
+          const cached = await redisGet(cacheKey);
+          if (cached) {
+            return json(cached, { headers: { 'X-Redis-Cache': 'HIT' } });
+          }
+        } catch {}
+
+        let releases = [];
+        const filter = branch ? { branch } : {};
+        try {
+          releases = await withMongoTimeout(
+            releasesCollection
+              .find(filter, {
+                projection: {
+                  _id: 1,
+                  branch: 1,
+                  version: 1,
+                  build: 1,
+                  logs: 1,
+                  platform: 1,
+                  notes: 1,
+                  downloadUrl: 1,
+                  mandatory: 1,
+                  updatedAt: 1,
+                  createdAt: 1
+                }
+              })
+              .limit(branch ? 10 : 25)
+              .toArray(),
+            5000,
+            'releases find'
+          );
         } catch (err) {
           console.warn('Releases Mongo read failed:', err.message);
           return markDegraded(json([]));
@@ -1974,12 +2067,6 @@ async function handleReleasesFeature(request, url) {
           return json([]);
         }
 
-        // Decorate-sort-undecorate. The comparator used to call parseBuildDate
-        // on both operands on every comparison, so each release's date was
-        // re-parsed O(n log n) times (~2n log n Date allocations for a few
-        // hundred docs). Parsing once per document is the same ordering for a
-        // fraction of the CPU, which matters against the free tier's 10ms
-        // per-invocation budget.
         const decorated = releases.map((r) => ({
           r,
           ts: parseBuildDate(r.build).getTime(),
@@ -1994,6 +2081,7 @@ async function handleReleasesFeature(request, url) {
         });
         releases = decorated.map((d) => d.r);
 
+        redisSet(cacheKey, releases, 600).catch(() => {});
         return json(releases);
       }
 
@@ -2018,6 +2106,8 @@ async function handleReleasesFeature(request, url) {
           5000,
           'release insert'
         );
+        redisDel('releases:all').catch(() => {});
+        if (newRelease.branch) redisDel('releases:branch:' + newRelease.branch).catch(() => {});
         return json(
           {
             message: 'Release created successfully',
@@ -2049,6 +2139,8 @@ async function handleReleasesFeature(request, url) {
           5000,
           'release update'
         );
+        redisDel('releases:all').catch(() => {});
+        if (updateData.branch) redisDel('releases:branch:' + updateData.branch).catch(() => {});
 
         if (result.matchedCount === 0) {
           return json({ error: 'Release not found' }, { status: 404 });
@@ -2072,6 +2164,7 @@ async function handleReleasesFeature(request, url) {
           5000,
           'release delete'
         );
+        redisDel('releases:all').catch(() => {});
         if (result.deletedCount === 0) {
           return json({ error: 'Release not found' }, { status: 404 });
         }
@@ -2120,34 +2213,65 @@ async function handleExamdataFeature(request, url) {
 
     switch (method) {
       case 'GET': {
-        // Distinguish "Mongo is down" from "Mongo says there is no config".
-        // Neither may resurrect static JSON: a committed snapshot used to
-        // reappear here and keep an exam config on screen forever.
+        const semParam = url.searchParams.get('semester') || url.searchParams.get('sem');
+        const cacheKey = semParam ? 'examdata:config:sem:' + semParam : 'examdata:config';
+
+        try {
+          const cached = await redisGet(cacheKey);
+          if (cached) {
+            return json(cached, { headers: { 'X-Redis-Cache': 'HIT' } });
+          }
+        } catch {}
+
         let mongoAnswered = false;
         try {
           const data = await withMongoTimeout(
-            examdataCollection.findOne({ type: 'config' }),
+            examdataCollection.findOne({ type: 'config' }, { projection: { _id: 0 } }),
             5000,
             'examdata find-config'
           );
           if (data) {
             mongoAnswered = true;
             if (data.enabled === false) {
-              return json({ enabled: false, semesters: [] });
+              const res = { enabled: false, semesters: [] };
+              redisSet(cacheKey, res, 300).catch(() => {});
+              return json(res);
             }
             if (Array.isArray(data.semesters) && data.semesters.length > 0) {
-              return json(data);
+              let resData = data;
+              if (semParam) {
+                resData = {
+                  ...data,
+                  semesters: data.semesters.filter(s => String(s?.semester || s?.sem || '') === String(semParam))
+                };
+              }
+              redisSet(cacheKey, resData, 300).catch(() => {});
+              return json(resData);
             }
           }
 
-          const anyData = await withMongoTimeout(examdataCollection.findOne({}), 5000, 'examdata find-any');
+          const anyData = await withMongoTimeout(
+            examdataCollection.findOne({}, { projection: { _id: 0 } }),
+            5000,
+            'examdata find-any'
+          );
           if (anyData) {
             mongoAnswered = true;
             if (anyData.enabled === false) {
-              return json({ enabled: false, semesters: [] });
+              const res = { enabled: false, semesters: [] };
+              redisSet(cacheKey, res, 300).catch(() => {});
+              return json(res);
             }
             if (Array.isArray(anyData.semesters) && anyData.semesters.length > 0) {
-              return json(anyData);
+              let resData = anyData;
+              if (semParam) {
+                resData = {
+                  ...anyData,
+                  semesters: anyData.semesters.filter(s => String(s?.semester || s?.sem || '') === String(semParam))
+                };
+              }
+              redisSet(cacheKey, resData, 300).catch(() => {});
+              return json(resData);
             }
           }
         } catch (err) {
@@ -2155,7 +2279,9 @@ async function handleExamdataFeature(request, url) {
         }
 
         if (mongoAnswered) {
-          return json({ enabled: false, semesters: [] });
+          const res = { enabled: false, semesters: [] };
+          redisSet(cacheKey, res, 300).catch(() => {});
+          return json(res);
         }
         return noConfig();
       }
@@ -2217,7 +2343,12 @@ async function handleExamdataFeature(request, url) {
         };
         delete cleanData._id;
 
-        await examdataCollection.replaceOne({ type: 'config' }, cleanData, { upsert: true });
+        await withMongoTimeout(
+          examdataCollection.replaceOne({ type: 'config' }, cleanData, { upsert: true }),
+          5000,
+          'examdata replace'
+        );
+        redisDel('examdata:config').catch(() => {});
         return json({ message: 'Exam configuration saved successfully', examdata: cleanData });
       }
 
