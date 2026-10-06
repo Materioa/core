@@ -135,8 +135,12 @@
 			localStorage.setItem('visits', String(readInt('visits', 0) + 1));
 		} catch {}
 		unsub = page.subscribe(($page) => { currentPath = $page?.url?.pathname || '/'; });
-		// Small idle delay so the app shell paints first.
-		timer = setTimeout(evaluate, 1200);
+		// Defer popup evaluation until after initial paint and critical assets settle.
+		if ('requestIdleCallback' in window) {
+			window.requestIdleCallback(() => { timer = setTimeout(evaluate, 2000); }, { timeout: 6000 });
+		} else {
+			timer = setTimeout(evaluate, 3500);
+		}
 	});
 
 	onDestroy(() => {

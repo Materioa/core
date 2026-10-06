@@ -10442,17 +10442,21 @@ body.dark-mode .shortcuts-divider {
 .ai-icons-group {
     display: flex;
     align-items: center;
+    min-width: 56px;
+    height: 20px;
 }
 
 .ai-icon {
     width: 20px;
     height: 20px;
+    aspect-ratio: 1 / 1;
     border-radius: 6px;
     object-fit: cover;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     background-color: white;
     position: relative;
     display: inline-block;
+    flex-shrink: 0;
 }
 
 /* Overlap icons regardless of their order in the markup */

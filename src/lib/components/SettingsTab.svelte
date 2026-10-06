@@ -1035,7 +1035,7 @@
             </div>
             <div class="wallpaper-preview-card" class:selected={selectedWallpaper === 'sereine'} data-wallpaper="sereine" data-bg-image="sereine" on:click={() => { selectWallpaper('sereine'); showSereineModal=true; }} on:keydown={(e) => e.key === 'Enter' && selectWallpaper('sereine')} tabindex="0" role="button">
                 <div class="wallpaper-preview sereine-preview" id="sereinePreview"
-                    style="background-image: url('https://sereine.vercel.app/api/wallpapers/random?fallback=true'); background-size: cover; background-position: center;">
+                    style="background-size: cover; background-position: center; {showSereineModal || selectedWallpaper === 'sereine' ? `background-image: url('${currentSereineImageUrl || 'https://sereine.vercel.app/api/wallpapers/random?fallback=true'}');` : 'background: linear-gradient(135deg, #1e1e24 0%, #2b2b36 100%);'}">
                     <div class="wallpaper-overlay">
                         <span class="wallpaper-name">Sereine Carousel</span>
                     </div>

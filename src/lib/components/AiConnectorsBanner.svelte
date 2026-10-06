@@ -21,10 +21,10 @@
         </div>
         <div class="ai-banner-right">
             <div class="ai-icons-group">
-                <img src="https://www.google.com/s2/favicons?sz=128&domain=perplexity.ai" alt="Perplexity" class="ai-icon perplexity-icon">
-                <img src="https://www.google.com/s2/favicons?sz=128&domain=chatgpt.com" alt="ChatGPT" class="ai-icon chatgpt-icon">
-                <img src="https://www.google.com/s2/favicons?sz=128&domain=claude.com" alt="Claude" class="ai-icon claude-icon">
-                <img src="https://chat.getmaterio.app/favicon.png" alt="Thinklet" class="ai-icon thinklet-icon">
+                <img src="/assets/img/perplexity-ai-icon.svg" alt="Perplexity" class="ai-icon perplexity-icon" width="20" height="20" loading="lazy" decoding="async">
+                <img src="/assets/img/chatgpt-icon.svg" alt="ChatGPT" class="ai-icon chatgpt-icon" width="20" height="20" loading="lazy" decoding="async">
+                <img src="/assets/img/claude-ai-icon.svg" alt="Claude" class="ai-icon claude-icon" width="20" height="20" loading="lazy" decoding="async">
+                <img src="/assets/img/thinklet-64.webp" alt="Thinklet" class="ai-icon thinklet-icon" width="20" height="20" loading="lazy" decoding="async">
             </div>
             <HugeIcon name="arrow-right-01" />
         </div>
@@ -54,9 +54,9 @@
                         <!-- Thinklet -->
                         <a href="https://chat.getmaterio.app/" target="_blank" class="mcp-connect-card">
                             <div style="display: flex; align-items: center; gap: 12px;">
-                                <img src="https://chat.getmaterio.app/favicon.png" alt="Thinklet"
+                                <img src="/assets/img/thinklet-64.webp" alt="Thinklet" width="36" height="36"
                                     style="width: 36px; height: 36px; border-radius: 10px; corner-shape: squircle;"
-                                    on:error={(e) => { const el = e.currentTarget; if (el.dataset.fb) { el.style.display = 'none'; return; } el.dataset.fb = '1'; el.src = '/assets/img/favicon.png'; }}>
+                                    loading="lazy" decoding="async">
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <span style="font-weight: 600; font-size: 16px;">Thinklet</span>
                                     <span
@@ -70,9 +70,9 @@
                         <a href="https://chatgpt.com/g/g-69b90f449ff08191a3d32d3c0bec0591-materio" target="_blank"
                             class="mcp-connect-card">
                             <div style="display: flex; align-items: center; gap: 12px;">
-                                <img src="https://www.google.com/s2/favicons?sz=128&domain=chatgpt.com" alt="ChatGPT"
+                                <img src="/assets/img/chatgpt-icon.svg" alt="ChatGPT" width="36" height="36"
                                     style="width: 36px; height: 36px; border-radius: 10px; corner-shape: squircle;"
-                                    on:error={(e) => { const el = e.currentTarget; if (el.dataset.fb) { el.style.display = 'none'; return; } el.dataset.fb = '1'; el.src = '/assets/img/chatgpt-icon.svg'; }}>
+                                    loading="lazy" decoding="async">
                                 <span style="font-weight: 600; font-size: 16px;">ChatGPT</span>
                             </div>
                             <HugeIcon name="arrow-right-01" />
@@ -83,9 +83,9 @@
                             <div
                                 style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid rgba(128, 128, 128, 0.1);">
                                 <div style="display: flex; align-items: center; gap: 12px;">
-                                    <img src="https://www.google.com/s2/favicons?sz=128&domain=claude.com" alt="Claude"
+                                    <img src="/assets/img/claude-ai-icon.svg" alt="Claude" width="36" height="36"
                                         style="width: 36px; height: 36px; border-radius: 10px; corner-shape: squircle;"
-                                        on:error={(e) => { const el = e.currentTarget; if (el.dataset.fb) { el.style.display = 'none'; return; } el.dataset.fb = '1'; el.src = '/assets/img/claude-ai-icon.svg'; }}>
+                                        loading="lazy" decoding="async">
                                     <span style="font-weight: 600; font-size: 16px;">Claude</span>
                                 </div>
                             </div>
@@ -107,9 +107,9 @@
                             <div
                                 style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid rgba(128, 128, 128, 0.1);">
                                 <div style="display: flex; align-items: center; gap: 12px;">
-                                    <img src="https://www.google.com/s2/favicons?sz=128&domain=perplexity.ai"
-                                        alt="Claude" style="width: 36px; height: 36px; border-radius: 10px; corner-shape: squircle;"
-                                        on:error={(e) => { const el = e.currentTarget; if (el.dataset.fb) { el.style.display = 'none'; return; } el.dataset.fb = '1'; el.src = '/assets/img/perplexity-ai-icon.svg'; }}>
+                                    <img src="/assets/img/perplexity-ai-icon.svg" alt="Perplexity" width="36" height="36"
+                                        style="width: 36px; height: 36px; border-radius: 10px; corner-shape: squircle;"
+                                        loading="lazy" decoding="async">
                                     <span style="font-weight: 600; font-size: 16px;">Perplexity</span>
                                 </div>
                             </div>

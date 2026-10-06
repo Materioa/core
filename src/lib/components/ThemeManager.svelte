@@ -51,9 +51,10 @@
     };
 
     $: if (typeof document !== 'undefined' && $page) {
-        const isHome = $page.url.pathname === '/';
+        const isHome = $page.url.pathname === '/' || $page.url.pathname === '/home';
+        const isPost = $page.url.pathname.startsWith('/post/') || $page.url.pathname.startsWith('/posts/') || $page.data?.layout === 'bare';
         document.body.classList.toggle('home-tab-active', isHome);
-        document.body.classList.toggle('blog-layout', !isHome);
+        document.body.classList.toggle('blog-layout', isPost);
     }
 
     // Smart dark mode time range (19:00 to 6:45)

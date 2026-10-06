@@ -28,6 +28,12 @@
     let mounted = false;
     let lastInitialTab = initialTab;
 
+    let visitedTabs = new Set([initialTab || 'home']);
+    $: if ($activeTab) {
+        visitedTabs.add($activeTab);
+        visitedTabs = visitedTabs;
+    }
+
     // Only update activeTab when initialTab prop actually changes from router
     $: if (mounted && initialTab && initialTab !== lastInitialTab && tabTitles[initialTab]) {
         lastInitialTab = initialTab;
@@ -235,23 +241,33 @@
         </div>
 
         <div id="notifications" class="tab-content" class:active={$activeTab === 'notifications'}>
-            <NotificationsTab />
+            {#if visitedTabs.has('notifications')}
+                <NotificationsTab />
+            {/if}
         </div>
 
         <div id="leaderboard" class="tab-content" class:active={$activeTab === 'leaderboard'}>
-            <Leaderboard />
+            {#if visitedTabs.has('leaderboard')}
+                <Leaderboard />
+            {/if}
         </div>
 
         <div id="notebooks" class="tab-content" class:active={$activeTab === 'notebooks'}>
-            <NotebooksTab />
+            {#if visitedTabs.has('notebooks')}
+                <NotebooksTab />
+            {/if}
         </div>
 
         <div id="downloads" class="tab-content" class:active={$activeTab === 'downloads'}>
-            <DownloadsTab />
+            {#if visitedTabs.has('downloads')}
+                <DownloadsTab />
+            {/if}
         </div>
 
         <div id="settings" class="tab-content" class:active={$activeTab === 'settings'}>
-            <SettingsTab />
+            {#if visitedTabs.has('settings')}
+                <SettingsTab />
+            {/if}
         </div>
 
         <!-- Quick Search Results Dropdown -->

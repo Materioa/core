@@ -691,7 +691,11 @@ import HugeIcon from './HugeIcon.svelte';
         window.forceLoadPromo = () => loadAndDisplayPromotion();
 
         initMobileSwipe();
-        loadAndDisplayPromotion();
+        if ('requestIdleCallback' in window) {
+            window.requestIdleCallback(() => { setTimeout(loadAndDisplayPromotion, 2000); }, { timeout: 5000 });
+        } else {
+            setTimeout(loadAndDisplayPromotion, 3000);
+        }
     });
 
     onDestroy(() => {
