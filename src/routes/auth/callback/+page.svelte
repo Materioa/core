@@ -7,7 +7,6 @@
 
   let errorMsg = '';
   let statusText = 'Authenticating with Materio...';
-  let isRetrying = false;
 
   onMount(async () => {
     const code = $page.url.searchParams.get('code') || $page.url.searchParams.get('handoff');
@@ -106,8 +105,6 @@
     } catch (err) {
       console.error('Handoff error:', err);
       errorMsg = err.message || 'Failed to authenticate';
-      
-      // Stop looping: if we failed, do not immediately auto-redirect again
       sessionStorage.removeItem('materio_auth_attempts');
     }
   });
@@ -124,30 +121,210 @@
   }
 </script>
 
-{#if errorMsg}
-  <div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #faf9f5; font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 24px;">
-    <div style="max-width: 400px; width: 100%; background: #fff; border: 1px solid #e5e5e0; border-radius: 12px; padding: 28px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
-      <div style="font-size: 32px; margin-bottom: 12px;">⚠️</div>
-      <h2 style="font-size: 18px; font-weight: 600; color: #1c1917; margin-bottom: 8px;">Authentication Issue</h2>
-      <p style="font-size: 14px; color: #78716c; margin-bottom: 20px; line-height: 1.5;">{errorMsg}</p>
-      <div style="display: flex; gap: 10px;">
-        <button on:click={retryLogin} style="flex: 1; padding: 10px 16px; background: #1c1917; color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer;">
+<svelte:head>
+  <title>Authenticating | Materio</title>
+</svelte:head>
+
+<div class="auth-callback-container">
+  {#if errorMsg}
+    <div class="auth-content">
+      <p class="auth-error-text">{errorMsg}</p>
+      <div class="auth-button-group">
+        <button class="auth-btn auth-btn-primary" on:click={retryLogin}>
           Try Again
         </button>
-        <button on:click={goToApp} style="flex: 1; padding: 10px 16px; background: #f5f5f4; color: #1c1917; border: 1px solid #e5e5e0; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer;">
+        <button class="auth-btn auth-btn-secondary" on:click={goToApp}>
           Open App
         </button>
       </div>
     </div>
-  </div>
-{:else}
-  <div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #faf9f5; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
-    <div style="width: 32px; height: 32px; border: 3px solid #e5e5e0; border-top-color: #1c1917; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px;"></div>
-    <p style="font-size: 14px; color: #78716c;">{statusText}</p>
-  </div>
-  <style>
-    @keyframes spin {
-      to { transform: rotate(360deg); }
+  {:else}
+    <div class="auth-content">
+      <div class="dots-bounce" aria-hidden="true">
+        <span class="dot"></span>
+        <span class="dot"></span>
+        <span class="dot"></span>
+      </div>
+      <p class="auth-status-text">{statusText}</p>
+    </div>
+  {/if}
+</div>
+
+<style>
+  .auth-callback-container {
+    min-height: 100vh;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg, #faf9f5);
+    color: var(--text, #1c1917);
+    font-family: var(--font-primary, var(--font-body, 'OpenRunde', 'Open Runde', -apple-system, sans-serif));
+    padding: 24px;
+    box-sizing: border-box;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+
+  :global(body.dark-mode) .auth-callback-container,
+  :global(html.dark-mode) .auth-callback-container {
+    background: var(--bg, #121212);
+    color: var(--text, #f4f4f5);
+  }
+
+  .auth-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    max-width: 380px;
+    width: 100%;
+    animation: fadeIn 0.25s ease-out;
+  }
+
+  /* 3 Dots Bouncing Animation */
+  .dots-bounce {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 18px;
+    height: 24px;
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-primary, #ff8400);
+    display: inline-block;
+    animation: bounce 1.4s infinite ease-in-out both;
+  }
+
+  .dot:nth-child(1) {
+    animation-delay: -0.32s;
+  }
+
+  .dot:nth-child(2) {
+    animation-delay: -0.16s;
+  }
+
+  .dot:nth-child(3) {
+    animation-delay: 0s;
+  }
+
+  @keyframes bounce {
+    0%, 80%, 100% {
+      transform: scale(0.6);
+      opacity: 0.35;
     }
-  </style>
-{/if}
+    40% {
+      transform: scale(1.15) translateY(-6px);
+      opacity: 1;
+    }
+  }
+
+  .auth-status-text {
+    font-size: 15px;
+    font-weight: 450;
+    color: var(--text, #1c1917);
+    opacity: 0.75;
+    margin: 0;
+    line-height: 1.5;
+    letter-spacing: -0.01em;
+  }
+
+  .auth-error-text {
+    font-size: 15px;
+    font-weight: 450;
+    color: var(--text, #1c1917);
+    opacity: 0.85;
+    margin: 0 0 24px 0;
+    line-height: 1.5;
+  }
+
+  :global(body.dark-mode) .auth-status-text,
+  :global(html.dark-mode) .auth-status-text {
+    color: var(--text, #f4f4f5);
+    opacity: 0.75;
+  }
+
+  :global(body.dark-mode) .auth-error-text,
+  :global(html.dark-mode) .auth-error-text {
+    color: var(--text, #f4f4f5);
+    opacity: 0.85;
+  }
+
+  /* Buttons displayed directly on background without card wrapper */
+  .auth-button-group {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .auth-btn {
+    flex: 1;
+    min-width: 120px;
+    padding: 10px 20px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: transform 0.15s ease, background-color 0.15s ease, opacity 0.15s ease, border-color 0.15s ease;
+    border: none;
+    outline: none;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .auth-btn:active {
+    transform: scale(0.97);
+  }
+
+  .auth-btn-primary {
+    background: var(--color-primary, #ff8400);
+    color: #ffffff;
+  }
+
+  .auth-btn-primary:hover {
+    background: var(--color-primary-hover, #e67300);
+  }
+
+  .auth-btn-secondary {
+    background: rgba(128, 128, 128, 0.12);
+    color: var(--text, #1c1917);
+    border: 1px solid var(--border, rgba(0, 0, 0, 0.12));
+  }
+
+  :global(body.dark-mode) .auth-btn-secondary,
+  :global(html.dark-mode) .auth-btn-secondary {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text, #f4f4f5);
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+
+  .auth-btn-secondary:hover {
+    background: rgba(128, 128, 128, 0.18);
+  }
+
+  :global(body.dark-mode) .auth-btn-secondary:hover,
+  :global(html.dark-mode) .auth-btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.14);
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+</style>

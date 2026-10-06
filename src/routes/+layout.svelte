@@ -116,7 +116,8 @@
   $: bareContent = $page.data?.layout === 'bare'
     || ['/privacy', '/cookies', '/terms', '/changelog'].includes($page.url.pathname)
     || $page.url.pathname === '/docs'
-    || $page.url.pathname.startsWith('/docs/');
+    || $page.url.pathname.startsWith('/docs/')
+    || $page.url.pathname.startsWith('/auth');
 
   const modalToHash = {
     'notebook': '#notebook',
@@ -453,14 +454,14 @@
 <PdfReaderModal />
 <AiChatModal />
 <DynamicFormsModal />
-{#if !hideGlobalHeader}
+{#if !hideGlobalHeader && !bareContent}
 <AutoShowPopups />
 {/if}
 <NotebookEditor />
 <AdvancedSettingsDrawer />
 <NotificationsDrawer />
 <KeyboardShortcuts />
-{#if !hideGlobalHeader}
+{#if !hideGlobalHeader && !bareContent}
 <PromoBanner />
 {/if}
 <ExamModal />
@@ -469,7 +470,7 @@
 <SearchResultsModal />
 <WallpaperEngine />
 <InterviewerModal />
-{#if !hideGlobalHeader}
+{#if !hideGlobalHeader && !bareContent}
 <OpenInAppBanner />
 {/if}
 {#if isTauri}
