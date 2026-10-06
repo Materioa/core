@@ -884,12 +884,26 @@
         );
       }
 
+      if (document.hidden || (svg && !svg.isConnected)) {
+        return;
+      }
+
       frame = requestAnimationFrame(animate);
+    }
+
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        cancelAnimationFrame(frame);
+      } else {
+        cancelAnimationFrame(frame);
+        frame = requestAnimationFrame(animate);
+      }
     }
 
     window.addEventListener("pointermove", handlePointerMove, { passive: true });
     document.addEventListener("mouseleave", handlePointerLeave);
     document.addEventListener("mouseenter", handlePointerEnter);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     frame = requestAnimationFrame(animate);
 
@@ -897,6 +911,7 @@
       window.removeEventListener("pointermove", handlePointerMove);
       document.removeEventListener("mouseleave", handlePointerLeave);
       document.removeEventListener("mouseenter", handlePointerEnter);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       cancelAnimationFrame(frame);
     };
   });

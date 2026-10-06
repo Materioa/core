@@ -12,6 +12,7 @@ import { supabase, supabaseAdmin, verifyToken } from '$lib/server/supabase.js';
 import { corsHeaders, isAllowedOrigin } from '$lib/server/cors-origins.js';
 import { getFormsCollection, getFormConfigsCollection, getMongoDb, resetMongoDb, withMongoTimeout } from '$lib/server/mongodb.js';
 import { cachedResponse, isCacheableRequest, markDegraded } from '$lib/server/edge-cache.js';
+import { redisGet, redisSet } from '$lib/server/redis.js';
 import { sendAlertEmail, ALERT_EMAIL } from '$lib/server/mailer.js';
 import {
   isWebPushConfigured,
@@ -1357,6 +1358,12 @@ async function handleNotebooks(request, url) {
     if (fallbackUserId) userId = String(fallbackUserId);
   }
 
+  // Fast path: anonymous visitors have no cloud notebooks. Do not touch Mongo,
+  // do not check out connection pool sockets, and do not risk timing out.
+  if ((method === 'GET' || !subAction || subAction === 'list' || subAction === 'notebooks') && (!userId || userId === 'anonymous')) {
+    return json({ notebooks: [] });
+  }
+
   try {
     const db = await getMongoDb();
     const collection = db.collection('notebooks');
@@ -1431,6 +1438,9 @@ async function handleNotebooks(request, url) {
   } catch (error) {
     console.error('Notebooks error:', error);
     resetMongoDb();
+    if (method === 'GET' || !subAction || subAction === 'list' || subAction === 'notebooks') {
+      return json({ notebooks: [], degraded: true, error: error.message });
+    }
     return json({ error: 'Database error', details: error.message }, { status: 500 });
   }
 }
@@ -3007,11 +3017,31 @@ async function fetchLeaderboardIdentityMap(readerIds = []) {
   if (!userIds.length) return new Map();
 
   const identities = new Map();
+  const missingUserIds = [];
+
+  // Check Redis cache for each user identity first
+  await Promise.all(
+    userIds.map(async (id) => {
+      try {
+        const cached = await redisGet(`user:display_name:${id}`);
+        if (cached) {
+          identities.set(id, cached);
+        } else {
+          missingUserIds.push(id);
+        }
+      } catch {
+        missingUserIds.push(id);
+      }
+    })
+  );
+
+  if (!missingUserIds.length) return identities;
+
   const chunkSize = 200;
   const client = supabaseAdmin || supabase;
 
-  for (let i = 0; i < userIds.length; i += chunkSize) {
-    const chunk = userIds.slice(i, i + chunkSize);
+  for (let i = 0; i < missingUserIds.length; i += chunkSize) {
+    const chunk = missingUserIds.slice(i, i + chunkSize);
     const { data, error } = await supabaseWithTimeout(
       client.from('users').select('id,display_name,username').in('id', chunk),
       'leaderboard identity lookup'
@@ -3022,7 +3052,11 @@ async function fetchLeaderboardIdentityMap(readerIds = []) {
       const id = String(row.id || '').trim();
       if (!id) continue;
       const displayName = String(row.display_name || '').trim() || String(row.username || '').trim() || null;
-      if (displayName) identities.set(id, displayName);
+      if (displayName) {
+        identities.set(id, displayName);
+        // Cache display name in Redis for 24 hours
+        redisSet(`user:display_name:${id}`, displayName, 86400).catch(() => {});
+      }
     }
   }
   return identities;
@@ -3070,13 +3104,29 @@ async function handleAnalyticsViews(url) {
       return json({ error: 'pdfName is required' }, { status: 400 });
     }
 
+    const redisKey = `pdf:views:${normalizedPdfName}`;
+    const cached = await redisGet(redisKey);
+    if (cached) {
+      return json(cached, {
+        headers: {
+          'Cache-Control': 'public, max-age=60, s-maxage=600, stale-while-revalidate=1200'
+        }
+      });
+    }
+
     const viaRpc = await fetchPdfViewStatsViaRpc(normalizedPdfName);
     if (viaRpc) {
-      return json({
+      const payload = {
         pdfName: normalizedPdfName,
         hasData: viaRpc.totalReads > 0 && viaRpc.uniqueReads > 0,
         uniqueReads: viaRpc.uniqueReads,
         totalReads: viaRpc.totalReads
+      };
+      redisSet(redisKey, payload, 600).catch(() => {});
+      return json(payload, {
+        headers: {
+          'Cache-Control': 'public, max-age=60, s-maxage=600, stale-while-revalidate=1200'
+        }
       });
     }
 
@@ -3094,8 +3144,14 @@ async function handleAnalyticsViews(url) {
 
     const uniqueReads = readers.size;
     const hasData = totalReads > 0 && uniqueReads > 0;
+    const payload = { pdfName: normalizedPdfName, hasData, uniqueReads, totalReads };
+    redisSet(redisKey, payload, 600).catch(() => {});
 
-    return json({ pdfName: normalizedPdfName, hasData, uniqueReads, totalReads });
+    return json(payload, {
+      headers: {
+        'Cache-Control': 'public, max-age=60, s-maxage=600, stale-while-revalidate=1200'
+      }
+    });
   } catch (error) {
     console.error('Analytics Views Error:', error);
     return json({ error: 'Failed to compute PDF views' }, { status: 500 });
@@ -3119,79 +3175,116 @@ async function handleAnalyticsLeaderboard(request, url) {
     const timeframe = timeframeRaw === 'today' ? 'today' : 'weekly';
     const requestedDateKey = String(url.searchParams.get('date') || '').trim();
 
-    const inTimeframe = makeTimeframePredicate(timeframe, requestedDateKey);
-    const byReader = new Map();
-
-    await forEachDailyStatsRow(
-      (row) => {
-      if (!inTimeframe(row)) return;
-      const readerKey = String(row.user_id || row.anon_id || '').trim();
-      if (!readerKey) return;
-
-      const current = byReader.get(readerKey) || {
-        readerId: readerKey,
-        isAnonymous: !row.user_id,
-        totalReads: 0,
-        totalReadSec: 0,
-        uniquePdfSet: new Set()
-      };
-
-      const countMap = extractPdfCountMap(row.metrics);
-      if (normalizedTargetPdf) {
-        current.totalReads += getPdfReadsForName(countMap, normalizedTargetPdf);
-        current.totalReadSec += getPdfTimeSecForName(countMap, normalizedTargetPdf);
-      } else {
-        for (const [pdfName, value] of Object.entries(countMap || {})) {
-          const reads = typeof value === 'number' ? value : Number(value?.count || 0);
-          const readSec = typeof value === 'number' ? 0 : Number(value?.time_sec || value?.duration_sec || 0);
-          const safeReads = Number.isFinite(reads) ? reads : 0;
-          const safeReadSec = Number.isFinite(readSec) ? readSec : 0;
-          current.totalReads += safeReads;
-          current.totalReadSec += safeReadSec;
-          if (safeReads > 0) current.uniquePdfSet.add(normalizeAnalyticsPdfName(pdfName));
-        }
+    const redisCacheKey = `leaderboard:${timeframe}:${limit}`;
+    if (!normalizedTargetPdf && !requesterUserId && !requesterAnonId) {
+      const cachedData = await redisGet(redisCacheKey);
+      if (cachedData) {
+        return json(cachedData, {
+          headers: {
+            'Cache-Control': 'public, max-age=60, s-maxage=300, stale-while-revalidate=600',
+            'X-Cache-Source': 'redis'
+          }
+        });
       }
-      byReader.set(readerKey, current);
-      },
-      // Push the 7-day (or 1-day) window into the query so the Worker only
-      // ever scans recent rows instead of the entire table since April.
-      { sinceDate: analyticsSinceDate(timeframe, requestedDateKey) }
-    );
-
-    const userIdsInLeaderboard = Array.from(byReader.values()).filter((e) => !e.isAnonymous).map((e) => e.readerId);
-    let identityMap = new Map();
-    try {
-      identityMap = await fetchLeaderboardIdentityMap(userIdsInLeaderboard);
-    } catch (e) {
-      console.warn('fetchLeaderboardIdentityMap non-fatal error:', e.message);
     }
 
-    const ranked = Array.from(byReader.values())
-      .filter((entry) => entry.totalReads > 0)
-      .map((entry) => ({
-        readerId: entry.readerId,
-        isAnonymous: entry.isAnonymous,
-        totalReads: entry.totalReads,
-        totalReadSec: entry.totalReadSec,
-        uniquePdfs: entry.uniquePdfSet.size
-      }))
-      .filter((entry) => !isSuspiciousLeaderboardAggregate(entry, timeframe))
-      .sort((a, b) => {
-        if (b.totalReadSec !== a.totalReadSec) return b.totalReadSec - a.totalReadSec;
-        if (b.totalReads !== a.totalReads) return b.totalReads - a.totalReads;
-        if (b.uniquePdfs !== a.uniquePdfs) return b.uniquePdfs - a.uniquePdfs;
-        return a.readerId.localeCompare(b.readerId);
-      })
-      .map((entry, index) => {
-        const readableId = entry.readerId || 'reader';
-        const maskedId = readableId.slice(-6).padStart(6, '0');
-        const resolvedName = !entry.isAnonymous && identityMap.has(entry.readerId) ? identityMap.get(entry.readerId) : null;
-        return {
-          ...entry,
-          rank: index + 1,
-          displayName: resolvedName || (entry.isAnonymous ? `Anon #${maskedId}` : `Reader #${maskedId}`)
-        };
-      });
+    let ranked = null;
+    if (!normalizedTargetPdf) {
+      try {
+        const client = supabaseAdmin || supabase;
+        const { data, error } = await supabaseWithTimeout(
+          client.rpc('get_leaderboard_v1', { p_timeframe: timeframe, p_limit: limit }),
+          'get_leaderboard_v1'
+        );
+        if (!error && Array.isArray(data) && data.length > 0) {
+          ranked = data.map((row) => ({
+            rank: Number(row.rank),
+            readerId: String(row.reader_id || ''),
+            isAnonymous: Boolean(row.is_anonymous),
+            displayName: String(row.display_name || (row.is_anonymous ? 'Anonymous' : 'Reader')),
+            totalReads: Number(row.total_reads || 0),
+            totalReadSec: Number(row.total_read_sec || 0),
+            uniquePdfs: Number(row.unique_pdfs || 0)
+          }));
+        }
+      } catch (rpcErr) {
+        console.warn('get_leaderboard_v1 RPC failed, using scan fallback:', rpcErr.message);
+      }
+    }
+
+    if (!ranked) {
+      const inTimeframe = makeTimeframePredicate(timeframe, requestedDateKey);
+      const byReader = new Map();
+
+      await forEachDailyStatsRow(
+        (row) => {
+          if (!inTimeframe(row)) return;
+          const readerKey = String(row.user_id || row.anon_id || '').trim();
+          if (!readerKey) return;
+
+          const current = byReader.get(readerKey) || {
+            readerId: readerKey,
+            isAnonymous: !row.user_id,
+            totalReads: 0,
+            totalReadSec: 0,
+            uniquePdfSet: new Set()
+          };
+
+          const countMap = extractPdfCountMap(row.metrics);
+          if (normalizedTargetPdf) {
+            current.totalReads += getPdfReadsForName(countMap, normalizedTargetPdf);
+            current.totalReadSec += getPdfTimeSecForName(countMap, normalizedTargetPdf);
+          } else {
+            for (const [pdfName, value] of Object.entries(countMap || {})) {
+              const reads = typeof value === 'number' ? value : Number(value?.count || 0);
+              const readSec = typeof value === 'number' ? 0 : Number(value?.time_sec || value?.duration_sec || 0);
+              const safeReads = Number.isFinite(reads) ? reads : 0;
+              const safeReadSec = Number.isFinite(readSec) ? readSec : 0;
+              current.totalReads += safeReads;
+              current.totalReadSec += safeReadSec;
+              if (safeReads > 0) current.uniquePdfSet.add(normalizeAnalyticsPdfName(pdfName));
+            }
+          }
+          byReader.set(readerKey, current);
+        },
+        { sinceDate: analyticsSinceDate(timeframe, requestedDateKey) }
+      );
+
+      const userIdsInLeaderboard = Array.from(byReader.values()).filter((e) => !e.isAnonymous).map((e) => e.readerId);
+      let identityMap = new Map();
+      try {
+        identityMap = await fetchLeaderboardIdentityMap(userIdsInLeaderboard);
+      } catch (e) {
+        console.warn('fetchLeaderboardIdentityMap non-fatal error:', e.message);
+      }
+
+      ranked = Array.from(byReader.values())
+        .filter((entry) => entry.totalReads > 0)
+        .map((entry) => ({
+          readerId: entry.readerId,
+          isAnonymous: entry.isAnonymous,
+          totalReads: entry.totalReads,
+          totalReadSec: entry.totalReadSec,
+          uniquePdfs: entry.uniquePdfSet.size
+        }))
+        .filter((entry) => !isSuspiciousLeaderboardAggregate(entry, timeframe))
+        .sort((a, b) => {
+          if (b.totalReadSec !== a.totalReadSec) return b.totalReadSec - a.totalReadSec;
+          if (b.totalReads !== a.totalReads) return b.totalReads - a.totalReads;
+          if (b.uniquePdfs !== a.uniquePdfs) return b.uniquePdfs - a.uniquePdfs;
+          return a.readerId.localeCompare(b.readerId);
+        })
+        .map((entry, index) => {
+          const readableId = entry.readerId || 'reader';
+          const maskedId = readableId.slice(-6).padStart(6, '0');
+          const resolvedName = !entry.isAnonymous && identityMap.has(entry.readerId) ? identityMap.get(entry.readerId) : null;
+          return {
+            ...entry,
+            rank: index + 1,
+            displayName: resolvedName || (entry.isAnonymous ? `Anon #${maskedId}` : `Reader #${maskedId}`)
+          };
+        });
+    }
 
     const requester =
       ranked.find((entry) => {
@@ -3208,13 +3301,11 @@ async function handleAnalyticsLeaderboard(request, url) {
           fingerprint: requesterFingerprint,
           ipAddress: getAnalyticsClientIp(request)
         }),
-        // Bounded: an unbounded Mongo await here is exactly what the runtime
-        // flags as a hung event (no pending work -> "code had hung").
         new Promise((resolve) => setTimeout(() => resolve(null), 2500))
       ]);
     } catch {}
 
-    return json({
+    const responsePayload = {
       generatedAt: new Date().toISOString(),
       timeframe,
       date: timeframe === 'today' ? toDateKey(requestedDateKey) || new Date().toISOString().slice(0, 10) : null,
@@ -3241,6 +3332,16 @@ async function handleAnalyticsLeaderboard(request, url) {
             active: moderationNotice.active
           }
         : null
+    };
+
+    if (!normalizedTargetPdf && !requesterUserId && !requesterAnonId) {
+      redisSet(redisCacheKey, responsePayload, 300).catch(() => {});
+    }
+
+    return json(responsePayload, {
+      headers: {
+        'Cache-Control': 'public, max-age=60, s-maxage=300, stale-while-revalidate=600'
+      }
     });
   } catch (error) {
     console.error('Analytics Leaderboard Error:', error);
@@ -3332,6 +3433,12 @@ export async function handleFeaturesRequest({ request, url, params }) {
     // up within a minute) while collapsing that load.
     if (feature === 'notifications') {
       return cachedResponse(request, 60, () => handleNotificationsFeature(request, url));
+    }
+    if (feature === 'analytics-leaderboard' || feature === 'leaderboard') {
+      return cachedResponse(request, 120, () => handleAnalyticsLeaderboard(request, url));
+    }
+    if (feature === 'analytics-views' || feature === 'views') {
+      return cachedResponse(request, 180, () => handleAnalyticsViews(url));
     }
   }
 

@@ -430,13 +430,35 @@
         // In native apps and web, pre-fetch the array buffer and stream into iframe cache
         // This guarantees zero cross-origin/range-origin failures in WebViews!
         try {
-            const resp = await fetch(url);
+            let targetUrl = url;
+            let resp = await fetch(targetUrl);
             if (resp.ok) {
-                const buffer = await resp.arrayBuffer();
+                let buffer = await resp.arrayBuffer();
+
+                // Check if response is <= 2KB (Git LFS pointer file, ~132 bytes)
+                // Route to /api/pdfs/... which serves the actual PDF binary
+                if (buffer.byteLength <= 2048 && targetUrl.includes('/pdfs/') && !targetUrl.includes('/api/pdfs/')) {
+                    const apiUrl = targetUrl.replace(/\/pdfs\//, '/api/pdfs/');
+                    try {
+                        const apiResp = await fetch(apiUrl);
+                        if (apiResp.ok) {
+                            const apiBuffer = await apiResp.arrayBuffer();
+                            if (apiBuffer.byteLength > 2048) {
+                                buffer = apiBuffer;
+                                targetUrl = apiUrl;
+                                activeViewerUrl = apiUrl;
+                                pdfModalStore.update(s => ({ ...s, pdfUrl: apiUrl }));
+                            }
+                        }
+                    } catch (apiErr) {
+                        console.warn('[PdfReader] API LFS fallback fetch failed:', apiErr);
+                    }
+                }
+
                 offlineArrayBuffer = buffer;
                 hasOfflineData = true;
-                sendBufferToIframe(url, buffer);
-                setupAnnotIdentity(buffer, url);
+                sendBufferToIframe(targetUrl, buffer);
+                setupAnnotIdentity(buffer, targetUrl);
             }
         } catch (fetchErr) {
             console.warn('[PdfReader] Main fetch failed, viewer will try direct fetch:', fetchErr);
@@ -764,12 +786,33 @@
 
             if (!blob) {
                 try {
-                    const res = await fetch(state.pdfUrl);
+                    let downloadUrl = state.pdfUrl;
+                    let res = await fetch(downloadUrl);
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
                     blob = await res.blob();
+
+                    // Check if downloaded file is Git LFS pointer text file (<= 2KB)
+                    if (blob.size <= 2048 && downloadUrl.includes('/pdfs/') && !downloadUrl.includes('/api/pdfs/')) {
+                        const apiUrl = downloadUrl.replace(/\/pdfs\//, '/api/pdfs/');
+                        try {
+                            const apiRes = await fetch(apiUrl);
+                            if (apiRes.ok) {
+                                const apiBlob = await apiRes.blob();
+                                if (apiBlob.size > 2048) {
+                                    blob = apiBlob;
+                                    state.pdfUrl = apiUrl;
+                                    pdfModalStore.update(s => ({ ...s, pdfUrl: apiUrl }));
+                                }
+                            }
+                        } catch {}
+                    }
                 } catch (directErr) {
                     console.warn('Direct fetch failed, trying proxy:', directErr);
-                    const proxyRes = await fetch(`/api/v2/cors?url=${encodeURIComponent(state.pdfUrl)}`);
+                    let proxyUrl = `/api/v2/cors?url=${encodeURIComponent(state.pdfUrl)}`;
+                    if (state.pdfUrl.includes('/pdfs/') && !state.pdfUrl.includes('/api/pdfs/')) {
+                        proxyUrl = `/api/v2/cors?url=${encodeURIComponent(state.pdfUrl.replace(/\/pdfs\//, '/api/pdfs/'))}`;
+                    }
+                    const proxyRes = await fetch(proxyUrl);
                     if (!proxyRes.ok) throw new Error(`Proxy HTTP ${proxyRes.status}`);
                     blob = await proxyRes.blob();
                 }

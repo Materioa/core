@@ -89,26 +89,11 @@
 
         loading = true;
         try {
-            let anonId = '';
-            let userId = '';
-            let fingerprint = '';
-            if (typeof localStorage !== 'undefined') {
-                anonId = localStorage.getItem('materio_anon_id') || '';
-                try {
-                    const user = JSON.parse(localStorage.getItem('materio_user') || 'null');
-                    userId = user?.id || '';
-                } catch {}
-                fingerprint = generateFingerprint();
-            }
-
             const query = new URLSearchParams({
                 action: 'leaderboard',
                 limit: '50',
                 timeframe: range
             });
-            if (anonId) query.set('anonId', anonId);
-            if (userId) query.set('userId', userId);
-            if (fingerprint) query.set('fp', fingerprint);
             if (range === 'today') {
                 const today = new Date();
                 const y = today.getFullYear();

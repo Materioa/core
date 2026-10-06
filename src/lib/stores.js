@@ -80,10 +80,11 @@ export function openPdfModal(pdfUrl, metadata = {}) {
     if (!title) {
         try {
             const u = new URL(pdfUrl, 'https://cdn.getmaterio.app');
-            const parts = u.pathname.split('/').filter(Boolean); // e.g. ['pdfs', '3', 'Data_Structures', 'Trees.pdf']
-            if (parts.length >= 4 && parts[0] === 'pdfs') {
-                semester = semester || parts[1];
-                subject = subject || decodeURIComponent(parts[2]).replace(/[-_]/g, ' ');
+            const parts = u.pathname.split('/').filter(Boolean); // e.g. ['pdfs', '3', 'Data_Structures', 'Trees.pdf'] or ['api', 'pdfs', '3', ...]
+            const pdfIdx = parts.indexOf('pdfs');
+            if (pdfIdx !== -1 && parts.length >= pdfIdx + 4) {
+                semester = semester || parts[pdfIdx + 1];
+                subject = subject || decodeURIComponent(parts[pdfIdx + 2]).replace(/[-_]/g, ' ');
                 topic = topic || decodeURIComponent(parts[parts.length - 1]).replace(/\.pdf$/i, '').replace(/[-_]/g, ' ');
                 title = topic;
             } else {

@@ -566,6 +566,12 @@ export function init() {
       }
     });
 
-    setInterval(setupSelects, 1000);
+    // Observe DOM changes instead of continuous 1s setInterval polling
+    let selectDebounce = null;
+    const observer = new MutationObserver(() => {
+      if (selectDebounce) clearTimeout(selectDebounce);
+      selectDebounce = setTimeout(setupSelects, 200);
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
   }
 }

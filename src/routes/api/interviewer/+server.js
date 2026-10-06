@@ -283,15 +283,28 @@ async function extractWithLlm({ form, history, latestText, priorExtracted = {}, 
 const CONFIG_TTL_MS = 60_000;
 const configCache = new Map();
 
+function formIdAliases(id) {
+	if (!id) return ['viva-question-bank'];
+	if (['viva', 'interview', 'viva-box', 'viva-question-bank'].includes(id)) {
+		return ['viva-question-bank', 'viva', 'interview', 'viva-box'];
+	}
+	return [id];
+}
+
 async function loadForm(formId) {
-	const hit = configCache.get(formId);
+	const aliases = formIdAliases(formId);
+	const cacheKey = aliases[0];
+	const hit = configCache.get(cacheKey);
 	if (hit && Date.now() - hit.at < CONFIG_TTL_MS) return hit.value;
 
 	let value;
 	try {
 		const configs = await getFormConfigsCollection();
 		const configured = await withMongoTimeout(
-			configs.findOne({ id: formId, published: true }),
+			configs.findOne({
+				$or: aliases.map((a) => ({ id: a })),
+				published: { $ne: false }
+			}),
 			MONGO_OP_MS,
 			'interviewer form config find'
 		);
@@ -308,7 +321,7 @@ async function loadForm(formId) {
 		return { ...defaultForm, id: formId };
 	}
 
-	configCache.set(formId, { at: Date.now(), value });
+	configCache.set(cacheKey, { at: Date.now(), value });
 	return value;
 }
 
@@ -389,44 +402,85 @@ function splitAndEnhanceQuestions(rawText) {
 
 async function getEnhancedResponses(formId) {
 	try {
-		const collection = await getFormResponsesCollection();
-		// Deliberately NOT .sort() on the cursor. A sorted cursor wedges on
-		// workerd — this file already works around that twice, in
-		// handlePromotionsFeature and getMergedNotifications — and this query
-		// was still doing it, which is why this endpoint consistently took
-		// exactly our 5000ms bound (5052ms p50) before falling back to an
-		// empty list. limit() before a sort would also return the wrong 50, so
-		// take a bounded unsorted slice and order it here instead.
-		const scanned = await withMongoTimeout(
-			collection.find({
-				$or: [
-					{ formId },
-					{ 'values.questions': { $exists: true, $ne: '' } },
-					{ 'values.question': { $exists: true, $ne: '' } }
-				]
-			}).limit(500).toArray(),
-			MONGO_OP_MS,
-			'interviewer responses find'
-		);
+		const [responsesCol, submissionsCol] = await Promise.all([
+			getFormResponsesCollection(),
+			getFormsCollection()
+		]);
+		const aliases = formIdAliases(formId);
+
+		const [responses, submissions] = await Promise.all([
+			withMongoTimeout(
+				responsesCol.find({
+					$or: [
+						{ formId: { $in: aliases } },
+						{ 'values.questions': { $exists: true, $ne: '' } },
+						{ 'values.question': { $exists: true, $ne: '' } }
+					]
+				}).limit(250).toArray(),
+				MONGO_OP_MS,
+				'interviewer responses find'
+			).catch(() => []),
+			withMongoTimeout(
+				submissionsCol.find({
+					$or: [
+						{ formType: { $in: aliases } },
+						{ 'data.questions': { $exists: true, $ne: '' } },
+						{ 'data.question': { $exists: true, $ne: '' } }
+					]
+				}).limit(250).toArray(),
+				MONGO_OP_MS,
+				'interviewer submissions find'
+			).catch(() => [])
+		]);
+
+		const allDocs = [
+			...responses.map((r) => ({ ...r, _source: 'response' })),
+			...submissions.map((s) => ({
+				...s,
+				_source: 'submission',
+				values: s.values || s.data || {}
+			}))
+		];
+
 		const timeOf = (doc) => {
-			const v = doc?.updatedAt || doc?.createdAt;
+			const v = doc?.updatedAt || doc?.createdAt || doc?.submittedAt;
 			if (!v) return 0;
 			return (v instanceof Date ? v.getTime() : Date.parse(v)) || 0;
 		};
-		scanned.sort((a, b) => {
+
+		// Filter docs that actually contain non-empty questions BEFORE slicing
+		const validDocs = allDocs.filter((doc) => {
+			const vals = doc.values || doc.data || {};
+			const rawQuestions = vals.questions || vals.question || vals.notes || '';
+			return Boolean(rawQuestions && String(rawQuestions).trim().length > 0);
+		});
+
+		// Deduplicate by sessionId or subject+question content
+		const seenKeys = new Set();
+		const uniqueDocs = [];
+		for (const doc of validDocs) {
+			const vals = doc.values || doc.data || {};
+			const key = doc.sessionId || `${vals.subject}_${vals.questions || vals.question}`;
+			if (!seenKeys.has(key)) {
+				seenKeys.add(key);
+				uniqueDocs.push(doc);
+			}
+		}
+
+		uniqueDocs.sort((a, b) => {
 			const at = timeOf(a);
 			const bt = timeOf(b);
 			if (at !== bt) return bt - at;
 			return String(b?._id ?? '').localeCompare(String(a?._id ?? ''));
 		});
-		const docs = scanned.slice(0, 50);
+		const docs = uniqueDocs.slice(0, 50);
 
 		const items = [];
 		const subjectSet = new Set();
 		const semesterSet = new Set();
 
 		for (const doc of docs) {
-			const vals = doc.values || {};
+			const vals = doc.values || doc.data || {};
 			const rawQuestions = vals.questions || vals.question || vals.notes || '';
 			if (!rawQuestions) continue;
 
@@ -467,7 +521,7 @@ async function getEnhancedResponses(formId) {
 				difficulty,
 				rawQuestions,
 				enhancedQuestions,
-				updatedAt: doc.updatedAt || doc.createdAt || new Date().toISOString()
+				updatedAt: doc.updatedAt || doc.createdAt || doc.submittedAt || new Date().toISOString()
 			});
 		}
 

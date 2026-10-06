@@ -98,14 +98,24 @@ function joinableInFlight(keyId) {
 	return entry;
 }
 
+function makeResponse(payload, cacheStatus = 'MISS') {
+	const res = new Response(payload.body, {
+		status: payload.status,
+		statusText: payload.statusText,
+		headers: new Headers(payload.headers)
+	});
+	res.headers.set('X-Edge-Cache', cacheStatus);
+	return res;
+}
+
 async function joinInFlight(entry) {
-	const shared = await Promise.race([
+	const payload = await Promise.race([
 		entry.promise,
 		new Promise((_, reject) =>
 			setTimeout(() => reject(new Error('in-flight producer stalled')), INFLIGHT_MAX_AGE_MS)
 		)
 	]);
-	return shared.clone();
+	return makeResponse(payload, 'HIT');
 }
 
 /**
@@ -162,47 +172,64 @@ export async function cachedResponse(request, ttlSeconds, producer) {
 
 	const pending = (async () => {
 		const res = await producer();
-		if (res && res.ok && res.status === 200) {
-			// Degraded (fallback) answers must not occupy the cache for the full
-			// TTL — that would serve stale data and mask Mongo recovery.
-			let ttl = ttlSeconds;
-			try {
-				if (res.headers.get(DEGRADED_HEADER)) ttl = DEGRADED_TTL_SECONDS;
-			} catch {}
-			try {
-				res.headers.set('X-Edge-Cache', 'MISS');
-				// Browser + CDN caching. The CDN is the durable layer.
-				res.headers.set('Cache-Control', `public, max-age=${ttl}, s-maxage=${ttl}`);
-				const body = await res.clone().arrayBuffer();
-				memCache.set(keyId, {
-					body,
-					status: res.status,
-					statusText: res.statusText,
-					headers: new Headers(res.headers),
-					expiresAt: Date.now() + ttl * 1000
-				});
-				// Keep the in-memory map from growing without bound.
-				if (memCache.size > MAX_MEM_ENTRIES) {
-					const cutoff = Date.now();
-					for (const [k, v] of memCache) {
-						if (v.expiresAt <= cutoff) memCache.delete(k);
-					}
-					if (memCache.size > MAX_MEM_ENTRIES) {
-						// Still too big: drop the oldest insertion.
-						const firstKey = memCache.keys().next().value;
-						if (firstKey !== undefined) memCache.delete(firstKey);
-					}
-				}
-			} catch {}
+		if (!res || !res.ok || res.status !== 200) {
+			const body = res ? await res.arrayBuffer().catch(() => new ArrayBuffer(0)) : new ArrayBuffer(0);
+			return {
+				body,
+				status: res?.status || 500,
+				statusText: res?.statusText || 'Internal Server Error',
+				headers: res?.headers ? new Headers(res.headers) : new Headers()
+			};
 		}
-		return res;
+
+		let ttl = ttlSeconds;
+		try {
+			if (res.headers.get(DEGRADED_HEADER)) ttl = DEGRADED_TTL_SECONDS;
+		} catch {}
+
+		try {
+			res.headers.set('X-Edge-Cache', 'MISS');
+			res.headers.set('Cache-Control', `public, max-age=${ttl}, s-maxage=${ttl}`);
+		} catch {}
+
+		const body = await res.arrayBuffer().catch(() => new ArrayBuffer(0));
+		const payload = {
+			body,
+			status: res.status,
+			statusText: res.statusText,
+			headers: new Headers(res.headers)
+		};
+
+		try {
+			memCache.set(keyId, {
+				body,
+				status: res.status,
+				statusText: res.statusText,
+				headers: new Headers(res.headers),
+				expiresAt: Date.now() + ttl * 1000
+			});
+
+			// Keep the in-memory map from growing without bound.
+			if (memCache.size > MAX_MEM_ENTRIES) {
+				const cutoff = Date.now();
+				for (const [k, v] of memCache) {
+					if (v.expiresAt <= cutoff) memCache.delete(k);
+				}
+				if (memCache.size > MAX_MEM_ENTRIES) {
+					const firstKey = memCache.keys().next().value;
+					if (firstKey !== undefined) memCache.delete(firstKey);
+				}
+			}
+		} catch {}
+
+		return payload;
 	})();
 
 	const record = { promise: pending, at: Date.now() };
 	inFlight.set(keyId, record);
 	try {
-		const res = await pending;
-		return res.clone();
+		const payload = await pending;
+		return makeResponse(payload, 'MISS');
 	} finally {
 		if (inFlight.get(keyId) === record) inFlight.delete(keyId);
 	}

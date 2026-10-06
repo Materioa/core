@@ -51,6 +51,7 @@
     "@lisse/svelte": "^0.6.2",
     "@octokit/rest": "^22.0.0",
     "@supabase/supabase-js": "^2.116.0",
+    "@upstash/redis": "^1.39.0",
     "clsx": "^2.1.1",
     "cuelume": "^0.2.4",
     "formidable": "^3.5.4",

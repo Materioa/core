@@ -319,7 +319,20 @@
         }
       }
 
+      if (document.hidden || (svg && !svg.isConnected)) {
+        return;
+      }
+
       frame = requestAnimationFrame(animate);
+    }
+
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        cancelAnimationFrame(frame);
+      } else {
+        cancelAnimationFrame(frame);
+        frame = requestAnimationFrame(animate);
+      }
     }
 
     window.addEventListener("pointermove", handlePointerMove, {
@@ -330,6 +343,7 @@
     document.addEventListener("focusin", handleFocusIn);
     document.addEventListener("focusout", handleFocusOut);
     window.addEventListener("blur", handlePointerLeave);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     frame = requestAnimationFrame(animate);
 
@@ -340,6 +354,7 @@
       document.removeEventListener("focusin", handleFocusIn);
       document.removeEventListener("focusout", handleFocusOut);
       window.removeEventListener("blur", handlePointerLeave);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       cancelAnimationFrame(frame);
     };
   });
