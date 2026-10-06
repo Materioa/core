@@ -30,6 +30,7 @@
     let title = 'Untitled Note';
     let contentHtml = '';
     let isSaving = false;
+    let isLoadingContent = false;
     let saveStatusText = 'Saved locally';
     let wordCount = 0;
     let notebooks = [];
@@ -176,20 +177,7 @@
             } catch (e) {}
         }
         if (noteId) {
-            const existing = notebooks.find(n => n.id === noteId);
-            if (existing) {
-                title = existing.title;
-                contentHtml = existing.content;
-                currentNotebookId = existing.id;
-                currentLinkedPdf = existing.linkedPdf || null;
-                linkedPdfName = existing.linkedPdf?.name || '';
-                currentCover = existing.cover || DEFAULT_COVER;
-                createdAt = existing.createdAt || null;
-                updatedAt = existing.updatedAt || null;
-                showDelete = true;
-                isViewMode = false;
-                setTimeout(()=> { if(editorEl) editorEl.innerHTML = contentHtml; updateWordCount(); }, 0);
-            }
+            loadSpecificNotebook(noteId);
         }
         if (typeof window !== 'undefined') {
             onNotebookUpdate = () => {
@@ -250,39 +238,7 @@
                 openEditor();
             };
             window.openNotebook = (id) => {
-                try {
-                    const saved = localStorage.getItem('materio_notebooks');
-                    if (saved) notebooks = JSON.parse(saved);
-                } catch (e) {}
-
-                const existing = notebooks.find(n => n.id === id);
-                if (existing) {
-                    title = existing.title;
-                    contentHtml = existing.content;
-                    currentNotebookId = id;
-                    currentLinkedPdf = existing.linkedPdf || null;
-                    linkedPdfName = existing.linkedPdf?.name || '';
-                    currentCover = existing.cover || DEFAULT_COVER;
-                    createdAt = existing.createdAt || null;
-                    updatedAt = existing.updatedAt || null;
-                    showDelete = true;
-                    isViewMode = false;
-                } else {
-                    // A stale id used to open the modal anyway, presenting
-                    // whatever was last in the editor as if it were the note
-                    // that was asked for. Clear instead.
-                    title = 'Untitled Note';
-                    contentHtml = '';
-                    currentNotebookId = null;
-                    currentLinkedPdf = null;
-                    linkedPdfName = '';
-                    currentCover = DEFAULT_COVER;
-                    createdAt = null;
-                    updatedAt = null;
-                    showDelete = false;
-                    isViewMode = false;
-                }
-                openEditor();
+                loadSpecificNotebook(id);
             };
             window.MaterioNotebook = {
                 get isOpen() { let v; activeModalStore.subscribe(x=>v=x)(); return v==='notebook'; },
@@ -353,6 +309,111 @@
             reopen();
         }
         sfx('open', { emphasis: 'subtle' });
+    }
+
+    /**
+     * Loads a specific notebook on demand.
+     * If content is cached locally, it presents it immediately for zero latency.
+     * If content is missing (metadata-only from list) or if the note is synced to cloud,
+     * it fetches the full notebook content from the server for this note only.
+     */
+    async function loadSpecificNotebook(id) {
+        if (!id) return;
+
+        try {
+            const saved = localStorage.getItem('materio_notebooks');
+            if (saved) notebooks = JSON.parse(saved);
+        } catch (e) {}
+
+        const existing = notebooks.find(n => n.id === id);
+        currentNotebookId = id;
+
+        if (existing) {
+            title = existing.title || 'Untitled Note';
+            currentLinkedPdf = existing.linkedPdf || null;
+            linkedPdfName = existing.linkedPdf?.name || '';
+            currentCover = existing.cover || DEFAULT_COVER;
+            createdAt = existing.createdAt || null;
+            updatedAt = existing.updatedAt || null;
+            showDelete = true;
+            isViewMode = false;
+
+            if (existing.content !== undefined && existing.content !== null) {
+                contentHtml = existing.content;
+                saveStatusText = existing.syncedToCloud ? 'Synced to cloud' : 'Saved locally';
+                isLoadingContent = false;
+            } else {
+                contentHtml = '';
+                saveStatusText = 'Loading note...';
+                isLoadingContent = true;
+            }
+        } else {
+            // Not in local cache - show loading skeleton and load from cloud
+            title = 'Loading...';
+            contentHtml = '';
+            currentLinkedPdf = null;
+            linkedPdfName = '';
+            currentCover = DEFAULT_COVER;
+            createdAt = null;
+            updatedAt = null;
+            showDelete = false;
+            isViewMode = false;
+            saveStatusText = 'Loading note...';
+            isLoadingContent = true;
+        }
+
+        openEditor();
+
+        // If content is not present locally, or if the note is synced to cloud,
+        // fetch the full document (including content) on-demand for this specific notebook.
+        const token = getAuthToken();
+        const needsCloudFetch = token && (!existing || existing.content === undefined || existing.syncedToCloud);
+
+        if (needsCloudFetch) {
+            try {
+                const res = await fetch(`/api/v2/features?action=notebooks&subAction=get&id=${encodeURIComponent(id)}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    const note = data.notebook;
+                    if (note && currentNotebookId === id) {
+                        title = note.title || title;
+                        contentHtml = note.content || '';
+                        currentCover = note.cover || currentCover;
+                        currentLinkedPdf = note.linkedPdf || currentLinkedPdf;
+                        createdAt = note.createdAt || createdAt;
+                        updatedAt = note.updatedAt || updatedAt;
+                        showDelete = true;
+                        saveStatusText = 'Synced to cloud';
+
+                        // Cache in memory and localStorage so subsequent opens have content
+                        const idx = notebooks.findIndex(n => n.id === id);
+                        if (idx >= 0) {
+                            notebooks[idx] = { ...notebooks[idx], ...note, syncedToCloud: true };
+                        } else {
+                            notebooks.unshift({ ...note, syncedToCloud: true });
+                        }
+                        try {
+                            localStorage.setItem('materio_notebooks', JSON.stringify(notebooks));
+                        } catch {}
+
+                        paintEditor();
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to load notebook content:', err);
+                if (existing && existing.content !== undefined) {
+                    saveStatusText = 'Offline (cached)';
+                } else {
+                    saveStatusText = 'Could not load cloud note';
+                }
+            } finally {
+                if (currentNotebookId === id) {
+                    isLoadingContent = false;
+                }
+            }
+        }
     }
 
     function updateWordCount() {
@@ -802,7 +863,13 @@
                         </div>
                     {/if}
                 {:else}
-                    <div class="notebook-editor" id="notebookEditor" contenteditable="true" data-placeholder="Start writing your note..." data-cuelume-type bind:this={editorEl} on:input={handleEditorInput}></div>
+                    {#if isLoadingContent && !contentHtml}
+                        <div class="notebook-loading" style="padding: 2.5rem 1rem; text-align: center; color: var(--color-text-muted, #888); display: flex; align-items: center; justify-content: center; gap: 8px;">
+                            <HugeiconsIcon icon={LoaderIcon} size="1.2em" class="hgi spin" />
+                            <span>Loading note content...</span>
+                        </div>
+                    {/if}
+                    <div class="notebook-editor" id="notebookEditor" contenteditable="true" data-placeholder="Start writing your note..." data-cuelume-type bind:this={editorEl} on:input={handleEditorInput} style={isLoadingContent && !contentHtml ? 'display: none;' : ''}></div>
 
                     {#if showAiOverlay}
                     <div class="ai-input-overlay" id="aiInputOverlay" style="display: flex;">
@@ -861,7 +928,7 @@
                     <span class="word-count" id="notebookWordCount">{wordCount} {wordCount === 1 ? 'word' : 'words'}</span>
                     <span class="save-status" id="notebookSaveStatus">
                         <span class="status-icon-container" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;margin-right:4px;">
-                            {#if isSaving}<HugeiconsIcon icon={LoaderIcon} size="1em" class="hgi spin" />{:else}<HugeIcon name="cloud-check" />{/if}
+                            {#if isSaving || isLoadingContent}<HugeiconsIcon icon={LoaderIcon} size="1em" class="hgi spin" />{:else}<HugeIcon name="cloud-check" />{/if}
                         </span>
                         <span class="save-status-text">{saveStatusText}</span>
                     </span>

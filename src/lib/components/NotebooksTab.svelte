@@ -173,7 +173,12 @@ import { NOTEBOOK_COVERS, DEFAULT_COVER, coverStyle, getRibbon } from '$lib/util
                 const cloudTime = new Date(cloudNote.updatedAt || 0).getTime();
                 const localTime = new Date(existing.updatedAt || 0).getTime();
                 if (cloudTime >= localTime) {
-                    map.set(cloudNote.id, { ...cloudNote, syncedToCloud: true });
+                    map.set(cloudNote.id, {
+                        ...existing,
+                        ...cloudNote,
+                        content: cloudNote.content !== undefined ? cloudNote.content : existing.content,
+                        syncedToCloud: true
+                    });
                 }
             }
         }
@@ -273,8 +278,8 @@ import { NOTEBOOK_COVERS, DEFAULT_COVER, coverStyle, getRibbon } from '$lib/util
 
         isSyncing = true;
         try {
-            // First push any unsynced local notes
-            const unsynced = notebooks.filter(n => !n.syncedToCloud);
+            // First push any unsynced local notes (only if content is present)
+            const unsynced = notebooks.filter(n => !n.syncedToCloud && n.content !== undefined);
             for (const n of unsynced) {
                 await fetch('/api/v2/features?action=notebooks', {
                     method: 'POST',

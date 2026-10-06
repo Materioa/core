@@ -432,6 +432,13 @@ async function getMergedNotifications(options = {}) {
   // 3. Sort by date / timestamp descending
   merged.sort((a, b) => new Date(b.date || b.timestamp || 0) - new Date(a.date || a.timestamp || 0));
 
+  // If strict 7-day cutoff produces no items (e.g. no new announcements published this week),
+  // fallback to the most recent announcements so the notification tray never appears empty.
+  if (merged.length === 0 && !includeAll) {
+    const allItems = await getMergedNotifications({ all: true });
+    return allItems.slice(0, 10);
+  }
+
   return merged;
 }
 
@@ -1428,6 +1435,10 @@ async function handleNotebooks(request, url) {
   // Fast path: anonymous visitors have no cloud notebooks. Do not touch Mongo,
   // do not check out connection pool sockets, and do not risk timing out.
   if ((method === 'GET' || !subAction || subAction === 'list' || subAction === 'notebooks') && (!userId || userId === 'anonymous')) {
+    const singleId = url.searchParams.get('id') || url.searchParams.get('noteId') || body?.id || body?.noteId;
+    if (subAction === 'get' || subAction === 'read' || (singleId && subAction !== 'list' && subAction !== 'notebooks')) {
+      return json({ error: 'Authentication required' }, { status: 401 });
+    }
     return json({ notebooks: [] });
   }
 
@@ -1480,6 +1491,33 @@ async function handleNotebooks(request, url) {
       return json({ success: true, message: 'Notebook deleted' });
     }
 
+    // Single notebook fetch: load full note document (including content)
+    const singleNoteId = url.searchParams.get('id') || url.searchParams.get('noteId') || body.id || body.noteId;
+    if (subAction === 'get' || subAction === 'read' || (singleNoteId && subAction !== 'list' && subAction !== 'notebooks')) {
+      if (!userId || userId === 'anonymous') {
+        return json({ error: 'Authentication required' }, { status: 401 });
+      }
+      if (!singleNoteId) {
+        return json({ error: 'Note ID is required' }, { status: 400 });
+      }
+
+      const note = await withMongoTimeout(
+        collection.findOne(
+          { id: singleNoteId, $or: [{ userId }, { user_id: userId }] },
+          { projection: { _id: 0 } }
+        ),
+        5000,
+        'notebook get'
+      );
+
+      if (!note) {
+        return json({ error: 'Notebook not found' }, { status: 404 });
+      }
+
+      return json({ success: true, notebook: { ...note, syncedToCloud: true } });
+    }
+
+    // List notebooks: returns METADATA ONLY (excludes heavy content fields)
     if (method === 'GET' || (method === 'POST' && (subAction === 'list' || subAction === 'notebooks' || !subAction))) {
       if (!userId || userId === 'anonymous') {
         return json({ notebooks: [] });
@@ -1488,16 +1526,32 @@ async function handleNotebooks(request, url) {
       // leaves the event with nothing pending, so the runtime cancels it with
       // "your Worker's code had hung" — no stack, no handleError, and the
       // whole request 500s. Capped at 200 notes to bound memory/parse cost.
+      // Projected to exclude raw heavy content fields (content, html, delta, ops, elements, body, rawText)
+      // so the list serves metadata only and stays lightweight (~KB instead of ~MB).
       const notes = await withMongoTimeout(
         collection
-          .find({ $or: [{ userId }, { user_id: userId }] })
+          .find(
+            { $or: [{ userId }, { user_id: userId }] },
+            {
+              projection: {
+                content: 0,
+                html: 0,
+                delta: 0,
+                ops: 0,
+                elements: 0,
+                body: 0,
+                rawText: 0,
+                _id: 0
+              }
+            }
+          )
           .sort({ updatedAt: -1 })
           .limit(200)
           .toArray(),
         5000,
         'notebooks list'
       );
-      const cleanNotebooks = notes.map(({ _id, ...n }) => ({ ...n, syncedToCloud: true }));
+      const cleanNotebooks = notes.map((n) => ({ ...n, syncedToCloud: true }));
       return json({ notebooks: cleanNotebooks });
     }
 
