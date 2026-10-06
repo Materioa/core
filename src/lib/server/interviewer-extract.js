@@ -69,7 +69,9 @@ export function looksLikeQuestion(field, value) {
 const ORDINAL_WORDS = {
 	one: '1', two: '2', three: '3', four: '4', five: '5',
 	six: '6', seven: '7', eight: '8', nine: '9', ten: '10',
-	eleventh: '11', twelfth: '12'
+	eleventh: '11', twelfth: '12',
+	first: '1', second: '2', third: '3', fourth: '4', fifth: '5',
+	sixth: '6', seventh: '7', eighth: '8', ninth: '9', tenth: '10'
 };
 
 /** Never a subject/topic — these used to get captured from "…for me". */
@@ -147,15 +149,22 @@ function coerceToOption(field, value) {
 
 	// Numeric options ("1" / "3" / "5" / "7") also accept an ordinal form —
 	// "5th semester", "sem 7". Read that as a short direct answer: pull the
-	// standalone numbers and take the one that is a declared option. Prose is
-	// rejected outright, so a sentence can never turn into a semester, and an
-	// ambiguous answer is dropped rather than guessed at.
+	// standalone numbers and take the one that is a declared option.
 	if (options.every((o) => /^\d+$/.test(String(o).trim()))) {
-		if (norm.length > 40) return null;
-		const nums = [...norm.matchAll(/(?:^|[^\d])(\d{1,2})(?:[^\d]|$)/g)].map((m) => m[1]);
-		const hits = [...new Set(nums)].filter((n) => options.some((o) => String(o).trim() === n));
-		if (hits.length !== 1) return null;
-		return options.find((o) => String(o).trim() === hits[0]);
+		const wordNum = ORDINAL_WORDS[norm];
+		if (wordNum && options.some((o) => String(o).trim() === wordNum)) {
+			return options.find((o) => String(o).trim() === wordNum);
+		}
+		const clean = norm.replace(/\b(sem|semester|year)\b/gi, '').trim().replace(/(?:th|st|nd|rd)$/i, '').trim();
+		if (clean && options.some((o) => String(o).trim() === clean)) {
+			return options.find((o) => String(o).trim() === clean);
+		}
+		if (norm.length <= 15) {
+			const nums = [...norm.matchAll(/(?:^|[^\d])(\d{1,2})(?:[^\d]|$)/g)].map((m) => m[1]);
+			const hits = [...new Set(nums)].filter((n) => options.some((o) => String(o).trim() === n));
+			if (hits.length === 1) return options.find((o) => String(o).trim() === hits[0]);
+		}
+		return null;
 	}
 
 	const fuzzy = options.find((o) => {
@@ -243,7 +252,15 @@ export function mergeExtracted(form, prior = {}, incoming = {}) {
 	const updated = [];
 	const rejected = [];
 
-	for (const [name, rawValue] of Object.entries(incoming || {})) {
+	const incomingNormalized = { ...incoming };
+	if (incomingNormalized.question && !incomingNormalized.questions && byName.has('questions')) {
+		incomingNormalized.questions = incomingNormalized.question;
+	}
+	if (incomingNormalized.questions && !incomingNormalized.question && byName.has('question')) {
+		incomingNormalized.question = incomingNormalized.questions;
+	}
+
+	for (const [name, rawValue] of Object.entries(incomingNormalized)) {
 		const field = byName.get(name);
 		if (!field) {
 			rejected.push(name);
@@ -286,6 +303,15 @@ export function extractFields(text, fields = [], known = {}, hintField = null) {
 	const isNew = (name) => known[name] === undefined || known[name] === null || known[name] === '';
 	const byName = new Map(fields.map((f) => [f.name, f]));
 
+	// 0. If hintField was asked, check if the answer is a direct answer to hintField
+	if (hintField && isNew(hintField)) {
+		const field = byName.get(hintField);
+		if (field && field.type === 'select') {
+			const val = sanitiseValue(field, answer);
+			if (val) values[hintField] = val;
+		}
+	}
+
 	// 1. Explicit "label: value" / "label is value" for any field.
 	for (const field of fields) {
 		if (!isNew(field.name)) continue;
@@ -294,30 +320,40 @@ export function extractFields(text, fields = [], known = {}, hintField = null) {
 			.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 		if (!label) continue;
 		const m = answer.match(new RegExp(`${label}\\s*(?:is|was|:|-)?\\s*([^.;]+)`, 'i'));
-		if (m && m[1].trim()) values[field.name] = m[1].trim();
+		if (m && m[1].trim()) {
+			const s = sanitiseValue(field, m[1].trim());
+			if (s) values[field.name] = s;
+			else if (field.type !== 'select') values[field.name] = m[1].trim();
+		}
 	}
 
 	// 2. Select fields: look for one of the declared options.
 	for (const field of fields) {
-		if (field.type !== 'select' || !isNew(field.name)) continue;
+		if (field.type !== 'select' || !isNew(field.name) || values[field.name]) continue;
 		const opts = optionValues(field);
-		// Bare digits appear in almost any sentence, so for a numeric select
-		// only accept a hit that sits next to the field's own word
-		// ("…5th semester"). Otherwise "…queue 5 times" becomes semester 5.
 		const numeric = opts.length > 0 && opts.every((o) => /^\d+$/.test(String(o).trim()));
-		const kw = numeric ? String(field.label || field.name || '').toLowerCase().split(/[^a-z]+/).filter(Boolean).pop() : null;
+		if (numeric) {
+			// A numeric select (like semester: 1, 3, 5, 7) must not match stray numbers
+			// in arbitrary prose (e.g. "queue 5 times"). Only accept direct answers when
+			// this field was the one asked about, or when the entire answer is a declared option.
+			if (hintField === field.name || (answer.length <= 4 && opts.some((o) => String(o).trim() === answer.trim()))) {
+				const val = sanitiseValue(field, answer);
+				if (val) {
+					values[field.name] = val;
+					continue;
+				}
+			}
+			continue;
+		}
+		const val = sanitiseValue(field, answer);
+		if (val) {
+			values[field.name] = val;
+			continue;
+		}
 		for (const opt of opts) {
 			const o = normalise(opt);
 			if (!o) continue;
 			const esc = o.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-			if (numeric) {
-				const re = new RegExp(`${kw}\\D{0,12}${esc}\\D|\\b${esc}\\b\\W{0,12}${kw}`, 'i');
-				if (re.test(answer)) {
-					values[field.name] = o;
-					break;
-				}
-				continue;
-			}
 			const re = new RegExp(`(^|[^\\w])${esc}([^\\w]|$)`, 'i');
 			if (re.test(answer)) {
 				values[field.name] = o;
@@ -326,40 +362,25 @@ export function extractFields(text, fields = [], known = {}, hintField = null) {
 		}
 	}
 
-	// 3. Ordinal forms: "5th semester", "3rd year", "sem 7", and the written-out
-	//    word forms.
-	//
-	// The digit-only pattern missed "seventh sem" and "seventh", so a visitor
-	// answering in plain English captured nothing at all and every field stayed
-	// "Awaiting response". Ordinal WORDS are ordinary English, so accept them.
-	const ordinal = answer.match(
-		/\b(\d+)\s*(?:th|st|nd|rd)\b\s*(?:semester|sem|year)|(?:semester|sem)\s*[-:]?\s*(\d+)/i
-	);
-	if (ordinal && fields.some((f) => f.name === 'semester') && isNew('semester')) {
-		values.semester = (ordinal[1] || ordinal[2] || '').trim();
-	} else if (fields.some((f) => f.name === 'semester') && isNew('semester')) {
-		// The (?:th|st|nd|rd)? suffix is load-bearing: without it \b(seven)\b cannot
-		// match "seventh", because "th" continues the word and there is no boundary.
-		// The word may also come BEFORE the term ("seventh sem") or after it ("sem
-		// seventh"). Both are ordinary ways to say it, and accepting only one
-		// order is why "seventh sem" captured nothing at all.
-		const words = answer.match(
-			/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleventh|twelfth)(?:th|st|nd|rd)?\b\s*(?:semester|sem|year)\b|\b(?:semester|sem|year)\s*(one|two|three|four|five|six|seven|eight|nine|ten|eleventh|twelfth)(?:th|st|nd|rd)?\b/i
-		);
-		if (words) {
-			const n = ORDINAL_WORDS[(words[1] || words[2] || '').toLowerCase()];
-			// Only accept it if this form actually offers that semester, otherwise
-			// "one" from "one of my friends" becomes semester 1.
-			const field = byName.get('semester');
-			const opts = optionValues(field).map((o) => String(o).trim());
-			if (n && (!opts.length || opts.includes(n))) values.semester = n;
+	// 3. Ordinal forms: "5th semester", "3rd year", "sem 7", and written-out word forms.
+	if (fields.some((f) => f.name === 'semester') && isNew('semester') && !values.semester) {
+		const field = byName.get('semester');
+		const m = answer.match(/\b(1st|2nd|3rd|4th|5th|6th|7th|8th|9th|10th)\b/i) ||
+			answer.match(/\b(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)(?:th|st|nd|rd)?\b\s*(?:semester|sem|year)\b|\b(?:semester|sem|year)\s*(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)(?:th|st|nd|rd)?\b/i) ||
+			answer.match(/\b(?:sem(?:ester)?|year)\s*([1-8])\b/i) ||
+			answer.match(/\b([1-8])\s*(?:sem(?:ester)?|year)\b/i);
+		if (m) {
+			const matched = m[1] || m[2] || '';
+			const num = ORDINAL_WORDS[matched.toLowerCase()] || matched.replace(/\D/g, '');
+			const sVal = sanitiseValue(field, num);
+			if (sVal) values.semester = sVal;
 		}
 	}
 
 	// 4. Difficulty synonyms. Snap immediately through the field's own options —
 	//    forms disagree on wording ("Challenging" vs "Hard") and hardcoding one
 	//    used to produce a value the field then rejected.
-	if (byName.has('difficulty') && isNew('difficulty')) {
+	if (byName.has('difficulty') && isNew('difficulty') && !values.difficulty) {
 		const diff = answer.match(/\b(easy|moderate|medium|challenging|hard|tough|difficult|simple|basic)\b/i);
 		if (diff) {
 			const snapped = sanitiseValue(byName.get('difficulty'), diff[1].toLowerCase());
@@ -368,10 +389,10 @@ export function extractFields(text, fields = [], known = {}, hintField = null) {
 	}
 
 	// 5. Attribute the reply to the field we last asked about.
-	if (hintField && isNew(hintField)) {
+	if (hintField && isNew(hintField) && values[hintField] === undefined) {
 		const field = byName.get(hintField);
 		// A select we already resolved above shouldn't be clobbered by prose.
-		if (field && field.type !== 'select' && values[hintField] === undefined) {
+		if (field && field.type !== 'select') {
 			values[hintField] = answer;
 		}
 	}
@@ -384,11 +405,18 @@ export function extractFields(text, fields = [], known = {}, hintField = null) {
 
 	// 7. Last resort: the first still-open free-text field, but never a select
 	//    (a sentence is not a valid "1"/"3"/"5").
-	if (!values[hintField] && hintField === undefined) {
+	if (hintField === undefined || (!values[hintField] && Object.keys(values).length === 0)) {
 		const firstOpen = fields.find(
 			(f) => isNew(f.name) && (f.type === 'text' || f.type === 'textarea')
 		);
 		if (firstOpen && values[firstOpen.name] === undefined) values[firstOpen.name] = answer;
+	}
+
+	if (values.question && !values.questions && byName.has('questions')) {
+		values.questions = values.question;
+	}
+	if (values.questions && !values.question && byName.has('question')) {
+		values.question = values.questions;
 	}
 
 	return values;

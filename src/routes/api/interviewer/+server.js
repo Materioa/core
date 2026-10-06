@@ -59,14 +59,16 @@ const defaultForm = {
 	description: 'Share practical and viva questions that helped you prepare.',
 	context: 'viva',
 	fields: [
-		{ name: 'question', label: 'Question', type: 'textarea', required: true },
-		{ name: 'subject', label: 'Subject or topic', type: 'text', required: true },
-		{ name: 'difficulty', label: 'Difficulty', type: 'select', options: ['Easy', 'Moderate', 'Challenging'], required: false },
-		{ name: 'notes', label: 'Helpful notes', type: 'textarea', required: false }
+		{ name: 'semester', label: 'What semester is it?', type: 'select', options: ['1', '3', '5', '7'], required: true },
+		{ name: 'subject', label: 'what subject?', type: 'text', required: true },
+		{ name: 'questions', label: 'List questions that were being asked', type: 'textarea', required: true },
+		{ name: 'difficulty', label: 'What was the difficulty level for you?', type: 'select', options: ['Easy', 'Medium', 'Hard'], required: true },
+		{ name: 'faculty', label: 'Share the faculty name (Optional)', type: 'text', required: false, minLength: 3, maxLength: 30 },
+		{ name: 'notes', label: 'Any additional Tips?', type: 'textarea', required: false }
 	],
 	interview: {
 		openingQuestion: 'Which viva or practical question would you like to share with the community today?',
-		systemPrompt: 'You collect viva/practical exam questions. Ask one focused follow-up at a time until the question, subject/topic and difficulty are known. Keep replies under 40 words.',
+		systemPrompt: 'You collect viva/practical exam questions. Ask one focused follow-up at a time until semester, subject, questions and difficulty are known. Keep replies under 40 words.',
 		skipAllowed: true,
 		completeMessage: 'Thanks — your question is queued for the viva box.'
 	},
@@ -600,8 +602,19 @@ export async function POST({ request }) {
 		} catch (err) {
 			console.warn('Interviewer session store unavailable, continuing without persistence:', err?.message);
 		}
-		const priorExtracted = existing?.extracted || {};
-		const priorSkipped = existing?.skipped || [];
+		const clientExtracted = (body.values && typeof body.values === 'object')
+			? body.values
+			: ((body.extracted && typeof body.extracted === 'object') ? body.extracted : {});
+		const clientSkipped = Array.isArray(body.skipped) ? body.skipped : [];
+
+		const priorExtracted = {
+			...clientExtracted,
+			...(existing?.extracted || {})
+		};
+		const priorSkipped = Array.from(new Set([
+			...clientSkipped,
+			...(existing?.skipped || [])
+		]));
 
 		if (sessions) {
 			try {
@@ -698,7 +711,10 @@ export async function POST({ request }) {
 		if (hintField && extracted[hintField] === undefined && !priorExtracted[hintField]) {
 			const guessed = extractFields(text, fields, { ...priorExtracted, ...extracted }, hintField);
 			const fieldDef = fields.find((f) => f.name === hintField);
-			const value = guessed[hintField] ? sanitiseValue(fieldDef, guessed[hintField]) : null;
+			let value = guessed[hintField] ? sanitiseValue(fieldDef, guessed[hintField]) : null;
+			if (!value && fieldDef) {
+				value = sanitiseValue(fieldDef, text);
+			}
 			if (value) {
 				extracted = { ...extracted, [hintField]: value };
 				added = [...added, hintField];
@@ -822,6 +838,7 @@ export async function POST({ request }) {
 		return json({
 			sessionId,
 			extracted,
+			skipped: activeSkipped,
 			message: reply,
 			reply,
 			nextField,

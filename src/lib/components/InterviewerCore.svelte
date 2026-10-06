@@ -403,6 +403,8 @@
 					sessionId,
 					form: { id: form.id },
 					text,
+					values,
+					skipped,
 					examContext: examContextPayload()
 				})
 			});
@@ -426,6 +428,9 @@
 
 			if (data.extracted) {
 				mergeExtracted(data.extracted);
+			}
+			if (Array.isArray(data.skipped)) {
+				skipped = Array.from(new Set([...skipped, ...data.skipped]));
 			}
 
 			const replyMessage = data.message || data.reply || 'Thank you.';
