@@ -3,6 +3,7 @@ node_modules/
 /build/
 !static/oread/build/
 dist/
+supabase/
 .env
 .env.*
 !.env.example

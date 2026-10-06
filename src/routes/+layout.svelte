@@ -408,10 +408,7 @@
 
 <svelte:head>
   {#if !hideGlobalHeader || bareContent}
-    <link id="app-icons-css" rel="stylesheet" href="/assets/style/icons.css" />
-    <link id="app-icon-fallback-css" rel="stylesheet" href="/assets/style/icon-fallback.css" />
     <link id="app-main-css" rel="stylesheet" href="/assets/style/main.css?v=20260926" />
-    <link id="app-gestures-css" rel="stylesheet" href="/assets/style/gestures.css" />
   {:else}
     <link id="landing-css" rel="stylesheet" href="/assets/style/landing.css" />
     <link id="pricing-css" rel="stylesheet" href="/assets/style/pricing.css" />

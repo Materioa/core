@@ -34,12 +34,9 @@
 		<link rel="icon" href="/assets/img/favico.svg" sizes="128x128" type="image/svg" />
 
 
-		<!-- Brand font preloads: Quadrant + OpenRunde are self-hosted, no external font services -->
+		<!-- Brand font preloads: Quadrant (headings) + OpenRunde Regular (body) are self-hosted -->
 		<link rel="preload" href="/fonts/QuadrantNotepad-Regular-BZHKwHCP.woff2" as="font" type="font/woff2" crossorigin />
 		<link rel="preload" href="/fonts/OpenRunde-Regular.woff2" as="font" type="font/woff2" crossorigin />
-		<link rel="preload" href="/fonts/OpenRunde-Medium.woff2" as="font" type="font/woff2" crossorigin />
-		<link rel="preload" href="/fonts/OpenRunde-Semibold.woff2" as="font" type="font/woff2" crossorigin />
-		<link rel="preload" href="/fonts/OpenRunde-Bold.woff2" as="font" type="font/woff2" crossorigin />
 
 		<!-- Origins for API & CDN assets -->
 		<link rel="preconnect" href="https://room.getmaterio.app" crossorigin />
@@ -48,11 +45,8 @@
 		<!-- Preload fallback LCP card image with high priority -->
 		<link rel="preload" as="image" href="/assets/img/noidea.webp" type="image/webp" fetchpriority="high" />
 
-		<!-- Core app stylesheets in head prevent FOUC and eliminate layout shifts (CLS) on app routes -->
-		<link id="app-icons-css" rel="stylesheet" href="/assets/style/icons.css" />
-		<link id="app-icon-fallback-css" rel="stylesheet" href="/assets/style/icon-fallback.css" />
+		<!-- Core app stylesheet in head prevents FOUC and eliminates layout shifts (CLS) on app routes -->
 		<link id="app-main-css" rel="stylesheet" href="/assets/style/main.css?v=20260926" />
-		<link id="app-gestures-css" rel="stylesheet" href="/assets/style/gestures.css" />
 		<script>
 			(function () {
 				var p = window.location.pathname;

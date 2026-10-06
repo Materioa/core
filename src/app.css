@@ -1158,3 +1158,46 @@ body.coffee-dark-mode .promo-close-btn:hover {
     box-shadow: none;
 }
 
+/* Mobile swipe navigation & touch feedback (folded from gestures.css) */
+@media (max-width: 768px) {
+    .content {
+        -webkit-overflow-scrolling: touch;
+        overflow-x: hidden;
+        touch-action: pan-y;
+    }
+    .tab-content {
+        transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+            visibility 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .navbar {
+        pointer-events: auto;
+    }
+    .navbar a {
+        min-height: 44px;
+        min-width: 44px;
+    }
+}
+@media (max-width: 480px) {
+    .container {
+        padding-top: 60px;
+    }
+    .content {
+        padding: 15px;
+    }
+    .card-one,
+    .card-layout {
+        margin: 15px 0;
+        padding: 15px;
+    }
+}
+@media (hover: none) and (pointer: coarse) {
+    .tab-link {
+        transition: background-color 0.2s ease, transform 0.2s ease;
+    }
+    .tab-link:active {
+        background-color: rgba(255, 132, 0, 0.1);
+        transform: scale(0.95);
+    }
+}
+
+
