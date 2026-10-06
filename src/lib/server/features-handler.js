@@ -315,28 +315,44 @@ async function fetchJsonNotifications() {
 // degrades to real notifications, not to an empty list.
 const NOTIFICATIONS_MONGO_MS = 1200;
 
-async function getMergedNotifications() {
+async function getMergedNotifications(options = {}) {
+  const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+  const cutoffTime = Date.now() - ONE_WEEK_MS;
+  const includeAll = options?.all === true;
+
   let mongoItems = [];
   try {
     const db = await getMongoDb();
     const notificationsCollection = db.collection('notifications');
-    // No cursor .sort() here either (see handlePromotionsFeature): the sorted
-    // -cursor path wedges on workerd. Bounded by limit() so JS-sorting can't
-    // balloon memory if this collection ever grows, and only the newest slice
-    // is ever rendered anyway.
+    // Projected and bounded: fetch only required fields.
     mongoItems = await withMongoTimeout(
-      notificationsCollection.find({}).limit(200).toArray(),
+      notificationsCollection
+        .find(
+          {},
+          {
+            projection: {
+              _id: 1,
+              title: 1,
+              message: 1,
+              body: 1,
+              category: 1,
+              link: 1,
+              links: 1,
+              date: 1,
+              timestamp: 1,
+              created_at: 1,
+              source: 1
+            }
+          }
+        )
+        .limit(100)
+        .toArray(),
       NOTIFICATIONS_MONGO_MS,
       'notifications find'
     );
-    // Decorate-sort-undecorate: same ordering as the previous inline
-    // comparator, but Date.parse runs once per document instead of twice per
-    // comparison (~1500 parses for 200 docs before). The dispatch already
-    // wraps this in a 60s edge cache; a per-request Date.parse storm on top of
-    // that was a real slice of the CPU budget.
     const decorated = mongoItems.map((n) => ({
       n,
-      ts: Date.parse(n?.timestamp || n?.date || '') || 0,
+      ts: Date.parse(n?.timestamp || n?.date || n?.created_at || '') || 0,
       id: String(n?._id || '')
     }));
     decorated.sort((a, b) => {
@@ -365,6 +381,14 @@ async function getMergedNotifications() {
     if (Array.isArray(n.links)) links = n.links;
     else if (n.link) links = [{ text: 'View', url: n.link }];
 
+    const rawDate = n.date || n.timestamp || n.created_at || new Date().toISOString();
+    const parsedTs = Date.parse(rawDate) || 0;
+
+    // Filter out notifications older than 1 week (unless includeAll requested)
+    if (!includeAll && parsedTs > 0 && parsedTs < cutoffTime) {
+      return null;
+    }
+
     return {
       _id: n._id ? String(n._id) : undefined,
       id: n.id || (n._id ? String(n._id) : undefined),
@@ -374,8 +398,8 @@ async function getMergedNotifications() {
       category: n.category ? String(n.category).trim() : 'General',
       link: n.link || (links[0]?.url) || '',
       links: links,
-      date: n.date || n.timestamp || n.created_at || new Date().toISOString(),
-      timestamp: n.timestamp || n.created_at || n.date || new Date().toISOString(),
+      date: rawDate,
+      timestamp: n.timestamp || n.created_at || rawDate,
       source: n.source || defaultSource
     };
   };
@@ -861,10 +885,20 @@ async function handleForms(request, url) {
 
         if (!publicData) {
           const collection = await getFormConfigsCollection();
+          const nowIso = new Date().toISOString();
           const docs = await withMongoTimeout(
             collection
               .find(
-                { published: true, kind: { $in: ['popup', 'wizard', 'form'] } },
+                {
+                  published: true,
+                  kind: { $in: ['popup', 'wizard', 'form'] },
+                  $or: [
+                    { endDate: { $exists: false } },
+                    { endDate: null },
+                    { endDate: '' },
+                    { endDate: { $gte: nowIso } }
+                  ]
+                },
                 {
                   projection: {
                     _id: 0,
@@ -888,7 +922,7 @@ async function handleForms(request, url) {
                 }
               )
               .sort({ updatedAt: -1 })
-              .limit(15)
+              .limit(5)
               .toArray(),
             5000,
             'popup configs find'
@@ -912,7 +946,8 @@ async function handleForms(request, url) {
             activity
           };
 
-          redisSet('popups:public_data', publicData, 300).catch(() => {});
+          // Cache for 60s for fresh updates
+          redisSet('popups:public_data', publicData, 60).catch(() => {});
         }
 
         // Forms this signed-in visitor already answered (for "once" schedules).
@@ -1869,7 +1904,7 @@ async function handlePromotionsFeature(request, url) {
 
         if (promos.length === 0) {
           const emptyPromo = { enabled: false, message: 'No active promotions' };
-          redisSet('promotions:active', emptyPromo, 180).catch(() => {});
+          redisSet('promotions:active', emptyPromo, 60).catch(() => {});
           return json(emptyPromo);
         }
 
@@ -1882,12 +1917,12 @@ async function handlePromotionsFeature(request, url) {
         });
 
         if (activePromo) {
-          redisSet('promotions:active', activePromo, 300).catch(() => {});
+          redisSet('promotions:active', activePromo, 60).catch(() => {});
           return json(activePromo);
         }
 
         const noPromo = { enabled: false, message: 'No active promotions' };
-        redisSet('promotions:active', noPromo, 180).catch(() => {});
+        redisSet('promotions:active', noPromo, 60).catch(() => {});
         return json(noPromo);
       }
 
@@ -2024,7 +2059,8 @@ async function handleReleasesFeature(request, url) {
     switch (method) {
       case 'GET': {
         const branch = url.searchParams.get('branch');
-        const cacheKey = branch ? 'releases:branch:' + branch : 'releases:all';
+        const getAll = url.searchParams.get('all') === 'true';
+        const cacheKey = branch ? 'releases:branch:' + branch : (getAll ? 'releases:all' : 'releases:latest');
 
         try {
           const cached = await redisGet(cacheKey);
@@ -2053,7 +2089,7 @@ async function handleReleasesFeature(request, url) {
                   createdAt: 1
                 }
               })
-              .limit(branch ? 10 : 25)
+              .limit(branch ? 5 : (getAll ? 50 : 15))
               .toArray(),
             5000,
             'releases find'
@@ -2079,9 +2115,30 @@ async function handleReleasesFeature(request, url) {
             sensitivity: 'base'
           });
         });
-        releases = decorated.map((d) => d.r);
+        const sortedReleases = decorated.map((d) => d.r);
 
-        redisSet(cacheKey, releases, 600).catch(() => {});
+        // When not asking for full historical archive, filter to latest release only!
+        if (!getAll) {
+          if (branch) {
+            releases = sortedReleases.slice(0, 1);
+          } else {
+            const latestByBranch = [];
+            const seen = new Set();
+            for (const r of sortedReleases) {
+              const b = String(r?.branch || 'stable').toLowerCase();
+              if (!seen.has(b)) {
+                seen.add(b);
+                latestByBranch.push(r);
+              }
+            }
+            releases = latestByBranch;
+          }
+        } else {
+          releases = sortedReleases;
+        }
+
+        // Cache for 60s (fresh data)
+        redisSet(cacheKey, releases, 60).catch(() => {});
         return json(releases);
       }
 
@@ -2214,7 +2271,8 @@ async function handleExamdataFeature(request, url) {
     switch (method) {
       case 'GET': {
         const semParam = url.searchParams.get('semester') || url.searchParams.get('sem');
-        const cacheKey = semParam ? 'examdata:config:sem:' + semParam : 'examdata:config';
+        const getAll = url.searchParams.get('all') === 'true';
+        const cacheKey = semParam ? 'examdata:config:sem:' + semParam : (getAll ? 'examdata:config:all' : 'examdata:config');
 
         try {
           const cached = await redisGet(cacheKey);
@@ -2222,6 +2280,47 @@ async function handleExamdataFeature(request, url) {
             return json(cached, { headers: { 'X-Redis-Cache': 'HIT' } });
           }
         } catch {}
+
+        function isExamNotCompleted(semester, now = new Date()) {
+          const configuredEnd = semester?.examPeriod?.endDate;
+          const examDates = (semester?.exams || [])
+            .map((e) => (e?.date ? new Date(e.date) : null))
+            .filter((d) => d instanceof Date && !Number.isNaN(d.getTime()));
+
+          let end = null;
+          if (configuredEnd) {
+            const d = new Date(configuredEnd);
+            if (!Number.isNaN(d.getTime())) end = d;
+          }
+          if (examDates.length > 0) {
+            const lastExam = examDates.reduce((a, b) => (a.getTime() > b.getTime() ? a : b));
+            if (!end || lastExam.getTime() > end.getTime()) {
+              end = lastExam;
+            }
+          }
+          if (!end && semester?.examPeriod?.startDate) {
+            const s = new Date(semester.examPeriod.startDate);
+            if (!Number.isNaN(s.getTime())) {
+              end = new Date(s.getTime() + 14 * 86400000);
+            }
+          }
+          if (!end) return false;
+          const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999);
+          return now.getTime() <= endDay.getTime();
+        }
+
+        function filterActiveExams(rawDoc) {
+          if (!rawDoc || !Array.isArray(rawDoc.semesters)) return rawDoc;
+          if (getAll) return rawDoc;
+
+          const now = new Date();
+          const activeSemesters = rawDoc.semesters.filter((s) => isExamNotCompleted(s, now));
+
+          if (activeSemesters.length === 0) {
+            return { ...rawDoc, enabled: false, semesters: [] };
+          }
+          return { ...rawDoc, semesters: activeSemesters };
+        }
 
         let mongoAnswered = false;
         try {
@@ -2234,18 +2333,20 @@ async function handleExamdataFeature(request, url) {
             mongoAnswered = true;
             if (data.enabled === false) {
               const res = { enabled: false, semesters: [] };
-              redisSet(cacheKey, res, 300).catch(() => {});
+              redisSet(cacheKey, res, 60).catch(() => {});
               return json(res);
             }
             if (Array.isArray(data.semesters) && data.semesters.length > 0) {
-              let resData = data;
-              if (semParam) {
+              let resData = filterActiveExams(data);
+              if (semParam && Array.isArray(resData?.semesters)) {
                 resData = {
-                  ...data,
-                  semesters: data.semesters.filter(s => String(s?.semester || s?.sem || '') === String(semParam))
+                  ...resData,
+                  semesters: resData.semesters.filter(
+                    (s) => String(s?.semester || s?.sem || '') === String(semParam)
+                  )
                 };
               }
-              redisSet(cacheKey, resData, 300).catch(() => {});
+              redisSet(cacheKey, resData, 60).catch(() => {});
               return json(resData);
             }
           }
@@ -2259,18 +2360,20 @@ async function handleExamdataFeature(request, url) {
             mongoAnswered = true;
             if (anyData.enabled === false) {
               const res = { enabled: false, semesters: [] };
-              redisSet(cacheKey, res, 300).catch(() => {});
+              redisSet(cacheKey, res, 60).catch(() => {});
               return json(res);
             }
             if (Array.isArray(anyData.semesters) && anyData.semesters.length > 0) {
-              let resData = anyData;
-              if (semParam) {
+              let resData = filterActiveExams(anyData);
+              if (semParam && Array.isArray(resData?.semesters)) {
                 resData = {
-                  ...anyData,
-                  semesters: anyData.semesters.filter(s => String(s?.semester || s?.sem || '') === String(semParam))
+                  ...resData,
+                  semesters: resData.semesters.filter(
+                    (s) => String(s?.semester || s?.sem || '') === String(semParam)
+                  )
                 };
               }
-              redisSet(cacheKey, resData, 300).catch(() => {});
+              redisSet(cacheKey, resData, 60).catch(() => {});
               return json(resData);
             }
           }
@@ -2280,7 +2383,7 @@ async function handleExamdataFeature(request, url) {
 
         if (mongoAnswered) {
           const res = { enabled: false, semesters: [] };
-          redisSet(cacheKey, res, 300).catch(() => {});
+          redisSet(cacheKey, res, 60).catch(() => {});
           return json(res);
         }
         return noConfig();
@@ -2375,7 +2478,8 @@ async function handleNotificationsFeature(request, url) {
 
     switch (method) {
       case 'GET': {
-        const merged = await getMergedNotifications();
+        const getAll = url.searchParams.get('all') === 'true';
+        const merged = await getMergedNotifications({ all: getAll });
         // No Cache-Control: no-store here. This response is already wrapped in
         // a 60s edge cache by the dispatcher, and an inner no-store overrode
         // it — so every poll re-read Mongo, re-merged, re-sorted and
