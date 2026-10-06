@@ -265,9 +265,7 @@
         </div>
 
         <div id="settings" class="tab-content" class:active={$activeTab === 'settings'}>
-            {#if visitedTabs.has('settings')}
-                <SettingsTab />
-            {/if}
+            <SettingsTab />
         </div>
 
         <!-- Quick Search Results Dropdown -->

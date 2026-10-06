@@ -153,16 +153,18 @@
 	let searchQuery = $state('');
 
 	async function loadResponses(force = false) {
-		if (responsesData && !force) return;
+		if (responsesData && responsesData.items?.length > 0 && !force) return;
 		isLoadingResponses = true;
 		responsesError = '';
 		try {
-			const res = await fetch(`/api/interviewer?form=${encodeURIComponent(formId)}&action=responses`);
+			const cacheBust = force ? `&force=1&t=${Date.now()}` : '';
+			const res = await fetch(`/api/interviewer?form=${encodeURIComponent(formId)}&action=responses${cacheBust}`);
 			if (!res.ok) throw new Error('Could not load responses');
 			// An HTML error page here would otherwise surface as a raw
 			// "Unexpected token '<'" string in the Responses tab.
-			responsesData = await res.json().catch(() => null);
-			if (!responsesData) throw new Error('Could not load responses. Please refresh and try again.');
+			const data = await res.json().catch(() => null);
+			if (!data) throw new Error('Could not load responses. Please refresh and try again.');
+			responsesData = data;
 		} catch (err) {
 			responsesError = err.message || 'Failed to load community responses';
 		} finally {
@@ -448,6 +450,7 @@
 						examContext: examContextPayload()
 					})
 				}).catch(() => {});
+				setTimeout(() => loadResponses(true), 600);
 			}
 		} catch (error) {
 			messages = [
@@ -576,7 +579,7 @@
 							class:active={activeTab === 'responses'}
 							onclick={() => {
 								activeTab = 'responses';
-								loadResponses();
+								loadResponses(!responsesData || responsesData.items?.length === 0);
 							}}
 						>
 							Responses
@@ -666,13 +669,28 @@
 									<span class="dot"></span>
 									<span>Loading community questions…</span>
 								</div>
+							{:else if responsesError}
+								<div class="responses-empty-state">
+									<Bud size={40} />
+									<p class="empty-text">{responsesError}</p>
+									<button type="button" class="empty-action-btn" onclick={() => loadResponses(true)}>
+										Retry loading →
+									</button>
+								</div>
 							{:else if filteredResponses.length === 0}
 								<div class="responses-empty-state">
 									<Bud size={40} />
-									<p class="empty-text">No questions found for this subject yet.</p>
-									<button type="button" class="empty-action-btn" onclick={() => (activeTab = 'contribute')}>
-										Be the first to share one →
-									</button>
+									{#if responsesData?.total && (selectedCategory !== 'All' || selectedSemester !== 'All')}
+										<p class="empty-text">No questions found for this filter.</p>
+										<button type="button" class="empty-action-btn" onclick={() => { selectedCategory = 'All'; selectedSemester = 'All'; }}>
+											Show all {responsesData.total} questions →
+										</button>
+									{:else}
+										<p class="empty-text">No questions found for this subject yet.</p>
+										<button type="button" class="empty-action-btn" onclick={() => (activeTab = 'contribute')}>
+											Be the first to share one →
+										</button>
+									{/if}
 								</div>
 							{:else}
 								<div class="responses-flat-feed">
@@ -749,7 +767,7 @@
 							class:active={activeTab === 'responses'}
 							onclick={() => {
 								activeTab = 'responses';
-								loadResponses();
+								loadResponses(!responsesData || responsesData.items?.length === 0);
 							}}
 						>
 							Responses
@@ -912,13 +930,28 @@
 									<span class="dot"></span>
 									<span>Loading community questions…</span>
 								</div>
+							{:else if responsesError}
+								<div class="responses-empty-state">
+									<Bud size={56} />
+									<p class="empty-text">{responsesError}</p>
+									<button type="button" class="empty-action-btn" onclick={() => loadResponses(true)}>
+										Retry loading questions →
+									</button>
+								</div>
 							{:else if filteredResponses.length === 0}
 								<div class="responses-empty-state">
 									<Bud size={56} />
-									<p class="empty-text">No questions matched your search or filter.</p>
-									<button type="button" class="empty-action-btn" onclick={() => { activeTab = 'contribute'; }}>
-										Contribute your questions →
-									</button>
+									{#if responsesData?.total && (selectedCategory !== 'All' || selectedSemester !== 'All' || searchQuery.trim())}
+										<p class="empty-text">No questions matched your search or filter.</p>
+										<button type="button" class="empty-action-btn" onclick={() => { selectedCategory = 'All'; selectedSemester = 'All'; searchQuery = ''; }}>
+											Clear filters (view all {responsesData.total} questions) →
+										</button>
+									{:else}
+										<p class="empty-text">No community questions shared yet.</p>
+										<button type="button" class="empty-action-btn" onclick={() => { activeTab = 'contribute'; }}>
+											Contribute your questions →
+										</button>
+									{/if}
 								</div>
 							{:else}
 								{#each filteredResponses as item}

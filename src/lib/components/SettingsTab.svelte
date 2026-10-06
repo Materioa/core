@@ -148,7 +148,11 @@
         };
 
         refreshAccountState();
-        loadReleases();
+        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+            window.requestIdleCallback(() => loadReleases(), { timeout: 4000 });
+        } else {
+            setTimeout(() => loadReleases(), 3000);
+        }
 
         // Check Local MCP Server status if on desktop
         if (isTauri) {

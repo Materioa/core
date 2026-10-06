@@ -8,7 +8,7 @@ import {
 	withMongoTimeout
 } from '$lib/server/mongodb.js';
 import { verifyToken } from '$lib/server/supabase.js';
-import { cachedResponse } from '$lib/server/edge-cache.js';
+import { cachedResponse, markDegraded } from '$lib/server/edge-cache.js';
 import {
 	normalise,
 	extractFields,
@@ -403,6 +403,7 @@ function splitAndEnhanceQuestions(rawText) {
 }
 
 async function getEnhancedResponses(formId) {
+	let queryFailed = false;
 	try {
 		const [responsesCol, submissionsCol] = await Promise.all([
 			getFormResponsesCollection(),
@@ -421,7 +422,11 @@ async function getEnhancedResponses(formId) {
 				}).limit(250).toArray(),
 				MONGO_OP_MS,
 				'interviewer responses find'
-			).catch(() => []),
+			).catch((err) => {
+				console.warn('interviewer responses find timed out or failed:', err?.message || err);
+				queryFailed = true;
+				return [];
+			}),
 			withMongoTimeout(
 				submissionsCol.find({
 					$or: [
@@ -432,7 +437,11 @@ async function getEnhancedResponses(formId) {
 				}).limit(250).toArray(),
 				MONGO_OP_MS,
 				'interviewer submissions find'
-			).catch(() => [])
+			).catch((err) => {
+				console.warn('interviewer submissions find timed out or failed:', err?.message || err);
+				queryFailed = true;
+				return [];
+			})
 		]);
 
 		const allDocs = [
@@ -532,7 +541,8 @@ async function getEnhancedResponses(formId) {
 			total: items.length,
 			categories: ['All', ...Array.from(subjectSet)],
 			semesters: ['All', ...Array.from(semesterSet)],
-			items
+			items,
+			_degraded: queryFailed
 		};
 	} catch (error) {
 		console.error('getEnhancedResponses failed:', error);
@@ -541,7 +551,8 @@ async function getEnhancedResponses(formId) {
 			total: 0,
 			categories: ['All'],
 			semesters: ['All'],
-			items: []
+			items: [],
+			_degraded: true
 		};
 	}
 }
@@ -557,21 +568,33 @@ export async function GET({ request, url }) {
 	// Responses tab is fine, breaking the modal is not.
 	try {
 		if (action === 'responses') {
+			const force = url.searchParams.has('force') || url.searchParams.has('nocache');
+			if (force) {
+				const data = await getEnhancedResponses(formId);
+				const res = json(data);
+				if (!data || data._degraded || !data.items || data.items.length === 0) markDegraded(res);
+				return res;
+			}
 			// Cached for 60s like the other low-churn community reads (releases
 			// 300s, notifications 60s). This is the heaviest query on a page
 			// load — an unindexed $or scan over form_responses — so serving it
 			// from the edge keeps it off Mongo entirely. It only changes when
 			// somebody submits a question, so a minute of staleness is free.
-			return await cachedResponse(request, 60, async () =>
-				json(await getEnhancedResponses(formId))
-			);
+			return await cachedResponse(request, 60, async () => {
+				const data = await getEnhancedResponses(formId);
+				const res = json(data);
+				if (!data || data._degraded || !data.items || data.items.length === 0) {
+					markDegraded(res);
+				}
+				return res;
+			});
 		}
 
 		return json({ form: await loadForm(formId) });
 	} catch (error) {
 		console.error('Interviewer GET failed:', error);
 		if (action === 'responses') {
-			return json({ formId, total: 0, categories: ['All'], semesters: ['All'], items: [] });
+			return json({ formId, total: 0, categories: ['All'], semesters: ['All'], items: [], _degraded: true });
 		}
 		return json({ form: defaultForm });
 	}

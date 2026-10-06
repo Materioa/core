@@ -318,6 +318,8 @@
         }
     }
 
+    const ALL_ACCENT_CLASSES = ['orange', 'yellow', 'green', 'teal', 'blue', 'pink', 'purple', 'lilac', 'grey'];
+
     function applyAccent(color) {
         currentAccent = color;
         if (typeof document !== 'undefined') {
@@ -333,6 +335,12 @@
     function applyAccentKey(key) {
         const hex = ACCENT_HEX[key] || ACCENT_HEX.default;
         applyAccent(hex);
+        if (typeof document !== 'undefined' && document.body) {
+            ALL_ACCENT_CLASSES.forEach(k => document.body.classList.remove(`accent-${k}`));
+            if (key && key !== 'default' && ALL_ACCENT_CLASSES.includes(key)) {
+                document.body.classList.add(`accent-${key}`);
+            }
+        }
     }
 
     onMount(() => {
@@ -347,19 +355,28 @@
             currentTheme = savedTheme;
             themeStore.set(savedTheme);
 
-            const savedAccent = localStorage.getItem('materio_accent_color');
-            if (savedAccent) {
-                const legacyFixed = LEGACY_ACCENT_HEX[savedAccent.toLowerCase()] || savedAccent;
-                currentAccent = legacyFixed;
-                applyAccent(legacyFixed);
+            const savedAccentKey = getCookie('accentColor');
+            if (savedAccentKey) {
+                applyAccentKey(savedAccentKey);
             } else {
-                // Settings stores the picker choice as the `accentColor`
-                // cookie (e.g. "blue"); map it to hex so dots, icons and
-                // buttons follow the chosen accent on every load.
-                const savedAccentKey = getCookie('accentColor');
-                if (savedAccentKey && savedAccentKey !== 'default') {
-                    applyAccentKey(savedAccentKey);
+                const savedAccent = localStorage.getItem('materio_accent_color');
+                if (savedAccent) {
+                    const legacyFixed = LEGACY_ACCENT_HEX[savedAccent.toLowerCase()] || savedAccent;
+                    currentAccent = legacyFixed;
+                    applyAccent(legacyFixed);
                 }
+            }
+
+            // Apply reading modes from cookies immediately
+            const invert = getCookie('invertMode') === 'true';
+            const paper = getCookie('paperMode') === 'true';
+            const night = getCookie('nightMode') === 'true';
+            const eink = getCookie('einkMode') === 'true';
+            if (document.body) {
+                document.body.classList.toggle('invert-mode', invert);
+                document.body.classList.toggle('paper-mode', paper);
+                document.body.classList.toggle('night-mode', night);
+                document.body.classList.toggle('eink-mode', eink);
             }
 
             // Apply immediately on mount

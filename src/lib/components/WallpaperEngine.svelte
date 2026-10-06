@@ -287,6 +287,13 @@
         }
     }
 
+    const STATIC_WALLPAPERS = {
+        'default': "url('/assets/img/events/hero.webp')",
+        'h2': "url('/assets/img/wallpapers/h2.webp')",
+        'h5': "url('/assets/img/wallpapers/h5.webp')",
+        'h3': "url('/assets/img/wallpapers/h3.webp')"
+    };
+
     function setWallpaperAsBackground(wallpaperType) {
         if (!browser) return;
         const homeElem = document.getElementById('home');
@@ -314,10 +321,12 @@
                 applySereineWallpaper();
             } else if (wallpaperType === 'custom') {
                 applyCustomWallpaper();
+            } else if (STATIC_WALLPAPERS[wallpaperType]) {
+                homeElem.style.setProperty("--bg-img", STATIC_WALLPAPERS[wallpaperType]);
             } else if (selectedCard && selectedCard.dataset.bgImage && selectedCard.dataset.bgImage !== '') {
                 homeElem.style.setProperty("--bg-img", selectedCard.dataset.bgImage);
-            } else if (wallpaperType === 'default') {
-                homeElem.style.setProperty("--bg-img", "url('/assets/img/events/hero.webp')");
+            } else {
+                homeElem.style.setProperty("--bg-img", STATIC_WALLPAPERS.default);
             }
             
             updateSelectedCardUI(wallpaperType);
@@ -435,6 +444,10 @@
             window.addEventListener('materioWallpaperToggle', handleWallpaperChange);
         }
     });
+
+    $: if (browser && $activeTab === 'home' && isWallpaperEnabled) {
+        setWallpaperAsBackground(currentWallpaperType);
+    }
 
     onDestroy(() => {
         if (browser) {

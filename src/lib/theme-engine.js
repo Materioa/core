@@ -55,6 +55,48 @@ export function resolveActualMode(theme) {
     return actualMode;
 }
 
+export const ACCENT_HEX_MAP = {
+    default: '#ff8400',
+    orange: '#ff6138',
+    yellow: '#f1b539',
+    green: '#257d2d',
+    teal: '#3ab49b',
+    blue: '#3f6bbd',
+    pink: '#f47272',
+    purple: '#967bb6',
+    lilac: '#c8a2c8',
+    grey: '#8a8d91'
+};
+
+const ALL_ACCENT_CLASSES = ['orange', 'yellow', 'green', 'teal', 'blue', 'pink', 'purple', 'lilac', 'grey'];
+
+export function initReadingModes() {
+    if (typeof document === 'undefined' || !document.body) return;
+    const invert = getCookie('invertMode') === 'true';
+    const paper = getCookie('paperMode') === 'true';
+    const night = getCookie('nightMode') === 'true';
+    const eink = getCookie('einkMode') === 'true';
+    document.body.classList.toggle('invert-mode', invert);
+    document.body.classList.toggle('paper-mode', paper);
+    document.body.classList.toggle('night-mode', night);
+    document.body.classList.toggle('eink-mode', eink);
+}
+
+export function initAccent() {
+    if (typeof document === 'undefined') return;
+    let accentKey = getCookie('accentColor') || 'default';
+    const hex = ACCENT_HEX_MAP[accentKey] || ACCENT_HEX_MAP.default;
+    document.documentElement.style.setProperty('--color-primary', hex);
+    document.documentElement.style.setProperty('--color-primary-alt', hex);
+    document.documentElement.style.setProperty('--accent', hex);
+    if (document.body) {
+        ALL_ACCENT_CLASSES.forEach(c => document.body.classList.remove(`accent-${c}`));
+        if (accentKey && accentKey !== 'default' && ALL_ACCENT_CLASSES.includes(accentKey)) {
+            document.body.classList.add(`accent-${accentKey}`);
+        }
+    }
+}
+
 export function initTheme() {
     if (typeof document === 'undefined') return 'system';
 
@@ -100,6 +142,9 @@ export function initTheme() {
             metaThemeColor.setAttribute('content', '#faf9f5');
         }
     }
+
+    initReadingModes();
+    initAccent();
 
     return actualMode;
 }
