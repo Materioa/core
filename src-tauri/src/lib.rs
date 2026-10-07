@@ -468,6 +468,21 @@ fn annot_diag(app: tauri::AppHandle, line: String) {
     }
 }
 
+const DEFAULT_ICON_BYTES: &[u8] = include_bytes!("../icons/icon.png");
+const TERRACOTTA_ICON_BYTES: &[u8] = include_bytes!("../icons/terracotta.png");
+
+#[tauri::command]
+fn set_app_icon(app: tauri::AppHandle, icon_name: String) -> Result<String, String> {
+    let window = app.get_webview_window("main").ok_or_else(|| "No main window".to_string())?;
+    let bytes = match icon_name.to_lowercase().as_str() {
+        "terracotta" => TERRACOTTA_ICON_BYTES,
+        _ => DEFAULT_ICON_BYTES,
+    };
+    let img = tauri::image::Image::from_bytes(bytes).map_err(|e| format!("Failed to parse icon: {}", e))?;
+    window.set_icon(img).map_err(|e| format!("Failed to set window icon: {}", e))?;
+    Ok(icon_name)
+}
+
 /// Opens an off-app link in the OS default browser (room posts, status
 /// page, share URLs, …). The desktop WebView ships no opener plugin, so
 /// plain target=_blank links would otherwise do nothing. Only http(s)
@@ -699,7 +714,8 @@ pub fn run() {
             app_window_close,
             app_window_is_maximized,
             open_external_url,
-            annot_diag
+            annot_diag,
+            set_app_icon
         ])
         // Second launches (e.g. materio:// taps from the browser while the
         // app runs) focus the existing window and forward the URL instead

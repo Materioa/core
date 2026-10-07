@@ -59,7 +59,7 @@ const defaultForm = {
 	description: 'Share practical and viva questions that helped you prepare.',
 	context: 'viva',
 	fields: [
-		{ name: 'semester', label: 'What semester is it?', type: 'select', options: ['1', '3', '5', '7'], required: true },
+		{ name: 'semester', label: 'What semester is it?', type: 'select', options: ['1', '2', '3', '4', '5', '6', '7', '8'], required: true },
 		{ name: 'subject', label: 'what subject?', type: 'text', required: true },
 		{ name: 'questions', label: 'List questions that were being asked', type: 'textarea', required: true },
 		{ name: 'difficulty', label: 'What was the difficulty level for you?', type: 'select', options: ['Easy', 'Medium', 'Hard'], required: true },
@@ -168,6 +168,12 @@ function questionFor(form, extracted, skipped, llmReply, conversationOpts = {}) 
 	if (opts.length) {
 		const opener = timesAsked(next.name) >= 1 ? 'Still need this one —' : 'Thanks, got it.';
 		return `${opener} which subject is it for? ${listPhrase(opts)}.`;
+	}
+
+	const fieldOptions = optionValues(next).map((o) => String(o).trim()).filter(Boolean);
+	if (fieldOptions.length) {
+		const opener = timesAsked(next.name) >= 1 ? 'Still need this one —' : 'Thanks, got it.';
+		return `${opener} ${askFor(next)} — ${listPhrase(fieldOptions)}.`;
 	}
 
 	if (/^(what|which)\b/i.test(ask)) {
@@ -737,6 +743,12 @@ export async function POST({ request }) {
 			let value = guessed[hintField] ? sanitiseValue(fieldDef, guessed[hintField]) : null;
 			if (!value && fieldDef) {
 				value = sanitiseValue(fieldDef, text);
+			}
+			if (!value && fieldDef && llmReply) {
+				const fromReply = extractFields(llmReply, fields, { ...priorExtracted, ...extracted }, hintField);
+				if (fromReply[hintField]) {
+					value = sanitiseValue(fieldDef, fromReply[hintField]);
+				}
 			}
 			if (value) {
 				extracted = { ...extracted, [hintField]: value };

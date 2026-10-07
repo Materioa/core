@@ -145,6 +145,71 @@ public class MainActivity extends BridgeActivity {
                     e.printStackTrace();
                 }
             }
+
+            @JavascriptInterface
+            public boolean setAppIcon(String iconName) {
+                if (iconName == null) return false;
+                try {
+                    android.content.pm.PackageManager pm = getPackageManager();
+                    String pkg = getPackageName();
+                    android.content.ComponentName defaultAlias = new android.content.ComponentName(pkg, pkg + ".MainActivityDefault");
+                    android.content.ComponentName terracottaAlias = new android.content.ComponentName(pkg, pkg + ".MainActivityTerracotta");
+                    android.content.ComponentName mainActivity = new android.content.ComponentName(pkg, pkg + ".MainActivity");
+
+                    try {
+                        pm.setComponentEnabledSetting(
+                            mainActivity,
+                            android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DEFAULT,
+                            android.content.pm.PackageManager.DONT_KILL_APP
+                        );
+                    } catch (Exception ignored) {}
+
+                    boolean isTerracotta = "terracotta".equalsIgnoreCase(iconName.trim());
+                    if (isTerracotta) {
+                        pm.setComponentEnabledSetting(
+                            terracottaAlias,
+                            android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                            android.content.pm.PackageManager.DONT_KILL_APP
+                        );
+                        pm.setComponentEnabledSetting(
+                            defaultAlias,
+                            android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                            android.content.pm.PackageManager.DONT_KILL_APP
+                        );
+                    } else {
+                        pm.setComponentEnabledSetting(
+                            defaultAlias,
+                            android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                            android.content.pm.PackageManager.DONT_KILL_APP
+                        );
+                        pm.setComponentEnabledSetting(
+                            terracottaAlias,
+                            android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                            android.content.pm.PackageManager.DONT_KILL_APP
+                        );
+                    }
+                    return true;
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    return false;
+                }
+            }
+
+            @JavascriptInterface
+            public String getAppIcon() {
+                try {
+                    android.content.pm.PackageManager pm = getPackageManager();
+                    String pkg = getPackageName();
+                    android.content.ComponentName terracottaAlias = new android.content.ComponentName(pkg, pkg + ".MainActivityTerracotta");
+                    int state = pm.getComponentEnabledSetting(terracottaAlias);
+                    if (state == android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED) {
+                        return "terracotta";
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                return "default";
+            }
         }, "AndroidBridge");
     }
 

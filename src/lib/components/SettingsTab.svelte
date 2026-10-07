@@ -590,6 +590,51 @@
         { id: 'grey', name: 'Grey', color: '#8a8d91' },
     ];
 
+    export let appIcons = [
+        { id: 'default', name: 'Default', subtitle: 'Saffron & Slate', preview: '/assets/app-icons/default.png' },
+        { id: 'terracotta', name: 'Terracotta', subtitle: 'Warm Brick Orange', preview: '/assets/app-icons/terracotta.png' },
+    ];
+    let currentAppIcon = 'default';
+
+    async function selectAppIcon(iconId) {
+        if (!iconId || iconId === currentAppIcon) return;
+        currentAppIcon = iconId;
+        try {
+            localStorage.setItem('materio_app_icon', iconId);
+        } catch {}
+
+        // Android native launcher alias switch
+        if (window.AndroidBridge?.setAppIcon) {
+            try {
+                const ok = window.AndroidBridge.setAppIcon(iconId);
+                if (ok) {
+                    showToastMessage(`App icon changed to ${iconId === 'terracotta' ? 'Terracotta' : 'Default'}`, 'success');
+                }
+            } catch (err) {
+                console.warn('AndroidBridge.setAppIcon error:', err);
+            }
+        }
+
+        // Desktop (Tauri) window & taskbar icon switch
+        if (isTauri && window.__TAURI__?.core?.invoke) {
+            try {
+                await window.__TAURI__.core.invoke('set_app_icon', { iconName: iconId });
+                showToastMessage(`App icon changed to ${iconId === 'terracotta' ? 'Terracotta' : 'Default'}`, 'success');
+            } catch (err) {
+                console.warn('Tauri set_app_icon error:', err);
+            }
+        }
+
+        // Web preview fallback
+        if (!isTauri && !window.AndroidBridge && browser) {
+            const link = document.querySelector("link[rel*='icon']");
+            if (link) {
+                link.href = `/assets/app-icons/${iconId}.png`;
+            }
+            showToastMessage(`App icon preview set to ${iconId === 'terracotta' ? 'Terracotta' : 'Default'}`, 'success');
+        }
+    }
+
     function applyReadingToggles(){
         document.body.classList.toggle('invert-mode', invertMode);
         document.body.classList.toggle('paper-mode', paperMode);
@@ -658,6 +703,14 @@
             const he=localStorage.getItem('materio_haptics_enabled'); hapticEnabled = he===null ? true : he==='true';
             const ca=getCookie('cookiesAccepted'); cookiesAccepted = ca==='true';
             const ne=localStorage.getItem('notificationsEnabled'); notificationsEnabled = ne===null ? true : ne==='true';
+            try {
+                const savedIcon = localStorage.getItem('materio_app_icon');
+                if (savedIcon) {
+                    currentAppIcon = savedIcon;
+                } else if (window.AndroidBridge?.getAppIcon) {
+                    currentAppIcon = window.AndroidBridge.getAppIcon() || 'default';
+                }
+            } catch {}
             setTimeout(()=> { applyReadingToggles(); }, 50);
             setTimeout(()=> applyInsightroomViewMode(insightroomFeed, insightroomView), 100);
 
@@ -976,6 +1029,48 @@
         </div>
     </div>
 </div>
+
+<!-- App Icon Selection Card -->
+<div class="card-layout" id="appIconSelectionCard">
+    <div class="toggle-container" style="justify-content: space-between; align-items: center; width: 100%;">
+        <div class="paper-mode-info" style="min-width: 0;">
+            <div class="paper-mode-title">App Icon</div>
+        </div>
+
+        <div style="display: inline-flex; align-items: center; gap: 10px; margin-left: auto;">
+            {#each appIcons as icon}
+                <button
+                    type="button"
+                    class="app-icon-item"
+                    class:active={currentAppIcon === icon.id}
+                    title={icon.name}
+                    aria-label={icon.name}
+                    on:click={() => selectAppIcon(icon.id)}
+                    style="
+                        position: relative;
+                        padding: 2px;
+                        border-radius: 12px;
+                        background: none;
+                        border: 2px solid {currentAppIcon === icon.id ? 'var(--color-primary)' : 'transparent'};
+                        cursor: pointer;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        transition: all 0.15s ease;
+                        opacity: {currentAppIcon === icon.id ? '1' : '0.75'};
+                    "
+                >
+                    <img
+                        src={icon.preview}
+                        alt={icon.name}
+                        style="width: 38px; height: 38px; border-radius: 8px; object-fit: cover; display: block; box-shadow: 0 2px 6px rgba(0,0,0,0.12);"
+                    />
+                </button>
+            {/each}
+        </div>
+    </div>
+</div>
+
 
 <div class="card-layout" id="wallpaperSelectionCard">
     <div class="wallpaper-section">

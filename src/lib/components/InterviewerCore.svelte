@@ -77,6 +77,7 @@
 	let isComplete = $state(false);
 	let examTag = $state('');
 	let loadError = $state('');
+	let isLoadingForm = $state(false);
 	let showCapturedDrawer = $state(false);
 	let chatContainer = $state(null);
 	let textareaEl = $state(null);
@@ -246,12 +247,26 @@
 		// Filling a stub with something real is an improvement, not an overwrite.
 		return existing.length <= 12 && incoming.length > existing.length + 12;
 	}
+	function resolveFieldName(key) {
+		if (!key) return null;
+		const fields = form?.fields || [];
+		const exact = fields.find((f) => f.name === key);
+		if (exact) return exact.name;
+		const norm = String(key).trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+		const byNormName = fields.find((f) => f.name.toLowerCase().replace(/[^a-z0-9]/g, '') === norm);
+		if (byNormName) return byNormName.name;
+		const byNormLabel = fields.find((f) => f.label && f.label.toLowerCase().replace(/[^a-z0-9]/g, '') === norm);
+		if (byNormLabel) return byNormLabel.name;
+		return key;
+	}
+
 	function mergeExtracted(obj) {
 		if (!obj || typeof obj !== 'object') return;
 		const next = { ...values };
 		let changed = false;
-		for (const [k, v] of Object.entries(obj)) {
+		for (const [rawK, v] of Object.entries(obj)) {
 			if (!hasValue(v)) continue;
+			const k = resolveFieldName(rawK);
 			const clean = String(v).trim();
 			const existing = next[k];
 			if (!hasValue(existing)) {
@@ -322,6 +337,77 @@
 		textareaEl.style.height = Math.min(textareaEl.scrollHeight, 160) + 'px';
 	}
 
+	const defaultVivaForm = {
+		id: 'viva-question-bank',
+		kind: 'interview',
+		title: 'Viva Box',
+		description: 'Help community prepare for the exam by contributing questions that are being asked by the faculties.',
+		context: 'viva',
+		fields: [
+			{ name: 'semester', label: 'What semester is it?', type: 'select', required: true, options: ['1', '2', '3', '4', '5', '6', '7', '8'] },
+			{ name: 'subject', label: 'what subject?', type: 'text', required: true },
+			{ name: 'questions', label: 'List questions that were being asked', type: 'text', required: true },
+			{ name: 'difficulty', label: 'What was the difficulty level for you?', type: 'select', required: true, options: ['Easy', 'Medium', 'Hard'] },
+			{ name: 'faculty', label: 'Share the faculty name (Optional)', type: 'text', required: false, minLength: 3, maxLength: 30 },
+			{ name: 'notes', label: 'Any additional Tips?', type: 'text', required: false }
+		],
+		interview: {
+			openingQuestion: 'Which viva or practical question would you like to share with the community today?',
+			systemPrompt: 'You collect viva/practical exam questions. Ask one focused follow-up at a time until semester, subject, questions and difficulty are known. Keep replies under 40 words.',
+			skipAllowed: true,
+			completeMessage: 'Thanks — your question is queued for the viva box.'
+		}
+	};
+
+	async function initForm(force = false) {
+		isLoadingForm = true;
+		loadError = '';
+
+		const maxAttempts = 3;
+		let lastError = null;
+
+		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+			try {
+				const cacheBust = force ? `&t=${Date.now()}` : '';
+				const response = await fetch(`/api/interviewer?form=${encodeURIComponent(formId)}${cacheBust}`);
+				if (!response.ok) {
+					throw new Error('Could not load the interview form');
+				}
+				const data = await response.json().catch(() => null);
+				if (!data || !data.form) {
+					throw new Error('Could not load the interview form. Please refresh and try again.');
+				}
+				form = data.form;
+				const opening = form?.interview?.openingQuestion || form?.description || 'What would you like to share today?';
+				messages = [{ role: 'assistant', content: opening }];
+				fireInterviewMagic('load');
+				isLoadingForm = false;
+				loadError = '';
+				return;
+			} catch (err) {
+				lastError = err;
+				if (attempt < maxAttempts) {
+					await new Promise((r) => setTimeout(r, attempt * 450));
+				}
+			}
+		}
+
+		// Resilient fallback for the viva form if network/worker cold start times out
+		if (formId === 'viva-question-bank' || !formId || formId === 'viva' || formId === 'viva-box') {
+			console.warn('[interviewer] Activating fallback viva form after cold start retry failure:', lastError?.message);
+			form = defaultVivaForm;
+			const opening = form.interview.openingQuestion;
+			messages = [{ role: 'assistant', content: opening }];
+			fireInterviewMagic('load');
+			isLoadingForm = false;
+			loadError = '';
+			return;
+		}
+
+		isLoadingForm = false;
+		loadError = lastError?.message || 'Could not load the interview form';
+	}
+
 	onMount(async () => {
 		try {
 			isLoggedIn = isUserLoggedIn();
@@ -332,21 +418,14 @@
 			examTag = [examSubject, examCode].filter(Boolean).join(' · ');
 		}
 
-		loadResponses();
+		await initForm();
 
-		try {
-			const response = await fetch(`/api/interviewer?form=${encodeURIComponent(formId)}`);
-			if (!response.ok) throw new Error('Could not load the interview form');
-			const data = await response.json().catch(() => null);
-			if (!data) throw new Error('Could not load the interview form. Please refresh and try again.');
-			form = data.form;
-
-			const opening = form?.interview?.openingQuestion || form?.description || 'What would you like to share today?';
-			messages = [{ role: 'assistant', content: opening }];
-			fireInterviewMagic('load');
-		} catch (err) {
-			loadError = err.message || 'Failed to load questions';
-		}
+		// Defer community responses loading so it never competes with initial form load
+		setTimeout(() => {
+			if (activeTab === 'responses') {
+				loadResponses();
+			}
+		}, 1500);
 	});
 
 	/**
@@ -982,9 +1061,27 @@
 			{:else if loadError}
 				<main class="center-content">
 					<div class="error-panel">
+						<div class="error-bud-wrap">
+							<Bud size={56} />
+						</div>
 						<h2>Unable to load interview</h2>
 						<p>{loadError}</p>
-						<button class="primary-action-btn" onclick={handleClose}>Back to Materio</button>
+						<div class="error-actions">
+							<button type="button" class="primary-action-btn refresh-btn" onclick={() => initForm(true)} disabled={isLoadingForm}>
+								{#if isLoadingForm}
+									<span class="btn-spinner"></span>
+									<span>Refreshing...</span>
+								{:else}
+									<svg class="refresh-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+										<path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+									</svg>
+									<span>Refresh</span>
+								{/if}
+							</button>
+							<button type="button" class="secondary-action-btn" onclick={handleClose}>
+								Back to Materio
+							</button>
+						</div>
 					</div>
 				</main>
 			{:else if isComplete}
@@ -2860,7 +2957,63 @@
 
 	.error-panel {
 		text-align: center;
-		max-width: 360px;
+		max-width: 380px;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.error-bud-wrap {
+		color: var(--iv-fg);
+		margin-bottom: 8px;
+		opacity: 0.85;
+	}
+
+	.error-panel h2 {
+		margin: 0;
+		font-size: 20px;
+		color: var(--iv-fg);
+	}
+
+	.error-panel p {
+		margin: 0;
+		font-size: 14px;
+		color: var(--iv-muted);
+		line-height: 1.5;
+	}
+
+	.error-actions {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 12px;
+		margin-top: 14px;
+		flex-wrap: wrap;
+	}
+
+	.refresh-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+	}
+
+	.refresh-icon {
+		flex-shrink: 0;
+	}
+
+	.btn-spinner {
+		width: 14px;
+		height: 14px;
+		border: 2px solid rgba(255, 255, 255, 0.35);
+		border-top-color: #ffffff;
+		border-radius: 50%;
+		animation: spin 0.8s linear infinite;
+	}
+
+	@keyframes spin {
+		to { transform: rotate(360deg); }
 	}
 
 	/* -------------------------------------------------------------

@@ -24,7 +24,7 @@ function check(name, got, want) {
 const viva = {
   id: 'viva-question-bank',
   fields: [
-    { name: 'semester', label: 'What semester is it?', type: 'select', required: true, options: ['1', '3', '5', '7'] },
+    { name: 'semester', label: 'What semester is it?', type: 'select', required: true, options: ['1', '2', '3', '4', '5', '6', '7', '8'] },
     { name: 'subject', label: 'what subject?', type: 'text', required: true },
     { name: 'questions', label: 'List questions that were being asked', type: 'text', required: true },
     { name: 'difficulty', label: 'What was the difficulty level for you?', type: 'select', required: true, options: ['Easy', 'Medium', 'Hard'] },
@@ -46,9 +46,13 @@ check('"for me" yields no subject', extractFields('It was easy for me', viva.fie
 
 console.log('\n— select fields —');
 // A declared option said plainly is a direct answer and must be honoured.
-check('a bare declared option is accepted', sanitiseValue(viva.fields[0], '5'), '5');
+check('a bare declared option is accepted (5)', sanitiseValue(viva.fields[0], '5'), '5');
+check('a bare declared option is accepted (4)', sanitiseValue(viva.fields[0], '4'), '4');
 check('"5th semester" resolves', sanitiseValue(viva.fields[0], '5th semester'), '5');
 check('"sem 7" resolves', sanitiseValue(viva.fields[0], 'sem 7'), '7');
+check('"fourth semester" resolves', sanitiseValue(viva.fields[0], 'fourth semester'), '4');
+check('"sem 4" resolves', sanitiseValue(viva.fields[0], 'sem 4'), '4');
+check('"i am in 4th sem" resolves', sanitiseValue(viva.fields[0], 'i am in 4th sem'), '4');
 check('prose never becomes a semester', sanitiseValue(viva.fields[0], 'I had a long chat about pointers and memory'), null);
 check('difficulty snaps to an option', sanitiseValue(viva.fields[3], 'hard'), 'Hard');
 check('unlisted difficulty rejected', sanitiseValue(viva.fields[3], 'brutal'), null);
@@ -117,6 +121,77 @@ check('filling a stub is reported', stub.updated, ['subject']);
 
 check('unknown fields dropped', mergeExtracted(viva, {}, { hacker: 'x' }).rejected, ['hacker']);
 check('oversized value dropped', mergeExtracted(viva, {}, { faculty: 'x'.repeat(40) }).rejected, ['faculty']);
+check('resolves label key "What semester is it?"', mergeExtracted(viva, {}, { 'What semester is it?': '4' }).extracted.semester, '4');
+check('resolves alias key "sem"', mergeExtracted(viva, {}, { sem: '4' }).extracted.semester, '4');
+check('resolves alias key "topic"', mergeExtracted(viva, {}, { topic: 'Computer Networks' }).extracted.subject, 'Computer Networks');
+
+// Recruitment Form
+const recruitmentForm = {
+  id: 'recruitment-form',
+  fields: [
+    { name: 'full_name', label: 'Full Name', type: 'text', required: true },
+    { name: 'role', label: 'Applied Role', type: 'select', required: true, options: ['Frontend Developer', 'Backend Developer', 'Full Stack Developer', 'DevOps Engineer'] },
+    { name: 'experience_years', label: 'Years of Experience', type: 'number', required: true, min: 0, max: 50 },
+    { name: 'email', label: 'Email Address', type: 'email', required: true },
+    { name: 'phone', label: 'Phone Number', type: 'tel', required: false },
+    { name: 'remote', label: 'Open to Remote Work?', type: 'checkbox', required: false },
+    { name: 'portfolio', label: 'Portfolio or GitHub', type: 'url', required: false },
+    { name: 'summary', label: 'Professional Summary', type: 'textarea', required: false }
+  ]
+};
+
+console.log('\n— recruitment form robustness —');
+check('recruitment role snaps to option', sanitiseValue(recruitmentForm.fields[1], "I'm applying for full stack"), 'Full Stack Developer');
+check('experience years parses from conversational text', sanitiseValue(recruitmentForm.fields[2], 'I have about 4 years of experience'), 4);
+check('email parses from conversational sentence', sanitiseValue(recruitmentForm.fields[3], 'Reach me at dev.jane@example.com anytime'), 'dev.jane@example.com');
+check('phone strips formatting', sanitiseValue(recruitmentForm.fields[4], '+1 (555) 234-5678'), '+15552345678');
+check('boolean checkbox handles affirmative', sanitiseValue(recruitmentForm.fields[5], 'yes absolutely'), true);
+check('url prepends https if missing', sanitiseValue(recruitmentForm.fields[6], 'github.com/janedoe'), 'https://github.com/janedoe');
+check('summary starting with "So I have" is not treated as a question', sanitiseValue(recruitmentForm.fields[7], 'So I have built cloud platforms for 5 years'), 'So I have built cloud platforms for 5 years');
+
+// Test mergeExtracted with aliases and label keys on recruitment form
+const recruitMerged = mergeExtracted(recruitmentForm, {}, {
+  'Full Name': 'Jane Doe',
+  position: 'Backend Developer',
+  yoe: '5',
+  mail: 'jane@work.io',
+  github: 'github.com/jane'
+});
+check('merges full name via label', recruitMerged.extracted.full_name, 'Jane Doe');
+check('merges position alias to role', recruitMerged.extracted.role, 'Backend Developer');
+check('merges yoe alias to experience_years', recruitMerged.extracted.experience_years, 5);
+check('merges mail alias to email', recruitMerged.extracted.email, 'jane@work.io');
+check('merges github alias to portfolio', recruitMerged.extracted.portfolio, 'https://github.com/jane');
+
+// Survey Form
+const surveyForm = {
+  id: 'customer-survey',
+  fields: [
+    { name: 'satisfaction', label: 'Satisfaction Rating (1-10)', type: 'rating', min: 1, max: 10, required: true },
+    { name: 'recommend', label: 'Would you recommend us?', type: 'select', options: ['Yes', 'No', 'Maybe'], required: true },
+    { name: 'feedback', label: 'Any comments or feedback?', type: 'textarea', required: false }
+  ]
+};
+
+console.log('\n— survey form robustness —');
+check('rating handles fractional "9/10"', sanitiseValue(surveyForm.fields[0], '9/10'), 9);
+check('rating handles words "ten"', sanitiseValue(surveyForm.fields[0], 'ten out of ten'), 10);
+check('"Yes" is accepted as a meaningful option', isMeaningfulValue('Yes', surveyForm.fields[1]), true);
+check('"No" is accepted as a meaningful option', isMeaningfulValue('No', surveyForm.fields[1]), true);
+check('recommend snaps to Yes', sanitiseValue(surveyForm.fields[1], 'yes definitely'), 'Yes');
+check('recommend snaps to No', sanitiseValue(surveyForm.fields[1], 'no, probably not'), 'No');
+check('feedback starting with "Also..." survives', sanitiseValue(surveyForm.fields[2], 'Also the response times were super fast!'), 'Also the response times were super fast!');
+
+// Pattern fallback extraction across forms
+console.log('\n— pattern fallback extraction —');
+const extractedPatterns = extractFields('Reach me at test@company.com or call +1 555 987 6543, rate is 5/5', [
+  { name: 'email', type: 'email' },
+  { name: 'phone', type: 'tel' },
+  { name: 'rating', type: 'rating', max: 5 }
+], {}, null);
+check('fallback regex captures email', extractedPatterns.email, 'test@company.com');
+check('fallback regex captures phone', extractedPatterns.phone, '+15559876543');
+check('fallback regex captures rating', extractedPatterns.rating, 5);
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

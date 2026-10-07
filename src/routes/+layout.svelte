@@ -394,6 +394,16 @@
       } catch {}
     }
 
+    // Restore chosen app icon for desktop (Tauri)
+    if (isTauri && window.__TAURI__?.core?.invoke) {
+      try {
+        const savedIcon = localStorage.getItem('materio_app_icon');
+        if (savedIcon && savedIcon !== 'default') {
+          window.__TAURI__.core.invoke('set_app_icon', { iconName: savedIcon }).catch(() => {});
+        }
+      } catch {}
+    }
+
     return () => {
       unsubActive();
       unsubPdf();
