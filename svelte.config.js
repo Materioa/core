@@ -35,7 +35,8 @@ const config = {
 				throw new Error(message);
 			},
 			handleMissingId: 'warn',
-			handleUnseenRoutes: 'warn'
+			handleUnseenRoutes: 'warn',
+			handleEntryGeneratorMismatch: 'warn'
 		}
 	}
 };
