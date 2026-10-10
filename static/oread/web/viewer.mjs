@@ -4340,7 +4340,18 @@ class CaretBrowsingMode {
 
 ;// ./web/download_manager.js
 
-function download(blobUrl, filename) {
+async function uint8ArrayToBase64(uint8) {
+  let binary = "";
+  const len = uint8.byteLength;
+  const chunkSize = 0x8000;
+  for (let i = 0; i < len; i += chunkSize) {
+    const chunk = uint8.subarray(i, Math.min(i + chunkSize, len));
+    binary += String.fromCharCode.apply(null, chunk);
+  }
+  return btoa(binary);
+}
+
+function triggerBrowserDownload(blobUrl, filename) {
   const a = document.createElement("a");
   if (!a.click) {
     throw new Error('DownloadManager: "a.click()" is not supported.');
@@ -4354,13 +4365,101 @@ function download(blobUrl, filename) {
   a.click();
   a.remove();
 }
+
+async function customSaveOrDownload(data, url, filename, contentType = "application/pdf") {
+  const tauri = window.__TAURI__ || window.parent?.__TAURI__;
+  const invoke = tauri?.core?.invoke || tauri?.invoke;
+
+  // 1. Desktop app (Tauri): ask where to save via native OS Save As dialog
+  if (typeof invoke === "function") {
+    try {
+      let b64 = "";
+      if (data) {
+        b64 = await uint8ArrayToBase64(data instanceof Uint8Array ? data : new Uint8Array(data));
+      } else if (url) {
+        const resp = await fetch(url);
+        const buf = await resp.arrayBuffer();
+        b64 = await uint8ArrayToBase64(new Uint8Array(buf));
+      }
+      if (b64) {
+        await invoke("save_pdf_file", {
+          filename: filename || "document.pdf",
+          data_base64: b64
+        });
+        return;
+      }
+    } catch (err) {
+      console.warn("Tauri native save_pdf_file failed, falling back:", err);
+    }
+  }
+
+  // 2. Web browser: use File System Access API if supported to prompt user
+  const picker = window.showSaveFilePicker || (window.parent && window.parent.showSaveFilePicker);
+  if (typeof picker === "function") {
+    try {
+      let blob;
+      if (data) {
+        blob = new Blob([data], { type: contentType });
+      } else if (url) {
+        const resp = await fetch(url);
+        blob = await resp.blob();
+      }
+      if (blob) {
+        const handle = await picker.call(window, {
+          suggestedName: filename || "document.pdf",
+          types: [{
+            description: "PDF Document (*.pdf)",
+            accept: { "application/pdf": [".pdf"] }
+          }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        return;
+      }
+    } catch (pickerErr) {
+      if (pickerErr?.name === "AbortError") {
+        return; // User explicitly cancelled the file picker dialog
+      }
+    }
+  }
+
+  // 3. Fallback for mobile / browsers without native save dialog
+  let blobUrl;
+  if (data) {
+    blobUrl = URL.createObjectURL(new Blob([data], { type: contentType }));
+  } else {
+    if (!createValidAbsoluteUrl(url, "http://example.com")) {
+      console.error(`download - not a valid URL: ${url}`);
+      return;
+    }
+    blobUrl = url + "#pdfjs.action=download";
+  }
+  triggerBrowserDownload(blobUrl, filename);
+}
+
+function download(blobUrl, filename) {
+  const tauri = window.__TAURI__ || window.parent?.__TAURI__;
+  const invoke = tauri?.core?.invoke || tauri?.invoke;
+  if (typeof invoke === "function") {
+    fetch(blobUrl)
+      .then(r => r.arrayBuffer())
+      .then(async buf => {
+        const b64 = await uint8ArrayToBase64(new Uint8Array(buf));
+        await invoke("save_pdf_file", { filename: filename || "document.pdf", data_base64: b64 });
+      })
+      .catch(() => {
+        triggerBrowserDownload(blobUrl, filename);
+      });
+    return;
+  }
+  triggerBrowserDownload(blobUrl, filename);
+}
+
 class DownloadManager {
   #openBlobUrls = new WeakMap();
   downloadData(data, filename, contentType) {
-    const blobUrl = URL.createObjectURL(new Blob([data], {
-      type: contentType
-    }));
-    download(blobUrl, filename);
+    customSaveOrDownload(data, null, filename, contentType);
   }
   openOrDownloadData(data, filename, dest = null) {
     const isPdfData = isPdfFile(filename);
@@ -4391,19 +4490,7 @@ class DownloadManager {
     return false;
   }
   download(data, url, filename) {
-    let blobUrl;
-    if (data) {
-      blobUrl = URL.createObjectURL(new Blob([data], {
-        type: "application/pdf"
-      }));
-    } else {
-      if (!createValidAbsoluteUrl(url, "http://example.com")) {
-        console.error(`download - not a valid URL: ${url}`);
-        return;
-      }
-      blobUrl = url + "#pdfjs.action=download";
-    }
-    download(blobUrl, filename);
+    customSaveOrDownload(data, url, filename, "application/pdf");
   }
 }
 

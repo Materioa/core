@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "2.1.192"
+version = "2.1.193"
 description = "A Tauri App"
 authors = ["you"]
 license = ""
@@ -25,3 +25,5 @@ open = "5"
 tauri = { version = "2.11.3", features = ["image-png"] }
 tauri-plugin-log = "2"
 tauri-plugin-single-instance = "2"
+rfd = "0.17.2"
+base64 = "0.23.1"

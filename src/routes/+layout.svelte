@@ -100,6 +100,10 @@
         if (typeof window !== 'undefined' && (window.__materioForceApp || window.__landingForceApp)) return false;
       } catch {}
       try {
+        const startPref = localStorage.getItem('materio_start_page') || localStorage.getItem('materio_app_start');
+        if (startPref === 'app' || startPref === 'home') return false;
+      } catch {}
+      try {
         const m = document.cookie.match(new RegExp('(^| )materio_skip_landing=([^;]+)'));
         let skip = null;
         if (m) skip = decodeURIComponent(m[2]);
@@ -110,7 +114,13 @@
     return false;
   }
   $: hideGlobalHeader = shouldHideHeader($page.url.pathname, headerVersion);
-  $: if (browser) document.body.classList.toggle('landing-page-active', hideGlobalHeader);
+  $: if (browser) {
+    document.body.classList.toggle('landing-page-active', hideGlobalHeader);
+    if (!hideGlobalHeader) {
+      const c = document.getElementById('app-main-css');
+      if (c && c.disabled) c.disabled = false;
+    }
+  }
   // Reading pages (blog posts, docs, legal) render without app chrome,
   // like the parent layouts — but keep the base stylesheets.
   $: bareContent = $page.data?.layout === 'bare'
@@ -419,7 +429,7 @@
 
 <svelte:head>
   {#if !hideGlobalHeader || bareContent}
-    <link id="app-main-css" rel="stylesheet" href="/assets/style/main.css?v=20260926" />
+    <link id="app-main-css" rel="stylesheet" href="/assets/style/main.css?v=20261010" />
   {:else}
     <link id="landing-css" rel="stylesheet" href="/assets/style/landing.css" />
     <link id="pricing-css" rel="stylesheet" href="/assets/style/pricing.css" />

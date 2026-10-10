@@ -7,9 +7,28 @@
 	import LandingPage from '$lib/components/LandingPage.svelte';
 	import MainApp from '$lib/components/MainApp.svelte';
 
-	let showLanding = $state(true);
-	let checked = $state(false);
-	let showApp = $state(false);
+	function checkInitialApp(): boolean {
+		if (!browser) return false;
+		const inNative = isNative || isTauri || isCapacitor || Boolean(
+			typeof window !== 'undefined' && (
+				window.__TAURI_INTERNALS__ ||
+				window.__TAURI__ ||
+				window.location?.protocol === 'tauri:' ||
+				window.location?.protocol === 'capacitor:' ||
+				window.location?.hostname === 'tauri.localhost' ||
+				window.Capacitor
+			)
+		);
+		if (inNative) return true;
+		if (isForceApp()) return true;
+		if (getSkipLanding()) return true;
+		return false;
+	}
+
+	const initialApp = checkInitialApp();
+	let showLanding = $state(!initialApp);
+	let checked = $state(initialApp);
+	let showApp = $state(initialApp);
 
 	function evaluate() {
 		if (!browser) return;

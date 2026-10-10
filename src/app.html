@@ -45,12 +45,36 @@
 		<!-- Preload fallback LCP card image with high priority -->
 		<link rel="preload" as="image" href="/assets/img/noidea.webp" type="image/webp" fetchpriority="high" />
 
+		<!-- Preload core app stylesheet for immediate fast render on app routes -->
+		<link rel="preload" href="/assets/style/main.css?v=20261010" as="style" />
 		<!-- Core app stylesheet in head prevents FOUC and eliminates layout shifts (CLS) on app routes -->
-		<link id="app-main-css" rel="stylesheet" href="/assets/style/main.css?v=20260926" />
+		<link id="app-main-css" rel="stylesheet" href="/assets/style/main.css?v=20261010" />
 		<script>
 			(function () {
 				var p = window.location.pathname;
-				var isLanding = (p === '/' || p === '/pricing' || p.startsWith('/pricing/') || p === '/downloads' || p.startsWith('/downloads'));
+				var isNative = Boolean(
+					window.__TAURI_INTERNALS__ ||
+					window.__TAURI__ ||
+					window.location.protocol === 'tauri:' ||
+					window.location.protocol === 'capacitor:' ||
+					window.location.hostname === 'tauri.localhost' ||
+					window.location.hostname === 'capacitor.localhost' ||
+					window.Capacitor
+				);
+				var skipLanding = false;
+				try {
+					var match = document.cookie.match(/(^| )materio_skip_landing=([^;]+)/);
+					if (match) skipLanding = (decodeURIComponent(match[2]) === 'true' || match[2] === '1');
+					if (!skipLanding) {
+						var lsSkip = localStorage.getItem('materio_skip_landing');
+						var lsStart = localStorage.getItem('materio_start_page') || localStorage.getItem('materio_app_start');
+						skipLanding = (lsSkip === 'true' || lsSkip === '1' || lsStart === 'app' || lsStart === 'home');
+					}
+				} catch (e) {}
+
+				var isAppOnRoot = (p === '/' && (isNative || skipLanding || window.__materioForceApp || window.__landingForceApp));
+				var isLanding = !isAppOnRoot && (p === '/' || p === '/pricing' || p.startsWith('/pricing/') || p === '/downloads' || p.startsWith('/downloads') || p === '/interviewer' || p.startsWith('/interviewer'));
+
 				if (isLanding) {
 					var c = document.getElementById('app-main-css');
 					if (c) c.disabled = true;

@@ -496,6 +496,47 @@ fn open_external_url(url: String) -> Result<(), String> {
     open::that(u).map_err(|e| e.to_string())
 }
 
+/// Prompts the user with a native Save As file dialog and writes the PDF data to the selected path.
+/// Returns Ok(true) if saved, Ok(false) if user cancelled the dialog.
+#[tauri::command]
+async fn save_pdf_file(filename: String, data_base64: String) -> Result<bool, String> {
+    let default_name = if filename.trim().is_empty() {
+        "document.pdf".to_string()
+    } else {
+        filename.trim().to_string()
+    };
+
+    let chosen_path = tauri::async_runtime::spawn_blocking(move || {
+        rfd::FileDialog::new()
+            .set_file_name(&default_name)
+            .add_filter("PDF Document (*.pdf)", &["pdf"])
+            .save_file()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+
+    if let Some(path) = chosen_path {
+        use base64::Engine;
+        let clean_b64 = if let Some(idx) = data_base64.find(',') {
+            &data_base64[idx + 1..]
+        } else {
+            &data_base64
+        };
+
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(clean_b64.trim())
+            .map_err(|e| format!("Failed to decode PDF data: {}", e))?;
+
+        std::fs::write(&path, bytes).map_err(|e| format!("Failed to save PDF to file: {}", e))?;
+        log::info!("Successfully saved PDF to {:?}", path);
+        Ok(true)
+    } else {
+        // User cancelled the file dialog
+        Ok(false)
+    }
+}
+
+
 // ---------------------------------------------------------------------------
 // "Back to app" — floating button injection + way-to-app interception.
 //
@@ -715,7 +756,8 @@ pub fn run() {
             app_window_is_maximized,
             open_external_url,
             annot_diag,
-            set_app_icon
+            set_app_icon,
+            save_pdf_file
         ])
         // Second launches (e.g. materio:// taps from the browser while the
         // app runs) focus the existing window and forward the URL instead

@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Materio",
-  "version": "2.1.192",
+  "version": "2.1.193",
   "identifier": "com.materio.app",
   "build": {
     "frontendDist": "../build",
