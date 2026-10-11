@@ -221,6 +221,7 @@
                 <div id="profile-menu-item" class="dropdown-item" role="menuitem" tabindex="-1" onclick={(e) => {
                     if (!e.currentTarget.classList.contains('has-submenu')) {
                         e.preventDefault();
+                        if (typeof window !== 'undefined' && window.setProfileDropdownOpen) window.setProfileDropdownOpen(false);
                         window.location.href = getLoginUrl();
                     }
                 }}>

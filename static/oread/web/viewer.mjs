@@ -4366,12 +4366,19 @@ function triggerBrowserDownload(blobUrl, filename) {
   a.remove();
 }
 
-async function customSaveOrDownload(data, url, filename, contentType = "application/pdf") {
-  const tauri = window.__TAURI__ || window.parent?.__TAURI__;
-  const invoke = tauri?.core?.invoke || tauri?.invoke;
+function isTauriViewer() {
+  try {
+    if (document.documentElement?.getAttribute('data-materio-shell') === 'desktop') return true;
+    if (window.__TAURI_INTERNALS__ || window.__TAURI__ || window.parent?.__TAURI__) return true;
+    if (window.location?.protocol === "tauri:" || window.location?.hostname === "tauri.localhost") return true;
+    if (window.parent && (window.parent.location?.protocol === "tauri:" || window.parent.location?.hostname === "tauri.localhost")) return true;
+  } catch {}
+  return false;
+}
 
+async function customSaveOrDownload(data, url, filename, contentType = "application/pdf") {
   // 1. Desktop app (Tauri): ask where to save via native OS Save As dialog
-  if (typeof invoke === "function") {
+  if (isTauriViewer()) {
     try {
       let b64 = "";
       if (data) {
@@ -4382,49 +4389,32 @@ async function customSaveOrDownload(data, url, filename, contentType = "applicat
         b64 = await uint8ArrayToBase64(new Uint8Array(buf));
       }
       if (b64) {
-        await invoke("save_pdf_file", {
-          filename: filename || "document.pdf",
-          data_base64: b64
-        });
-        return;
+        const tauri = window.__TAURI__ || window.parent?.__TAURI__;
+        const invoke = tauri?.core?.invoke || tauri?.invoke;
+        if (typeof invoke === "function") {
+          await invoke("save_pdf_file", {
+            filename: filename || "document.pdf",
+            dataBase64: b64,
+            data_base64: b64
+          });
+          return;
+        }
+        try {
+          window.parent.postMessage({
+            type: "oreadSavePdf",
+            filename: filename || "document.pdf",
+            dataBase64: b64,
+            data_base64: b64
+          }, "*");
+          return;
+        } catch {}
       }
     } catch (err) {
       console.warn("Tauri native save_pdf_file failed, falling back:", err);
     }
   }
 
-  // 2. Web browser: use File System Access API if supported to prompt user
-  const picker = window.showSaveFilePicker || (window.parent && window.parent.showSaveFilePicker);
-  if (typeof picker === "function") {
-    try {
-      let blob;
-      if (data) {
-        blob = new Blob([data], { type: contentType });
-      } else if (url) {
-        const resp = await fetch(url);
-        blob = await resp.blob();
-      }
-      if (blob) {
-        const handle = await picker.call(window, {
-          suggestedName: filename || "document.pdf",
-          types: [{
-            description: "PDF Document (*.pdf)",
-            accept: { "application/pdf": [".pdf"] }
-          }]
-        });
-        const writable = await handle.createWritable();
-        await writable.write(blob);
-        await writable.close();
-        return;
-      }
-    } catch (pickerErr) {
-      if (pickerErr?.name === "AbortError") {
-        return; // User explicitly cancelled the file picker dialog
-      }
-    }
-  }
-
-  // 3. Fallback for mobile / browsers without native save dialog
+  // 2. Fallback / Web: standard browser download without any File System Access API warning badges
   let blobUrl;
   if (data) {
     blobUrl = URL.createObjectURL(new Blob([data], { type: contentType }));
@@ -4439,14 +4429,29 @@ async function customSaveOrDownload(data, url, filename, contentType = "applicat
 }
 
 function download(blobUrl, filename) {
-  const tauri = window.__TAURI__ || window.parent?.__TAURI__;
-  const invoke = tauri?.core?.invoke || tauri?.invoke;
-  if (typeof invoke === "function") {
+  if (isTauriViewer()) {
     fetch(blobUrl)
       .then(r => r.arrayBuffer())
       .then(async buf => {
         const b64 = await uint8ArrayToBase64(new Uint8Array(buf));
-        await invoke("save_pdf_file", { filename: filename || "document.pdf", data_base64: b64 });
+        const tauri = window.__TAURI__ || window.parent?.__TAURI__;
+        const invoke = tauri?.core?.invoke || tauri?.invoke;
+        if (typeof invoke === "function") {
+          await invoke("save_pdf_file", {
+            filename: filename || "document.pdf",
+            dataBase64: b64,
+            data_base64: b64
+          });
+          return;
+        }
+        try {
+          window.parent.postMessage({
+            type: "oreadSavePdf",
+            filename: filename || "document.pdf",
+            dataBase64: b64,
+            data_base64: b64
+          }, "*");
+        } catch {}
       })
       .catch(() => {
         triggerBrowserDownload(blobUrl, filename);

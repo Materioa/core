@@ -597,6 +597,21 @@
                 // handlers never fire while the iframe has focus).
                 saveAnnotationsNow();
             }
+            if (e.data && e.data.type === 'oreadSavePdf') {
+                try {
+                    const invoke = window.__TAURI__?.core?.invoke || window.__TAURI__?.invoke;
+                    if (typeof invoke === 'function') {
+                        const b64 = e.data.dataBase64 || e.data.data_base64;
+                        invoke('save_pdf_file', {
+                            filename: e.data.filename || 'document.pdf',
+                            dataBase64: b64,
+                            data_base64: b64
+                        }).catch((err) => console.warn('[PdfReader] save_pdf_file failed:', err));
+                    }
+                } catch (err) {
+                    console.warn('[PdfReader] Failed to handle oreadSavePdf:', err);
+                }
+            }
         };
         window.addEventListener('message', handleMsg);
 

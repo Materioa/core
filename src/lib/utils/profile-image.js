@@ -544,6 +544,7 @@ export function init() {
       profileMenuItem.onclick = (e) => {
         if (!profileMenuItem.classList.contains('has-submenu') && !isUserLoggedIn()) {
           e.preventDefault();
+          if (typeof setProfileDropdownOpen === 'function') setProfileDropdownOpen(false);
           window.location.href = getLoginUrl();
         }
       };

@@ -103,10 +103,15 @@ export function installExternalLinkHandler() {
                     (parsed.port || '') === (here.port || '') &&
                     parsed.protocol === here.protocol;
                 if (sameOrigin) return;
-                // Insightroom lives on its own host but should open inside
-                // the native shell (in-place WebView navigation) instead of
-                // the OS browser, so users stay in the app.
-                if (parsed.hostname === 'room.getmaterio.app') {
+                // First-party getmaterio properties (Insightroom, auth SSO, accounts)
+                // should open inside the native shell (in-place WebView navigation) instead
+                // of the OS browser, so users stay inside the app.
+                if (
+                    parsed.hostname === 'room.getmaterio.app' ||
+                    parsed.hostname === 'auth.getmaterio.app' ||
+                    parsed.hostname === 'accounts.getmaterio.app' ||
+                    parsed.hostname === 'getmaterio.app'
+                ) {
                     e.preventDefault();
                     e.stopPropagation();
                     try {
