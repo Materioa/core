@@ -80,7 +80,6 @@
             </a>
         </div>
 
-        {#if type === 'post'}
         <div style="text-align: center;">
             <p class="post-title" style="font-size: 32px; font-weight: bold; margin-top: 1.5rem;">
                 {metadata.title}
@@ -95,29 +94,23 @@
                 </p>
             {/if}
 
-            {#if metadata.image}
+            {#if (metadata.image || metadata.cover) && !metadata.cover_home_only && !metadata.hide_cover_in_post && !metadata.hide_cover}
                 <div style="display: block; position: relative; margin: 1.5rem auto; max-width: 700px;">
                     <div class="post-image-frame" style="padding: 5px; border-radius: 17px;">
-                        {#if isVideo(metadata.image)}
+                        {#if isVideo(metadata.image || metadata.cover)}
                             <div class="video-cover" style="margin: 0;">
                                 <video id="cover-video" muted loop style="border-radius: 12px; width: 100%;">
-                                    <source src="{metadata.image}" type="{getVideoType(metadata.image)}">
+                                    <source src="{metadata.image || metadata.cover}" type="{getVideoType(metadata.image || metadata.cover)}">
                                 </video>
                             </div>
                         {:else}
-                            <img src="{metadata.image}" alt="Cover" class="post-cover"
+                            <img src="{metadata.image || metadata.cover}" alt="Cover" class="post-cover"
                                 style="border-radius: 12px; display: block; width: 100%; height: auto; object-fit: cover;" />
                         {/if}
                     </div>
                 </div>
             {/if}
         </div>
-
-        {/if}
-
-        {#if type === 'page' && metadata.title}
-             <h1 style="text-align: center; margin-bottom: 2rem;">{metadata.title}</h1>
-        {/if}
 
         <div class="post-layout">
             <div class="post-body">

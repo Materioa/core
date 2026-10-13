@@ -97,6 +97,8 @@ export async function load({ params, setHeaders }) {
                     hidden: doc.hidden,
                     visibility: doc.visibility || 'public',
                     permalink: doc.url,
+                    cover_home_only: Boolean(doc.cover_home_only ?? doc.metadata?.cover_home_only ?? doc.metadata?.hide_cover_in_post),
+                    hide_cover_in_post: Boolean(doc.cover_home_only ?? doc.metadata?.cover_home_only ?? doc.metadata?.hide_cover_in_post),
                     ...(doc.metadata || {})
                 },
                 html: renderedHtml,

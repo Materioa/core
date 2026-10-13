@@ -33,12 +33,15 @@ export async function load({ setHeaders }) {
         for (const l of mongoLogs) {
             seenSlugs.add(l.slug);
             const rawText = (l.content || '').replace(/<[^>]*>?/gm, '').trim();
+            const postUrl = l.url && !l.url.includes('#') ? l.url : `/changelog/${l.slug}`;
             changelogs.push({
                 title: l.title || l.slug,
+                slug: l.slug,
                 date: l.date || null,
+                cover: l.image || null,
                 image: l.image || null,
                 excerpt: l.excerpt || (rawText.slice(0, 320) + '...'),
-                url: `/changelog#${l.slug}`
+                url: postUrl
             });
         }
     } catch (e) {
@@ -62,11 +65,13 @@ export async function load({ setHeaders }) {
                     const isLog = category === 'whats-new' || categories.includes('whats-new');
                     if (!isLog || metadata.draft === true || metadata.hidden === true || metadata.visibility === 'private') continue;
 
-                    const url = `/${postUrl(metadata, slug)}`;
+                    const url = `/changelog/${slug}`;
                     const rawText = content.replace(/<[^>]*>?/gm, '').trim();
                     changelogs.push({
                         title: metadata.title || slug,
+                        slug,
                         date: metadata.date || null,
+                        cover: coverUrl(metadata),
                         image: coverUrl(metadata),
                         excerpt: metadata.excerpt || (rawText.slice(0, 320) + '...'),
                         url

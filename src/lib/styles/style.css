@@ -2015,3 +2015,49 @@ table td code {
 #lockscreen-slider-handle i {
   font-size: 1.2rem;
 }
+/* Untinted Codeblock Rules: pure neutral grayscale across all themes */
+body.coffee-mode pre,
+html.coffee-mode pre {
+  background: #f6f8fa !important;
+  border-color: rgba(0, 0, 0, 0.09) !important;
+}
+
+body.coffee-mode pre code,
+html.coffee-mode pre code {
+  color: #24292f !important;
+}
+
+body.coffee-mode pre .code-copy-btn,
+html.coffee-mode pre .code-copy-btn {
+  background: rgba(0, 0, 0, 0.06) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  color: #57606a !important;
+}
+
+body.amoled-mode pre,
+html.amoled-mode pre {
+  background: #000000 !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+}
+
+body.amoled-mode pre code,
+html.amoled-mode pre code {
+  color: #e6edf3 !important;
+}
+
+pre .code-copy-btn.copied {
+  background: rgba(46, 160, 67, 0.15) !important;
+  border-color: rgba(46, 160, 67, 0.4) !important;
+  color: #2da44e !important;
+}
+
+body.dark-mode pre .code-copy-btn.copied,
+html.dark-mode pre .code-copy-btn.copied,
+body.amoled-mode pre .code-copy-btn.copied,
+html.amoled-mode pre .code-copy-btn.copied,
+body.coffee-dark-mode pre .code-copy-btn.copied,
+html.coffee-dark-mode pre .code-copy-btn.copied {
+  background: rgba(46, 160, 67, 0.2) !important;
+  border-color: rgba(46, 160, 67, 0.5) !important;
+  color: #3fb950 !important;
+}
