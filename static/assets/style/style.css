@@ -125,6 +125,7 @@ h1, h2, h3, h4, h5, h6,
 
 
 :root {
+  --font-mono: Consolas, 'Cascadia Code', 'Fira Code', Menlo, Monaco, monospace;
   --bg: #faf9f5;
   --text: #000000;
   --link: #007aff;
@@ -791,148 +792,254 @@ body.dark-mode .post-body blockquote.quote::before {
   display: block;
 }
 
-/* Enhanced Code block styling */
+/* Enhanced Code block styling: Consolas first on Windows, fully adaptive to dark mode */
 pre {
   position: relative;
   margin: 1.5rem 0;
-  border-radius: 12px;
+  border-radius: 10px;
   overflow: hidden;
-  background: #1e1e1e;
-  border: 1px solid #333;
+  background: #f6f8fa;
+  border: 1px solid rgba(0, 0, 0, 0.09);
+  font-family: Consolas, 'Cascadia Code', 'Fira Code', Menlo, Monaco, monospace;
 }
 
 pre code {
   display: block;
-  padding: 3.5rem 1rem 1rem 1rem;
-  background: #1e1e1e;
-  color: #f8f8f2;
+  padding: 3.2rem 1.2rem 1.2rem 1.2rem;
+  background: transparent;
+  color: #24292f;
   overflow-x: auto;
-  font-size: 0.9rem;
-  line-height: 1.5;
-  font-family: Consolas, Monaco, "Berkeley Mono", "Cascadia Mono", monospace;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  font-family: Consolas, 'Cascadia Code', 'Fira Code', Menlo, Monaco, monospace;
   min-height: 1.5rem;
 }
 
 pre code.hljs {
-  padding: 1em !important;
-  padding-top: 3em !important;
+  padding: 1.2rem !important;
+  padding-top: 3.2rem !important;
+  background: transparent !important;
 }
 
-/* Light mode code blocks */
-body:not(.dark) pre {
-  background: #f8f9fa;
-  border: 1px solid #e9ecef;
-}
-
-body:not(.dark) pre code {
-  background: #f8f9fa;
-  color: #212529;
-}
-
-/* Language label - smaller and more compact with better spacing */
+/* Language label */
 pre .code-language {
   position: absolute;
   top: 0;
   left: 0;
-  color: #fff;
+  color: #6e7781;
+  background: rgba(0, 0, 0, 0.04);
   font-size: 0.65rem;
   font-weight: 600;
-  font-family: var(--font-primary, 'OpenRunde', 'Open Runde', sans-serif);
-  padding: 0.3rem 0.8rem;
+  font-family: Consolas, 'Cascadia Code', 'Fira Code', Menlo, Monaco, monospace;
+  padding: 0.3rem 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-bottom-right-radius: 10px;
+  border-bottom-right-radius: 8px;
   margin: 0;
   z-index: 5;
   line-height: 1.2;
-  margin-bottom: 0.5rem;
 }
 
-body:not(.dark) pre .code-language {
-  color: #a0a0a0;
-}
-
-/* Copy button - adjusted position */
+/* Copy button */
 pre .code-copy-btn {
   position: absolute;
-  top: 0.25rem;
-  right: 0.75rem;
+  top: 0.35rem;
+  right: 0.65rem;
   font-size: 0.7rem;
-  background: #555;
-  color: #fff;
-  padding: 0.2rem 0.4rem;
-  border-radius: 4px;
-  cursor: var(--f-cursor-pointer);
-  transition: background 0.2s;
+  background: rgba(0, 0, 0, 0.06);
+  color: #57606a;
+  padding: 0.22rem 0.55rem;
+  border-radius: 5px;
+  cursor: var(--f-cursor-pointer, pointer);
+  transition: background 0.15s ease, color 0.15s ease;
   z-index: 10;
-  border: none;
+  border: 1px solid rgba(0, 0, 0, 0.08);
   font-family: var(--font-primary, 'OpenRunde', 'Open Runde', sans-serif);
   line-height: 1.3;
 }
 
 pre .code-copy-btn:hover {
-  background: #666;
-}
-
-body:not(.dark) pre .code-copy-btn {
-  background: #a0a0a0;
-  color: #fff;
-}
-
-body:not(.dark) pre .code-copy-btn:hover {
-  background: #5a6268;
+  background: rgba(0, 0, 0, 0.12);
+  color: #24292f;
 }
 
 /* Adjust padding for code blocks without language label */
 pre:not(.has-language) code {
-  padding-top: 1rem;
+  padding-top: 1.2rem;
 }
 
-/* Single line code blocks - better spacing */
+/* Single line code blocks */
 pre.single-line code {
   padding-top: 2.5rem;
   padding-bottom: 1rem;
 }
 
-pre.single-line .code-language {
-  font-size: 0.6rem;
-  padding: 0.25rem 0.7rem;
-  border-bottom-right-radius: 8px;
+/* Syntax highlighting in light mode */
+.hljs {
+  background: transparent !important;
+  color: #24292f !important;
+}
+.hljs-keyword, .hljs-selector-tag { color: #cf222e !important; }
+.hljs-string, .hljs-title, .hljs-section, .hljs-attribute { color: #0a3069 !important; }
+.hljs-comment, .hljs-quote { color: #6e7781 !important; font-style: italic; }
+.hljs-number, .hljs-literal { color: #0550ae !important; }
+.hljs-function, .hljs-title.function_ { color: #8250df !important; }
+.hljs-variable, .hljs-template-variable { color: #953800 !important; }
+.hljs-type, .hljs-built_in { color: #116329 !important; }
+
+/* Dark mode code blocks (body.dark-mode, html.dark-mode, amoled, coffee) */
+body.dark-mode pre,
+html.dark-mode pre,
+body.amoled-mode pre,
+html.amoled-mode pre,
+body.coffee-dark-mode pre,
+html.coffee-dark-mode pre {
+  background: #161b22;
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
-/* Syntax highlighting adjustments for light mode */
-body:not(.dark) .hljs {
-  background: #f8f9fa !important;
-  color: #212529 !important;
+body.dark-mode pre code,
+html.dark-mode pre code,
+body.amoled-mode pre code,
+html.amoled-mode pre code,
+body.coffee-dark-mode pre code,
+html.coffee-dark-mode pre code {
+  background: transparent;
+  color: #e6edf3;
 }
 
-body:not(.dark) .hljs-keyword {
-  color: #d73a49 !important;
+body.dark-mode pre .code-language,
+html.dark-mode pre .code-language,
+body.amoled-mode pre .code-language,
+html.amoled-mode pre .code-language,
+body.coffee-dark-mode pre .code-language,
+html.coffee-dark-mode pre .code-language {
+  color: #8b949e;
+  background: rgba(255, 255, 255, 0.05);
 }
 
-body:not(.dark) .hljs-string {
-  color: #032f62 !important;
+body.dark-mode pre .code-copy-btn,
+html.dark-mode pre .code-copy-btn,
+body.amoled-mode pre .code-copy-btn,
+html.amoled-mode pre .code-copy-btn,
+body.coffee-dark-mode pre .code-copy-btn,
+html.coffee-dark-mode pre .code-copy-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #c9d1d9;
 }
 
-body:not(.dark) .hljs-comment {
-  color: #6a737d !important;
+body.dark-mode pre .code-copy-btn:hover,
+html.dark-mode pre .code-copy-btn:hover,
+body.amoled-mode pre .code-copy-btn:hover,
+html.amoled-mode pre .code-copy-btn:hover,
+body.coffee-dark-mode pre .code-copy-btn:hover,
+html.coffee-dark-mode pre .code-copy-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
 }
 
-body:not(.dark) .hljs-number {
-  color: #005cc5 !important;
+/* Syntax highlighting in dark mode */
+body.dark-mode .hljs,
+html.dark-mode .hljs,
+body.amoled-mode .hljs,
+html.amoled-mode .hljs,
+body.coffee-dark-mode .hljs,
+html.coffee-dark-mode .hljs {
+  color: #e6edf3 !important;
 }
 
-body:not(.dark) .hljs-function {
-  color: #6f42c1 !important;
+body.dark-mode .hljs-keyword,
+html.dark-mode .hljs-keyword,
+body.amoled-mode .hljs-keyword,
+html.amoled-mode .hljs-keyword,
+body.coffee-dark-mode .hljs-keyword,
+html.coffee-dark-mode .hljs-keyword,
+body.dark-mode .hljs-selector-tag,
+html.dark-mode .hljs-selector-tag {
+  color: #ff7b72 !important;
 }
 
-body:not(.dark) .hljs-variable {
-  color: #e36209 !important;
+body.dark-mode .hljs-string,
+html.dark-mode .hljs-string,
+body.amoled-mode .hljs-string,
+html.amoled-mode .hljs-string,
+body.coffee-dark-mode .hljs-string,
+html.coffee-dark-mode .hljs-string,
+body.dark-mode .hljs-title,
+html.dark-mode .hljs-title {
+  color: #a5d6ff !important;
 }
 
-/* Dark mode keeps default highlight.js theme */
-.dark .hljs {
-  background: #1e1e1e !important;
+body.dark-mode .hljs-comment,
+html.dark-mode .hljs-comment,
+body.amoled-mode .hljs-comment,
+html.amoled-mode .hljs-comment,
+body.coffee-dark-mode .hljs-comment,
+html.coffee-dark-mode .hljs-comment,
+body.dark-mode .hljs-quote,
+html.dark-mode .hljs-quote {
+  color: #8b949e !important;
+}
+
+body.dark-mode .hljs-number,
+html.dark-mode .hljs-number,
+body.amoled-mode .hljs-number,
+html.amoled-mode .hljs-number,
+body.coffee-dark-mode .hljs-number,
+html.coffee-dark-mode .hljs-number,
+body.dark-mode .hljs-literal,
+html.dark-mode .hljs-literal {
+  color: #79c0ff !important;
+}
+
+body.dark-mode .hljs-function,
+html.dark-mode .hljs-function,
+body.amoled-mode .hljs-function,
+html.amoled-mode .hljs-function,
+body.coffee-dark-mode .hljs-function,
+html.coffee-dark-mode .hljs-function {
+  color: #d2a8ff !important;
+}
+
+body.dark-mode .hljs-variable,
+html.dark-mode .hljs-variable,
+body.amoled-mode .hljs-variable,
+html.amoled-mode .hljs-variable,
+body.coffee-dark-mode .hljs-variable,
+html.coffee-dark-mode .hljs-variable {
+  color: #ffa657 !important;
+}
+
+body.dark-mode .hljs-type,
+html.dark-mode .hljs-type,
+body.amoled-mode .hljs-type,
+html.amoled-mode .hljs-type,
+body.coffee-dark-mode .hljs-type,
+html.coffee-dark-mode .hljs-type,
+body.dark-mode .hljs-built_in,
+html.dark-mode .hljs-built_in {
+  color: #7ee787 !important;
+}
+
+/* Inline code formatting */
+code:not(pre code) {
+  font-family: Consolas, 'Cascadia Code', 'Fira Code', Menlo, Monaco, monospace;
+  font-size: 0.88em;
+  padding: 0.18em 0.38em;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text, #24292f);
+}
+
+body.dark-mode code:not(pre code),
+html.dark-mode code:not(pre code),
+body.amoled-mode code:not(pre code),
+html.amoled-mode code:not(pre code),
+body.coffee-dark-mode code:not(pre code),
+html.coffee-dark-mode code:not(pre code) {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e6edf3;
 }
 
 /* ===== NEW TOPIC PAGE BREAKS ===== */

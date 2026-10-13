@@ -145,76 +145,82 @@
         {/if}
 
         {#if showAuthorCard}
-            <!-- Byline card: author first, the category as a pill underneath. -->
-            <aside class="post-author-card" aria-label="Post details">
+            <!-- Minimal, neutral post footer details -->
+            <footer class="post-footer-meta" aria-label="Post details">
                 {#if showAuthor}
-                    <div class="post-author-card-head">
-                        <div class="author-avatar" style="width: 44px; height: 44px; border-radius: 50%; overflow: hidden; border: 2px solid var(--border, rgba(0,0,0,0.1)); flex: 0 0 auto;">
-                            <img src="{authorAvatar}" alt="{authorName}" style="width: 100%; height: 100%; object-fit: cover;">
+                    <div class="post-footer-author">
+                        <div class="author-avatar">
+                            <img src="{authorAvatar}" alt="{authorName}">
                         </div>
-                        <div class="author-info">
-                            <div class="author-name" style="font-size: 15px; font-weight: 600; color: var(--text); line-height: 1.2;">{authorName}</div>
-                        </div>
+                        <span class="author-name">{authorName}</span>
                     </div>
                 {/if}
 
                 {#if showCategory}
-                    <div class="post-author-card-category" class:with-head={showAuthor}>
-                        <span class="post-category-pill">{metadata.category}</span>
-                    </div>
+                    <span class="post-category-badge">{metadata.category}</span>
                 {/if}
-            </aside>
+            </footer>
         {/if}
     </article>
 </main>
 
 <style>
-    /* The card sits directly on the reading page's background, so in dark mode
-       it now takes the theme's own surface (--card-bg: #1e1e1e over the
-       #121212 page) instead of the old 4%-white wash, which all but vanished
-       against the near-black background. */
-    .post-author-card {
+    /* Minimal, neutral post footer details (no nested cards or sloppy decorators) */
+    .post-footer-meta {
         max-width: 700px;
-        margin: 2rem auto 0;
-        padding: 1.15rem 1.35rem;
-        box-sizing: border-box;
-        text-align: left;
-        border: 1px solid rgba(0, 0, 0, 0.08);
-        border-radius: 14px;
-        background: rgba(0, 0, 0, 0.025);
-    }
-
-    .post-author-card-head {
-        display: flex;
-        align-items: center;
-        gap: 0.85rem;
-    }
-
-    .post-author-card-category {
-        display: flex;
-        align-items: center;
-        gap: 0.55rem;
-    }
-
-    /* The divider only makes sense when a byline sits above it; a lone pill
-       (posts that hide the author) should not open with a stray rule. */
-    .post-author-card-category.with-head {
-        margin-top: 0.95rem;
-        padding-top: 0.85rem;
+        margin: 2.75rem auto 0;
+        padding-top: 1.25rem;
         border-top: 1px solid rgba(0, 0, 0, 0.08);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+        box-sizing: border-box;
     }
 
-    .post-category-pill {
+    .post-footer-author {
         display: inline-flex;
         align-items: center;
-        padding: 4px 12px;
-        border-radius: 999px;
+        gap: 0.65rem;
+    }
+
+    .author-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        overflow: hidden;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        flex: 0 0 auto;
+    }
+
+    .author-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+    .author-name {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--text, #222);
+        line-height: 1.2;
+    }
+
+    /* Neutral-colored rounded rectangle badge (clean, subtle, no neon pill) */
+    .post-category-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 10px;
+        border-radius: 6px;
         font-size: 12px;
-        font-weight: 600;
-        line-height: 1.4;
-        color: #ff8200;
-        background: rgba(255, 130, 0, 0.12);
-        border: 1px solid rgba(255, 130, 0, 0.28);
+        font-weight: 500;
+        line-height: 1.35;
+        color: var(--gray, #555);
+        background: rgba(0, 0, 0, 0.04);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        letter-spacing: 0.2px;
     }
 
     /* Related stories — the three title + excerpt cards that replaced the
@@ -278,22 +284,26 @@
      * pruned by the Svelte compiler and never shipped (which is exactly why the
      * card stayed on its light tint over the near-black page).
      */
-    :global(body.dark-mode) .post-author-card,
-    :global(html.dark-mode) .post-author-card {
-        background: var(--card-bg, #1e1e1e);
-        border-color: rgba(255, 255, 255, 0.14);
+    :global(body.dark-mode) .post-footer-meta,
+    :global(html.dark-mode) .post-footer-meta {
+        border-top-color: rgba(255, 255, 255, 0.1);
     }
 
-    :global(body.dark-mode) .post-author-card-category.with-head,
-    :global(html.dark-mode) .post-author-card-category.with-head {
-        border-top-color: rgba(255, 255, 255, 0.12);
+    :global(body.dark-mode) .author-avatar,
+    :global(html.dark-mode) .author-avatar {
+        border-color: rgba(255, 255, 255, 0.12);
     }
 
-    :global(body.dark-mode) .post-category-pill,
-    :global(html.dark-mode) .post-category-pill {
-        background: rgba(255, 130, 0, 0.16);
-        border-color: rgba(255, 130, 0, 0.4);
-        color: #ff9a33;
+    :global(body.dark-mode) .author-name,
+    :global(html.dark-mode) .author-name {
+        color: #e0e0e0;
+    }
+
+    :global(body.dark-mode) .post-category-badge,
+    :global(html.dark-mode) .post-category-badge {
+        background: rgba(255, 255, 255, 0.06);
+        border-color: rgba(255, 255, 255, 0.1);
+        color: #a0a0a0;
     }
 
     :global(body.dark-mode) .post-related-item,
@@ -308,9 +318,7 @@
     }
 
     @media (max-width: 640px) {
-        .post-author-card {
-            padding: 1rem;
-        }
+        
 
         .post-related {
             margin-top: 2rem;

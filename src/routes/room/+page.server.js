@@ -1,7 +1,7 @@
 import matter from 'gray-matter';
 import fs from 'fs';
 import path from 'path';
-import { getMongoDb } from '$lib/server/mongodb.js';
+import { getMongoDb, withMongoTimeout } from '$lib/server/mongodb.js';
 
 export const prerender = false;
 
@@ -14,15 +14,19 @@ export async function load({ setHeaders }) {
 
     // 1. Load from MongoDB
     try {
-        const db = await getMongoDb();
-        const mongoPosts = await db.collection('exodus_posts')
-            .find({
-                draft: { $ne: true },
-                hidden: { $ne: true },
-                visibility: { $ne: 'private' }
-            })
-            .sort({ date: -1 })
-            .toArray();
+        const db = await withMongoTimeout(getMongoDb(), 4000, 'getMongoDb for room');
+        const mongoPosts = await withMongoTimeout(
+            db.collection('exodus_posts')
+                .find({
+                    draft: { $ne: true },
+                    hidden: { $ne: true },
+                    visibility: { $ne: 'private' }
+                })
+                .sort({ date: -1 })
+                .toArray(),
+            4000,
+            'find room posts'
+        );
 
         for (const p of mongoPosts) {
             seenSlugs.add(p.slug);
@@ -51,43 +55,47 @@ export async function load({ setHeaders }) {
             });
         }
     } catch (e) {
-        console.warn('[Room Load] Mongo fetch failed, falling back to disk:', e.message);
+        console.warn('[Room Load] Mongo fetch failed, falling back to disk:', e?.message || e);
     }
 
-    // 2. Fallback / Merge with disk files
-    const postsDir = path.resolve('src/posts');
-    if (fs.existsSync(postsDir)) {
-        const files = fs.readdirSync(postsDir).filter(file => file.endsWith('.md'));
-        
-        for (const filename of files) {
-            const slugMatch = filename.match(/^\d{4}-\d{2}-\d{2}-(.+)\.md$/);
-            let slug = slugMatch ? slugMatch[1] : filename.replace('.md', '');
-            if (seenSlugs.has(slug)) continue;
+    // 2. Safe disk fallback
+    try {
+        const postsDir = path.resolve('src/posts');
+        if (typeof fs !== 'undefined' && fs?.existsSync && fs.existsSync(postsDir)) {
+            const files = fs.readdirSync(postsDir).filter(file => file.endsWith('.md'));
             
-            const rawContent = fs.readFileSync(path.join(postsDir, filename), 'utf-8');
-            const { data: metadata } = matter(rawContent);
-            
-            if (metadata.draft !== true && metadata.hidden !== true && metadata.visibility !== 'private') {
-                let url = metadata.permalink;
-                if (!url) {
-                    if (metadata.category) {
-                        url = `/${metadata.category.toLowerCase()}/${slug}`;
-                    } else {
-                        url = `/${slug}`;
+            for (const filename of files) {
+                try {
+                    const slugMatch = filename.match(/^\d{4}-\d{2}-\d{2}-(.+)\.md$/);
+                    let slug = slugMatch ? slugMatch[1] : filename.replace('.md', '');
+                    if (seenSlugs.has(slug)) continue;
+                    
+                    const rawContent = fs.readFileSync(path.join(postsDir, filename), 'utf-8');
+                    const { data: metadata } = matter(rawContent);
+                    
+                    if (metadata.draft !== true && metadata.hidden !== true && metadata.visibility !== 'private') {
+                        let url = metadata.permalink;
+                        if (!url) {
+                            if (metadata.category) {
+                                url = `/${metadata.category.toLowerCase()}/${slug}`;
+                            } else {
+                                url = `/${slug}`;
+                            }
+                        } else {
+                            url = url.replace(/^\//, '').replace(/\/$/, '');
+                            url = `/${url}`;
+                        }
+                        
+                        posts.push({
+                            ...metadata,
+                            slug,
+                            url
+                        });
                     }
-                } else {
-                    url = url.replace(/^\//, '').replace(/\/$/, '');
-                    url = `/${url}`;
-                }
-                
-                posts.push({
-                    ...metadata,
-                    slug,
-                    url
-                });
+                } catch {}
             }
         }
-    }
+    } catch {}
     
     // Sort by date descending
     posts.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
