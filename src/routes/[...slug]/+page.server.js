@@ -6,51 +6,10 @@ import { POSTS_DIR, PAGES_DIR, contentFiles, isStaticRoute, postUrl, pageUrl } f
 import { renderMarkdown } from '$lib/server/markdown.js';
 import { getMongoDb } from '$lib/server/mongodb.js';
 
-export const prerender = 'auto';
+export const prerender = false;
 
 export async function entries() {
-    const slugs = [];
-    const seen = new Set();
-
-    const push = (url) => {
-        if (!url) return;
-        const withoutHash = String(url).split('#')[0].split('?')[0];
-        const clean = withoutHash.replace(/^\/+/, '').replace(/\/+$/, '');
-        if (!clean || seen.has(clean)) return;
-        if (clean === 'changelog' || clean.startsWith('changelog/') || clean === 'docs' || isStaticRoute(clean)) return;
-        seen.add(clean);
-        slugs.push({ slug: clean });
-    };
-
-    // 1. Slugs from MongoDB
-    try {
-        const db = await getMongoDb();
-        const docs = await db.collection('exodus_posts').find({}).toArray();
-        for (const doc of docs) {
-            if (doc.url) push(doc.url);
-            if (doc.slug) push(doc.slug);
-            if (doc.category) push(`${String(doc.category).toLowerCase()}/${doc.slug}`);
-        }
-    } catch (e) {
-        // Fallback to local files
-    }
-
-    // 2. Slugs from disk files
-    for (const filename of contentFiles(POSTS_DIR)) {
-        const rawContent = fs.readFileSync(path.join(POSTS_DIR, filename), 'utf-8');
-        const slugMatch = filename.match(/^\d{4}-\d{2}-\d{2}-(.+)\.md$/);
-        const extractedSlug = slugMatch ? slugMatch[1] : filename.replace('.md', '');
-        const { data: metadata } = matter(rawContent);
-        push(postUrl(metadata, extractedSlug));
-    }
-
-    for (const filename of contentFiles(PAGES_DIR)) {
-        const rawContent = fs.readFileSync(path.join(PAGES_DIR, filename), 'utf-8');
-        const { data: metadata } = matter(rawContent);
-        push(pageUrl(metadata, filename));
-    }
-
-    return slugs.filter((entry) => !isStaticRoute(entry.slug));
+    return [];
 }
 
 function excerptOf(rawContent, excerpt) {
@@ -88,7 +47,10 @@ function pickRelated(index, at) {
     }));
 }
 
-export async function load({ params }) {
+export async function load({ params, setHeaders }) {
+    if (setHeaders) {
+        setHeaders({ 'cache-control': 'public, max-age=0, must-revalidate' });
+    }
     const rawSlug = params.slug.replace(/\/$/, '');
     const cleanSlug = rawSlug.replace(/^(posts|docs|documentation|changelog)\//, '');
 

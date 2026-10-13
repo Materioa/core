@@ -3,7 +3,12 @@ import fs from 'fs';
 import path from 'path';
 import { getMongoDb } from '$lib/server/mongodb.js';
 
-export async function load() {
+export const prerender = false;
+
+export async function load({ setHeaders }) {
+    if (setHeaders) {
+        setHeaders({ 'cache-control': 'public, max-age=0, must-revalidate' });
+    }
     let posts = [];
     const seenSlugs = new Set();
 

@@ -159,6 +159,21 @@
 
   onMount(() => {
     try { installExternalLinkHandler(); } catch {}
+    // The app shell uses several 40px backdrop-filter layers over a fixed
+    // wallpaper. Keeping those compositor surfaces alive while the page is
+    // untouched is disproportionately expensive on integrated GPUs. Suspend
+    // only that decorative blur after a short idle period and restore it on
+    // the first real interaction.
+    let idleTimer;
+    const setIdle = () => document.body.classList.add('materio-idle');
+    const resumeFromIdle = () => {
+      document.body.classList.remove('materio-idle');
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(setIdle, 1800);
+    };
+    const idleEvents = ['pointerdown', 'pointermove', 'keydown', 'scroll', 'touchstart'];
+    idleEvents.forEach((event) => window.addEventListener(event, resumeFromIdle, { passive: true }));
+    resumeFromIdle();
     try {
       // One-time cleanup of service workers registered by older builds.
       // The app ships no SW, but a stale registration keeps re-fetching its
@@ -422,6 +437,9 @@
       window.removeEventListener('landingPrefsChanged', prefHandler);
       window.removeEventListener('materioForceAppChanged', prefHandler);
       window.removeEventListener('storage', prefHandler);
+      clearTimeout(idleTimer);
+      idleEvents.forEach((event) => window.removeEventListener(event, resumeFromIdle));
+      document.body.classList.remove('materio-idle');
       delete window.__materioHandleAndroidBack;
     };
   });

@@ -4,10 +4,15 @@ import path from 'path';
 import { POSTS_DIR, contentFiles, postUrl, coverUrl } from '$lib/server/content.js';
 import { getMongoDb } from '$lib/server/mongodb.js';
 
+export const prerender = false;
+
 const DOC_CATEGORIES = new Set(['documentation', 'docs']);
 const isDocCategory = (value) => DOC_CATEGORIES.has(String(value || '').toLowerCase());
 
-export async function load() {
+export async function load({ setHeaders }) {
+    if (setHeaders) {
+        setHeaders({ 'cache-control': 'public, max-age=0, must-revalidate' });
+    }
     const docs = [];
     const seenSlugs = new Set();
 
