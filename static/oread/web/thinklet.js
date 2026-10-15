@@ -118,6 +118,23 @@
     return 'Document';
   }
 
+  async function renderPageAsImage(page, maxDim = 1200) {
+    try {
+      const defaultViewport = page.getViewport({ scale: 1.0 });
+      const scale = Math.min(1.8, Math.max(0.75, maxDim / Math.max(defaultViewport.width, defaultViewport.height)));
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(viewport.width);
+      canvas.height = Math.round(viewport.height);
+      const ctx = canvas.getContext('2d');
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      return canvas.toDataURL('image/jpeg', 0.8);
+    } catch (e) {
+      console.warn('[thinklet] renderPageAsImage error:', e);
+      return null;
+    }
+  }
+
   async function extractOreadPdfText(options = {}) {
     const app = window.PDFViewerApplication;
     const doc = app?.pdfDocument;
@@ -136,13 +153,22 @@
       try {
         const page = await doc.getPage(options.pageNumber);
         const textContent = await page.getTextContent();
-        const pageText = textContent.items.map(item => item.str).join(' ');
+        let pageText = textContent.items.map(item => item.str).join(' ');
+        let image = null;
+
+        // If page has almost no text (scanned PDF), render a visual snapshot
+        if (!pageText || pageText.trim().length < 40) {
+          image = await renderPageAsImage(page);
+        }
+
         return {
           title: docTitle,
           numPages,
           currentPage,
           pageNumber: options.pageNumber,
           text: pageText,
+          image,
+          isScanned: !pageText || pageText.trim().length < 40,
           url: activePdfUrl || ''
         };
       } catch (err) {
@@ -173,6 +199,8 @@
         } catch (e) {}
       }
 
+      const isScanned = fullText.trim().length < 50;
+
       cachedExtractedPdf = {
         title: docTitle,
         numPages,
@@ -180,6 +208,7 @@
         pageCount: limit,
         fullText: fullText.trim(),
         pages,
+        isScanned,
         url: activePdfUrl || ''
       };
       return cachedExtractedPdf;
@@ -201,6 +230,7 @@
           currentPage: data.currentPage,
           text: data.fullText,
           pages: data.pages,
+          isScanned: !!data.isScanned,
           url: data.url
         }
       });
