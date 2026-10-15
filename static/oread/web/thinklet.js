@@ -50,13 +50,171 @@
     }, '*');
   }
 
+  let cachedExtractedPdf = null;
+  let isExtractingPdf = false;
+
+  function postToThinkletFrame(msg) {
+    try {
+      const frame = document.getElementById('thinkletFrame');
+      if (frame?.contentWindow) {
+        frame.contentWindow.postMessage(msg, '*');
+      }
+    } catch (e) {}
+  }
+
+  async function extractOreadPdfText(options = {}) {
+    const app = window.PDFViewerApplication;
+    const doc = app?.pdfDocument;
+    if (!doc) return null;
+
+    const maxPages = options.maxPages || 40;
+    const numPages = doc.numPages;
+    const currentPage = app.page || 1;
+    const docTitle = cleanContextPart(document.title || app.title || activePdfUrl || 'Document', 'Document');
+
+    // Specific page requested
+    if (options.pageNumber && options.pageNumber >= 1 && options.pageNumber <= numPages) {
+      try {
+        const page = await doc.getPage(options.pageNumber);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map(item => item.str).join(' ');
+        return {
+          title: docTitle,
+          numPages,
+          currentPage,
+          pageNumber: options.pageNumber,
+          text: pageText,
+          url: activePdfUrl || ''
+        };
+      } catch (err) {
+        console.warn('[thinklet] extract page error:', err);
+      }
+    }
+
+    if (cachedExtractedPdf && cachedExtractedPdf.numPages === numPages && cachedExtractedPdf.title === docTitle) {
+      cachedExtractedPdf.currentPage = currentPage;
+      return cachedExtractedPdf;
+    }
+
+    if (isExtractingPdf) return cachedExtractedPdf;
+    isExtractingPdf = true;
+
+    try {
+      const pages = [];
+      let fullText = '';
+      const limit = Math.min(numPages, maxPages);
+
+      for (let i = 1; i <= limit; i++) {
+        try {
+          const page = await doc.getPage(i);
+          const textContent = await page.getTextContent();
+          const pageText = textContent.items.map(item => item.str).join(' ');
+          pages.push({ pageNumber: i, text: pageText });
+          fullText += `--- Page ${i} ---\n${pageText}\n\n`;
+        } catch (e) {}
+      }
+
+      cachedExtractedPdf = {
+        title: docTitle,
+        numPages,
+        currentPage,
+        pageCount: limit,
+        fullText: fullText.trim(),
+        pages,
+        url: activePdfUrl || ''
+      };
+      return cachedExtractedPdf;
+    } finally {
+      isExtractingPdf = false;
+    }
+  }
+
+  async function sendPdfContextToThinklet() {
+    try {
+      const data = await extractOreadPdfText();
+      if (!data) return;
+
+      postToThinkletFrame({
+        type: 'MATERIO_ACTIVE_PDF',
+        pdf: {
+          title: data.title,
+          numPages: data.numPages,
+          currentPage: data.currentPage,
+          text: data.fullText,
+          pages: data.pages,
+          url: data.url
+        }
+      });
+    } catch (e) {
+      console.warn('[thinklet] sendPdfContextToThinklet error:', e);
+    }
+  }
+
+  function hookPdfEvents() {
+    const bindBus = (bus) => {
+      if (!bus || bus._thinkletBound) return;
+      bus._thinkletBound = true;
+
+      bus.on('pagesloaded', () => {
+        cachedExtractedPdf = null;
+        sendPdfContextToThinklet();
+      });
+
+      bus.on('pagechanging', (evt) => {
+        const pageNum = evt?.pageNumber || window.PDFViewerApplication?.page || 1;
+        postToThinkletFrame({
+          type: 'MATERIO_PAGE_CHANGED',
+          pageNumber: pageNum
+        });
+      });
+    };
+
+    if (window.PDFViewerApplication?.eventBus) {
+      bindBus(window.PDFViewerApplication.eventBus);
+    } else {
+      document.addEventListener('webviewerloaded', () => {
+        if (window.PDFViewerApplication?.eventBus) {
+          bindBus(window.PDFViewerApplication.eventBus);
+        }
+      });
+    }
+
+    let attempts = 0;
+    const interval = setInterval(() => {
+      attempts++;
+      if (window.PDFViewerApplication?.eventBus) {
+        bindBus(window.PDFViewerApplication.eventBus);
+        clearInterval(interval);
+      } else if (attempts > 30) {
+        clearInterval(interval);
+      }
+    }, 500);
+  }
+
   function attachThinkletAuth(frame) {
     if (!frame) {
       return;
     }
 
-    frame.addEventListener('load', () => postThinkletAuth(frame), { once: true });
+    frame.addEventListener('load', () => {
+      postThinkletAuth(frame);
+      sendPdfContextToThinklet();
+    }, { once: true });
     postThinkletAuth(frame);
+    sendPdfContextToThinklet();
+  }
+
+  function isNativeShell() {
+    try {
+      const h = window.location.hostname || '';
+      const p = window.location.protocol || '';
+      return h === 'tauri.localhost' || h === 'capacitor.localhost' ||
+        p === 'tauri:' || p === 'capacitor:' ||
+        (h === 'localhost' && window.location.port !== '5173') ||
+        (typeof window !== 'undefined' && (Boolean(window.__TAURI__) || Boolean(window.Capacitor)));
+    } catch (e) {
+      return false;
+    }
   }
 
   function isThinkletReleaseOfferActive() {
@@ -68,12 +226,7 @@
     // capacitor://), so resolve the absolute production API like
     // showbtnrq.js does instead of a relative path that 404s.
     try {
-      const h = window.location.hostname || '';
-      const p = window.location.protocol || '';
-      const isNative = h === 'tauri.localhost' || h === 'capacitor.localhost' ||
-        p === 'tauri:' || p === 'capacitor:' ||
-        (h === 'localhost' && window.location.port !== '5173');
-      if (isNative) return 'https://getmaterio.app/api/v2/profile';
+      if (isNativeShell()) return 'https://getmaterio.app/api/v2/profile';
     } catch (e) { /* ignore */ }
     return '/api/v2/profile';
   }
@@ -133,6 +286,10 @@
   }
 
   async function verifyThinkletAccess() {
+    if (isNativeShell()) {
+      return true;
+    }
+
     if (isThinkletReleaseOfferActive()) {
       return true;
     }
@@ -230,8 +387,17 @@
   }
 
   function getThinkletBaseUrl() {
+    try {
+      const override = localStorage.getItem('materio_thinklet_url');
+      if (override) return override;
+    } catch (e) {}
+
+    if (isNativeShell()) {
+      return THINKLET_PROD_URL;
+    }
+
     const hostname = window.location.hostname;
-    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+    const isLocalhost = (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') && window.location.port === '5173';
     return isLocalhost ? THINKLET_LOCAL_URL : THINKLET_PROD_URL;
   }
 
@@ -469,6 +635,8 @@
       if (shouldLoadFrame) {
         frame.src = nextUrl;
         attachThinkletAuth(frame);
+      } else {
+        sendPdfContextToThinklet();
       }
       lastTheme = getCurrentTheme();
       selectedQuery = query;
@@ -735,6 +903,7 @@
         'https://getmaterio.app',
         'https://www.getmaterio.app',
         'https://beta.getmaterio.app',
+        'https://chat.getmaterio.app',
         'https://materio.jinansh.workers.dev',
         'https://tauri.localhost',
         'http://tauri.localhost',
@@ -744,13 +913,40 @@
         'capacitor://localhost',
         'https://capacitor.localhost'
       ]);
-      if (event.origin !== 'null' && !allowedOrigins.has(event.origin) && !event.origin.startsWith('http://localhost') && !event.origin.startsWith('https://localhost')) {
+
+      const isAllowedOrigin =
+        event.origin === 'null' ||
+        allowedOrigins.has(event.origin) ||
+        event.origin === getThinkletOrigin() ||
+        event.origin.startsWith('http://localhost') ||
+        event.origin.startsWith('https://localhost') ||
+        event.origin.endsWith('.vercel.app');
+
+      if (!isAllowedOrigin) {
+        return;
+      }
+
+      if (event.data?.type === 'MATERIO_REQUEST_ACTIVE_PDF') {
+        sendPdfContextToThinklet();
+        return;
+      }
+
+      if (event.data?.type === 'MATERIO_READ_PDF_PAGE') {
+        extractOreadPdfText({ pageNumber: event.data.pageNumber }).then(pageData => {
+          postToThinkletFrame({
+            type: 'MATERIO_CURRENT_PDF_RESPONSE',
+            requestId: event.data.requestId,
+            data: pageData
+          });
+        });
         return;
       }
 
       if (event.data?.type === 'loadFile' && event.data.url) {
         activePdfUrl = event.data.url;
+        cachedExtractedPdf = null;
         updateOpenPanelContext();
+        setTimeout(sendPdfContextToThinklet, 800);
       }
     });
   }
@@ -775,6 +971,7 @@
   document.addEventListener('DOMContentLoaded', async () => {
     bindThinkletControls();
     bindMobileSheetSwipe();
+    hookPdfEvents();
     verifiedAccess = await verifyThinkletAccess();
 
     if (!verifiedAccess) {

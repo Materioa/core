@@ -38,8 +38,22 @@
     return false;
   }
 
-  // Thinklet: everything that can save, plus lite-tier signals.
+  function isNativeShell() {
+    try {
+      const h = window.location.hostname || '';
+      const p = window.location.protocol || '';
+      return h === 'tauri.localhost' || h === 'capacitor.localhost' ||
+        p === 'tauri:' || p === 'capacitor:' ||
+        (h === 'localhost' && window.location.port !== '5173') ||
+        (typeof window !== 'undefined' && (Boolean(window.__TAURI__) || Boolean(window.Capacitor)));
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Thinklet: everything that can save, plus lite-tier signals and native app shells.
   function canUseThinklet(u) {
+    if (isNativeShell()) return true;
     if (canSave(u)) return true;
     if (!u || typeof u !== 'object') return false;
     if (u.isLiteUser === true || u.is_lite_user === true ||
@@ -182,6 +196,14 @@
     if (statusVerified) {
       const v = window.__materioPlusVerified || {};
       toggleGatedButtons(v.save === true, v.thinklet === true);
+      return;
+    }
+
+    // For native app users, Thinklet is always unlocked
+    if (isNativeShell()) {
+      statusVerified = true;
+      publishVerdict(false, true);
+      toggleGatedButtons(false, true);
       return;
     }
 
