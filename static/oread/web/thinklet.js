@@ -62,57 +62,82 @@
     } catch (e) {}
   }
 
+  function extractFilenameFromUrl(url) {
+    if (!url) return '';
+    try {
+      const parsed = new URL(url, window.location.href);
+      const fileParam = parsed.searchParams.get('file');
+      if (fileParam) {
+        const fromParam = extractFilenameFromUrl(fileParam);
+        if (fromParam) return fromParam;
+      }
+      const segments = parsed.pathname.split('/').filter(Boolean);
+      const last = segments.pop() || '';
+      if (last && !/^(viewer\.html|index\.html)$/i.test(last)) {
+        return decodeURIComponent(last);
+      }
+    } catch (e) {
+      const parts = String(url).split(/[/\\]/).filter(Boolean);
+      const last = parts.pop() || '';
+      if (last && !/^(viewer\.html|index\.html)$/i.test(last)) {
+        return decodeURIComponent(last);
+      }
+    }
+    return '';
+  }
+
+  function cleanFileName(raw) {
+    let name = String(raw || '').trim();
+    // Strip common generic prefixes from Office / PowerPoint exports
+    name = name.replace(/^(?:Microsoft\s+)?PowerPoint\s+Presentation(?:\s*[-–—]\s*)?/i, '');
+    name = name.replace(/^(?:Microsoft\s+)?Word\s+Document(?:\s*[-–—]\s*)?/i, '');
+    name = name.replace(/^Microsoft\s+Word\s*[-–—]\s*/i, '');
+    name = name.replace(/\.pdf$/i, '');
+    name = name.replace(/\.[a-z0-9]{2,4}$/i, '');
+    name = name.trim();
+    return name;
+  }
+
   async function resolveDocumentTitle(app, doc) {
-    // 1. Try app._title or app.pdfTitle
-    const appTitle = app?._title || app?.pdfTitle;
-    if (appTitle && typeof appTitle === 'string' && !/pdf\.?js(\s+viewer)?/i.test(appTitle)) {
-      return appTitle.trim();
+    // 1. Try extracting real file name from URL or query param FIRST ("just file name bruh")
+    const rawUrl = activePdfUrl || new URLSearchParams(window.location.search).get('file') || app?.url || '';
+    const fnFromUrl = extractFilenameFromUrl(rawUrl);
+    const cleanFn = cleanFileName(fnFromUrl);
+    if (cleanFn && !/^(pdf\.?js|document|viewer)$/i.test(cleanFn)) {
+      return cleanFn;
     }
 
-    // 2. Try doc metadata Title
+    // 2. Try app._contentDispositionFilename
+    const dispFn = cleanFileName(app?._contentDispositionFilename || '');
+    if (dispFn && !/^(pdf\.?js|document|viewer)$/i.test(dispFn)) {
+      return dispFn;
+    }
+
+    // 3. Try breadcrumb/topic context from URL params (e.g. ?topic=Week 1)
+    const ctx = readContextFromUrl();
+    if (ctx?.topic && ctx.topic !== 'this document') {
+      const cleanTopic = cleanFileName(ctx.topic);
+      if (cleanTopic && !/^(pdf\.?js|document|viewer)$/i.test(cleanTopic)) {
+        return cleanTopic;
+      }
+    }
+
+    // 4. Try doc metadata Title, cleaned of generic Office prefixes
     if (doc?.getMetadata) {
       try {
         const meta = await doc.getMetadata();
         const metaTitle = meta?.info?.Title || meta?.metadata?.get?.('dc:title');
-        if (metaTitle && typeof metaTitle === 'string' && metaTitle.trim() && !/pdf\.?js(\s+viewer)?/i.test(metaTitle)) {
-          return metaTitle.trim();
+        const cleanMeta = cleanFileName(metaTitle || '');
+        if (cleanMeta && !/^(pdf\.?js|document|viewer|presentation\d*|document\d*|untitled)$/i.test(cleanMeta)) {
+          return cleanMeta;
         }
       } catch (e) {}
     }
 
-    // 3. Try app?._contentDispositionFilename
-    const rawFilename = app?._contentDispositionFilename || '';
-    if (rawFilename && !/pdf\.?js/i.test(rawFilename)) {
-      return cleanContextPart(rawFilename, 'Document');
-    }
-
-    // 4. Try activePdfUrl or query param 'file' or app?.url
-    const fileUrl = activePdfUrl || new URLSearchParams(window.location.search).get('file') || app?.url || '';
-    if (fileUrl) {
-      try {
-        const parsed = new URL(fileUrl, window.location.href);
-        const segments = parsed.pathname.split('/').filter(Boolean);
-        const last = segments.pop() || '';
-        if (last && !/viewer\.html/i.test(last)) {
-          const decoded = decodeURIComponent(last);
-          return cleanContextPart(decoded, 'Document');
-        }
-      } catch (e) {}
-    }
-
-    // 5. Try document.title ONLY if it's not generic PDF.js viewer
-    const curTitle = document.title || '';
-    if (curTitle && !/pdf\.?js(\s+viewer)?/i.test(curTitle)) {
-      return curTitle.trim();
-    }
-
-    // 6. Try breadcrumb context from URL params
-    const ctx = readContextFromUrl();
-    if (ctx?.topic && ctx.topic !== 'this document') {
-      return ctx.topic;
-    }
-    if (ctx?.sub && ctx.sub !== 'this subject') {
-      return ctx.sub;
+    // 5. Try app._title or app.pdfTitle, cleaned
+    const appTitle = cleanFileName(app?._title || app?.pdfTitle || '');
+    if (appTitle && !/^(pdf\.?js|document|viewer|presentation\d*|document\d*|untitled)$/i.test(appTitle)) {
+      return appTitle;
     }
 
     return 'Document';
