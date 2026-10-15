@@ -3790,6 +3790,19 @@
   border: none;
 }
 
+.colorPicker .wheelSwatch {
+  background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red) !important;
+  box-shadow: 0 0 1px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+
+#editorHighlightOpacity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .annotationEditorLayer[data-main-rotation="0"] .highlightEditor:not(.free)>.editToolbar {
   rotate: 0deg;
 }

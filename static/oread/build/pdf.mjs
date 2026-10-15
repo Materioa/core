@@ -17626,6 +17626,88 @@ class ColorPicker {
       });
       div.append(button);
     }
+
+    // Custom color picker button with multicolor wheel
+    const multiButton = document.createElement("button");
+    multiButton.tabIndex = "0";
+    multiButton.role = "option";
+    multiButton.className = "colorPickerWheelButton";
+    multiButton.title = "Custom Color";
+    multiButton.setAttribute("aria-label", "Custom Color");
+    const wheelSwatch = document.createElement("span");
+    wheelSwatch.className = "swatch wheelSwatch";
+    wheelSwatch.style.cssText = "background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red); border-radius: 100%; width: 16px; height: 16px; display: block; border: 1px solid var(--swatch-border-color, #ccc);";
+    multiButton.append(wheelSwatch);
+
+    const colorInput = document.createElement("input");
+    colorInput.type = "color";
+    colorInput.style.cssText = "position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;";
+    multiButton.append(colorInput);
+
+    multiButton.addEventListener("click", (e) => {
+      e.stopPropagation();
+      try {
+        colorInput.value = this.#editor?.color || this.#defaultColor || "#FFFF00";
+        if (typeof colorInput.showPicker === "function") {
+          colorInput.showPicker();
+        } else {
+          colorInput.click();
+        }
+      } catch (err) {
+        colorInput.click();
+      }
+    }, { signal });
+
+    colorInput.addEventListener("input", (e) => {
+      const col = e.target.value.toUpperCase();
+      this.#defaultColor = col;
+      if (this.#buttonSwatch) {
+        this.#buttonSwatch.style.backgroundColor = col;
+      }
+      this.#colorSelect(col, e);
+    }, { signal });
+
+    div.append(multiButton);
+
+    // Opacity / transparency slider
+    const opacityWrap = document.createElement("div");
+    opacityWrap.className = "colorPickerOpacityWrap";
+    opacityWrap.style.cssText = "display: flex; align-items: center; justify-content: space-between; padding: 6px 6px 2px 6px; margin-top: 4px; border-top: 1px solid rgba(128,128,128,0.25); gap: 6px;";
+
+    const opacityLbl = document.createElement("span");
+    opacityLbl.textContent = "Opacity";
+    opacityLbl.style.cssText = "font-size: 11px; opacity: 0.8; font-weight: 500; user-select: none;";
+
+    const opacitySlider = document.createElement("input");
+    opacitySlider.type = "range";
+    opacitySlider.min = "10";
+    opacitySlider.max = "100";
+    opacitySlider.step = "5";
+    const initOpacity = Math.round((this.#editor?.opacity ?? HighlightEditor._defaultOpacity ?? 1) * 100);
+    opacitySlider.value = String(initOpacity);
+    opacitySlider.title = "Adjust Transparency";
+    opacitySlider.style.cssText = "width: 64px; height: 14px; cursor: pointer; accent-color: #2563eb;";
+
+    opacitySlider.addEventListener("input", (e) => {
+      e.stopPropagation();
+      const opa = Number(e.target.value) / 100;
+      HighlightEditor._defaultOpacity = opa;
+      if (this.#editor) {
+        if (typeof this.#editor.setOpacity === "function") {
+          this.#editor.setOpacity(opa);
+        } else {
+          this.#editor.opacity = opa;
+          this.#editor.parent?.drawLayer?.updateProperties(this.#editor.id, {
+            root: { "fill-opacity": opa }
+          });
+        }
+      }
+    }, { signal });
+
+    opacitySlider.addEventListener("click", (e) => e.stopPropagation(), { signal });
+    opacityWrap.append(opacityLbl, opacitySlider);
+    div.append(opacityWrap);
+
     div.addEventListener("keydown", this.#keyDown.bind(this), {
       signal
     });
@@ -18589,6 +18671,22 @@ class HighlightEditor extends AnnotationEditor {
       rect: this.getRect(0, 0)
     });
     return null;
+  }
+  get opacity() {
+    return this.#opacity;
+  }
+  set opacity(val) {
+    this.#opacity = val;
+  }
+  setOpacity(val) {
+    this.#opacity = val;
+    if (this.#id !== null && this.parent?.drawLayer) {
+      this.parent.drawLayer.updateProperties(this.#id, {
+        root: {
+          "fill-opacity": val
+        }
+      });
+    }
   }
   static canCreateNewEmptyEditor() {
     return false;

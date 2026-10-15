@@ -540,6 +540,58 @@
         return entry;
     }
 
+    function getAnnotationSignature(entry) {
+        if (!entry || typeof entry !== 'object') return null;
+        var type = entry.annotationType != null ? entry.annotationType : entry.annotationEditorType;
+        var page = entry.pageIndex != null ? entry.pageIndex : 0;
+
+        if (type === 9) { // Highlight
+            var qp = '';
+            if (entry.quadPoints && Array.isArray(entry.quadPoints)) {
+                qp = entry.quadPoints.map(function (n) { return Math.round(Number(n) * 10) / 10; }).join(',');
+            } else if (entry.rect && Array.isArray(entry.rect)) {
+                qp = entry.rect.map(function (n) { return Math.round(Number(n) * 10) / 10; }).join(',');
+            } else if (entry.outlines && entry.outlines.points) {
+                qp = JSON.stringify(entry.outlines.points);
+            }
+            return 'highlight:' + page + ':' + qp;
+        }
+
+        if (type === 3) { // FreeText
+            var r = (entry.rect || []).map(function (n) { return Math.round(Number(n)); }).join(',');
+            var val = String(entry.value || '').trim();
+            return 'freetext:' + page + ':' + r + ':' + val;
+        }
+
+        if (type === 15) { // Ink
+            var r = (entry.rect || []).map(function (n) { return Math.round(Number(n)); }).join(',');
+            var ptsCount = (entry.paths && entry.paths.points) ? entry.paths.points.length : 0;
+            return 'ink:' + page + ':' + r + ':' + ptsCount;
+        }
+
+        return null;
+    }
+
+    function deduplicateStorageMap(map) {
+        if (!map || typeof map !== 'object') return {};
+        var clean = {};
+        var seen = {};
+        var keys = Object.keys(map);
+        for (var i = 0; i < keys.length; i++) {
+            var k = keys[i];
+            var item = map[k];
+            var sig = getAnnotationSignature(item);
+            if (sig) {
+                if (seen[sig]) {
+                    continue; // Skip duplicate highlight / annotation
+                }
+                seen[sig] = true;
+            }
+            clean[k] = item;
+        }
+        return clean;
+    }
+
     // Plain-JSON snapshot of the viewer's EDITOR annotations. Each live
     // editor is serialized individually inside its own try/catch (one bad
     // editor can't kill the whole snapshot), then passed through jsonSafe
@@ -630,7 +682,7 @@
             var fk = fbKeys[fi];
             if (!(fk in out) && restoredFallback[fk]) out[fk] = restoredFallback[fk];
         }
-        return out;
+        return deduplicateStorageMap(out);
     }
 
     // Finalize any open drawing/highlight session so the visible strokes
@@ -922,6 +974,9 @@
             if (!ed) { delete trackedEditors[k]; continue; }
             var dropped = !ed.isAttachedToDOM || !ed.div || !ed.div.isConnected;
             if (!dropped) continue;
+            // Only heal if the layer's container is currently connected to the DOM (i.e. page is currently rendered).
+            // Off-screen pages have detached layers by design; PDF.js re-adds editors on render().
+            if (!rec.layer || !rec.layer.div || !rec.layer.div.isConnected) continue;
             try {
                 if (rec.layer && typeof rec.layer.add === 'function') {
                     attachRestored(rec.layer, ed);
@@ -1123,6 +1178,22 @@
                     entry.rotation = pageRotation;
                 }
 
+                // Check if an editor with the exact same signature was already restored on this page
+                var sig = getAnnotationSignature(entry);
+                var alreadyRestored = false;
+                for (var tk in trackedEditors) {
+                    var tracked = trackedEditors[tk];
+                    if (tracked && tracked.pageIndex === pageIndex && tracked.sig === sig) {
+                        alreadyRestored = true;
+                        break;
+                    }
+                }
+                if (alreadyRestored) {
+                    appliedIds[key] = true;
+                    delete unrestored[key];
+                    continue;
+                }
+
                 try {
                     var editor = await layer.deserialize(entry);
                     diag('deserialize key=' + key, 'page=' + pageIndex,
@@ -1232,7 +1303,7 @@
                             }
                         } catch (e4) { /* visibility is best-effort */ }
                         diag('vis key=' + key, editorVisibilityReport(editor, layer));
-                        trackedEditors[key] = { editor: editor, layer: layer, pageIndex: pageIndex };
+                        trackedEditors[key] = { editor: editor, layer: layer, pageIndex: pageIndex, sig: sig };
                         // An EMPTY editor is the thing that makes annotations
                         // vanish: #cleanup() destroys any editor whose
                         // isEmpty() is true, and it does so on the next ordinary
@@ -1428,8 +1499,28 @@
         }
         try {
             hookEditorModeChanges();
+            hookHighlightOpacity();
             window.parent.postMessage({ type: 'materioAnnotReady' }, '*');
         } catch (e) { /* ignore */ }
+    }
+
+    function hookHighlightOpacity() {
+        try {
+            var slider = document.getElementById('editorHighlightOpacityRange');
+            if (!slider || slider.__hooked) return;
+            slider.__hooked = true;
+            slider.addEventListener('input', function () {
+                var opa = Number(this.value) / 100;
+                try {
+                    var appInst = viewer();
+                    var ui = appInst?.pdfCursorTools?.annotationEditorUIManager || appInst?.pdfDocument?.annotationStorage?._uiManager;
+                    var active = ui?.getActive?.();
+                    if (active && typeof active.setOpacity === 'function') {
+                        active.setOpacity(opa);
+                    }
+                } catch (e) {}
+            });
+        } catch (e) {}
     }
 
     /**
@@ -1473,14 +1564,15 @@
         var data = event.data;
         if (!data || typeof data.type !== 'string') return;
         if (data.type === 'materioAnnotInit') {
-            var map = (data.annotations && data.annotations.storage) || {};
-            diag('initReceived entries=' + Object.keys(map).length, 'pdfDoc=' + !!pdfDoc());
+            var rawMap = (data.annotations && data.annotations.storage) || {};
+            var map = deduplicateStorageMap(rawMap);
+            diag('initReceived entries=' + Object.keys(map).length, 'raw=' + Object.keys(rawMap).length, 'pdfDoc=' + !!pdfDoc());
             var str = stableStringify(map);
-            if (str === lastInitStr && initApplied) {
-                // Repeat post of an already-applied init (parent retries as
-                // insurance): do NOT re-apply (that would duplicate every
-                // editor) — just rebase the parent clean again.
-                emitSynced();
+            if (str === lastInitStr) {
+                // Repeat post of identical init (parent retries at 600ms/1800ms as
+                // insurance): do NOT re-apply or clear appliedIds (that would duplicate
+                // every editor) — just rebase the parent clean again if done.
+                if (initApplied) emitSynced();
                 return;
             }
             lastInitStr = str;

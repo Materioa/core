@@ -96,8 +96,6 @@
     }
 
     export function openInApp() {
-        // If the card is already in the failed state the button is a plain
-        // download link (see template) — this path is the first tap only.
         if (openFailed) return;
         try {
             openFailed = false;
@@ -105,28 +103,28 @@
             const onHide = () => { left = true; };
             window.addEventListener('pagehide', onHide, { once: true });
             window.addEventListener('blur', onHide, { once: true });
-            // Android: intent: URL opens the app without any Play Console
-            // setup; a missing app falls back to this page (see timer).
-            // Desktop: fire the registered materio:// protocol through a
-            // hidden frame so the page itself is never navigated away.
+            const onVisChange = () => {
+                if (document.visibilityState === 'hidden') left = true;
+            };
+            document.addEventListener('visibilitychange', onVisChange, { once: true });
+
+            // Android: intent: URL opens the app without any Play Console setup
+            // Desktop: top-level custom scheme triggers the OS / browser protocol prompt
+            // (hidden iframe navigation is blocked by modern Chromium / Firefox security policies)
             if (isAndroid) {
                 window.location.href = intentUrl(window.location.href);
             } else {
-                try {
-                    const frame = document.createElement('iframe');
-                    frame.style.display = 'none';
-                    frame.src = schemeUrl();
-                    document.body.appendChild(frame);
-                    setTimeout(() => { try { frame.remove(); } catch {} }, 2500);
-                } catch {
-                    window.location.href = schemeUrl();
-                }
+                window.location.href = schemeUrl();
             }
+
             setTimeout(() => {
                 window.removeEventListener('pagehide', onHide);
                 window.removeEventListener('blur', onHide);
-                if (!left) openFailed = true;
-            }, isAndroid ? 2200 : 1400);
+                document.removeEventListener('visibilitychange', onVisChange);
+                if (!left && document.visibilityState !== 'hidden') {
+                    openFailed = true;
+                }
+            }, isAndroid ? 3000 : 5000);
         } catch {}
     }
 
@@ -155,9 +153,10 @@
         {#if openFailed}
             <div class="open-in-app-text">
                 <strong>Couldn't open the app</strong>
-                <span>It may not be installed yet — download it to continue.</span>
+                <span>It may not be installed yet — download it or try opening again.</span>
             </div>
             <div class="open-in-app-actions">
+                <button type="button" class="open-in-app-retry" onclick={() => { openFailed = false; openInApp(); }}>Try again</button>
                 <a class="open-in-app-primary" href={downloadsUrl} target="_blank" rel="noopener noreferrer">Download</a>
                 <button type="button" class="open-in-app-dismiss" onclick={dismiss} aria-label="Dismiss">✕</button>
             </div>
@@ -226,6 +225,20 @@
         cursor: pointer;
         text-decoration: none;
         display: inline-block;
+    }
+    .open-in-app-retry {
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 10px;
+        color: inherit;
+        font-size: 13px;
+        font-weight: 500;
+        padding: 8px 12px;
+        cursor: pointer;
+        margin-right: 6px;
+    }
+    :global(body:not(.dark-mode)) .open-in-app-retry {
+        border-color: rgba(0, 0, 0, 0.25);
     }
     .open-in-app-dismiss {
         background: none;

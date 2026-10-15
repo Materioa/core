@@ -384,8 +384,15 @@
         if (!rawUrl || typeof rawUrl !== 'string') return;
         let urlObj;
         if (rawUrl.startsWith('materio://')) {
-          const rest = rawUrl.replace(/^materio:\/\/?/, '');
-          urlObj = new URL(rest.startsWith('?') ? `https://getmaterio.app/${rest}` : `https://getmaterio.app/${rest}`);
+          const rest = rawUrl.replace(/^materio:\/+/i, '');
+          if (rest.startsWith('http://') || rest.startsWith('https://')) {
+            urlObj = new URL(rest);
+          } else if (rest.startsWith('getmaterio.app')) {
+            urlObj = new URL(`https://${rest}`);
+          } else {
+            const cleanPath = rest.startsWith('/') ? rest : `/${rest}`;
+            urlObj = new URL(`https://getmaterio.app${cleanPath}`);
+          }
         } else {
           urlObj = new URL(rawUrl);
         }
