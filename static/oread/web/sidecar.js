@@ -926,6 +926,13 @@
                 if (rec.layer && typeof rec.layer.add === 'function') {
                     attachRestored(rec.layer, ed);
                     if (rec.layer.div && rec.layer.div.hidden) rec.layer.div.hidden = false;
+                    try {
+                        var pageRot = rec.layer && rec.layer.viewport && normalizeRotation(rec.layer.viewport.rotation);
+                        if (pageRot && typeof ed.rotate === 'function') {
+                            ed.rotate(pageRot);
+                            if (typeof ed.fixAndSetPosition === 'function') ed.fixAndSetPosition();
+                        }
+                    } catch (eRot3) {}
                     var r = ed.div && ed.div.getBoundingClientRect ? ed.div.getBoundingClientRect() : null;
                     diag('heal key=' + k, 'page=' + rec.pageIndex,
                         'rect=' + (r ? Math.round(r.width) + 'x' + Math.round(r.height) : 'null'));
@@ -1098,6 +1105,24 @@
                     remaining.push(key); // page not rendered yet: retry
                     continue;
                 }
+                var pageRotation = 0;
+                try {
+                    if (pageView && pageView.viewport && typeof pageView.viewport.rotation === 'number') {
+                        pageRotation = normalizeRotation(pageView.viewport.rotation);
+                    } else if (layer && layer.viewport && typeof layer.viewport.rotation === 'number') {
+                        pageRotation = normalizeRotation(layer.viewport.rotation);
+                    }
+                } catch (eRot) {}
+
+                // PDF.js HighlightEditor.serialize() always hardcodes rotation: 0.
+                // On rotated pages (e.g. 90/180/270 deg), deserializing with rotation: 0
+                // causes highlight boxes to rotate 90 deg out of alignment (vertical strips),
+                // FreeText to swap width/height, and Ink drawings to rotate.
+                // If pageRotation is non-zero and entry.rotation was 0 (or null), align it with the page.
+                if (pageRotation !== 0 && (entry.rotation === 0 || entry.rotation == null)) {
+                    entry.rotation = pageRotation;
+                }
+
                 try {
                     var editor = await layer.deserialize(entry);
                     diag('deserialize key=' + key, 'page=' + pageIndex,
@@ -1171,6 +1196,12 @@
                     if (editor && (typeof layer.addOrRebuild === 'function' ||
                         typeof layer.add === 'function')) {
                         attachRestored(layer, editor);
+                        if (pageRotation !== 0) {
+                            try {
+                                if (typeof editor.rotate === 'function') editor.rotate(pageRotation);
+                                if (typeof editor.fixAndSetPosition === 'function') editor.fixAndSetPosition();
+                            } catch (eRot2) {}
+                        }
                         // PDF.js hides the editor layer's own container while it
                         // is empty:
                         //     render()  ->  if (this.isEmpty) this.div.hidden = true

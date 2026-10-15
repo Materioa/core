@@ -174,30 +174,52 @@
     }
 
     // Specific page requested
-    if (options.pageNumber && options.pageNumber >= 1 && options.pageNumber <= numPages) {
-      try {
-        const page = await doc.getPage(options.pageNumber);
-        const textContent = await page.getTextContent();
-        let pageText = textContent.items.map(item => item.str).join(' ');
-        let image = null;
+    const targetPageNum = options.pageNumber != null ? parseInt(options.pageNumber, 10) : null;
+    if (targetPageNum !== null && !isNaN(targetPageNum)) {
+      if (targetPageNum >= 1 && targetPageNum <= numPages) {
+        try {
+          const page = await doc.getPage(targetPageNum);
+          const textContent = await page.getTextContent();
+          let pageText = textContent.items.map(item => item.str).join(' ');
+          let image = null;
 
-        // If page has almost no text (scanned PDF), render a visual snapshot
-        if (!pageText || pageText.trim().length < 40) {
-          image = await renderPageAsImage(page);
+          // If page has almost no text (scanned PDF), render a visual snapshot
+          if (!pageText || pageText.trim().length < 40) {
+            image = await renderPageAsImage(page);
+          }
+
+          return {
+            title: docTitle,
+            numPages,
+            currentPage,
+            pageNumber: targetPageNum,
+            text: pageText,
+            image,
+            isScanned: !pageText || pageText.trim().length < 40,
+            url: activePdfUrl || ''
+          };
+        } catch (err) {
+          console.warn('[thinklet] extract page error:', err);
+          return {
+            title: docTitle,
+            numPages,
+            currentPage,
+            pageNumber: targetPageNum,
+            text: '',
+            error: `Failed to load page ${targetPageNum}: ${err?.message || err}`,
+            url: activePdfUrl || ''
+          };
         }
-
+      } else {
         return {
           title: docTitle,
           numPages,
           currentPage,
-          pageNumber: options.pageNumber,
-          text: pageText,
-          image,
-          isScanned: !pageText || pageText.trim().length < 40,
+          pageNumber: targetPageNum,
+          text: '',
+          error: `Page ${targetPageNum} is out of bounds (document has ${numPages} pages)`,
           url: activePdfUrl || ''
         };
-      } catch (err) {
-        console.warn('[thinklet] extract page error:', err);
       }
     }
 
@@ -1045,10 +1067,16 @@
         return;
       }
 
-      if (event.data?.type === 'MATERIO_READ_PDF_PAGE') {
-        extractOreadPdfText({ pageNumber: event.data.pageNumber }).then(pageData => {
+      if (event.data?.type === 'MATERIO_READ_PDF_PAGE' || event.data?.type === 'MATERIO_GET_CURRENT_PDF_PAGE') {
+        const reqPage = event.data.pageNumber != null ? event.data.pageNumber : event.data.page;
+        extractOreadPdfText({ pageNumber: reqPage }).then(pageData => {
           postToThinkletFrame({
             type: 'MATERIO_CURRENT_PDF_RESPONSE',
+            requestId: event.data.requestId,
+            data: pageData
+          });
+          postToThinkletFrame({
+            type: 'MATERIO_READ_PDF_PAGE_RESPONSE',
             requestId: event.data.requestId,
             data: pageData
           });
