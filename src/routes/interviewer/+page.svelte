@@ -16,7 +16,14 @@
 </script>
 
 <svelte:head>
-	<title>Materio Interviewer</title>
+	<title>Materio Interviewer — Interactive Viva &amp; Exam Prep</title>
+	<meta name="description" content="Prepare for viva and university technical examinations with Materio's interactive AI interviewer." />
+	<link rel="canonical" href="https://getmaterio.app/interviewer" />
+	<meta property="og:title" content="Materio Interviewer — Interactive Viva &amp; Exam Prep" />
+	<meta property="og:description" content="Prepare for viva and university technical examinations with Materio's interactive AI interviewer." />
+	<meta property="og:url" content="https://getmaterio.app/interviewer" />
+	<meta name="twitter:title" content="Materio Interviewer — Interactive Viva &amp; Exam Prep" />
+	<meta name="twitter:description" content="Prepare for viva and university technical examinations with Materio's interactive AI interviewer." />
 </svelte:head>
 
 {#if formParam}

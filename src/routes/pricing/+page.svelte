@@ -30,6 +30,12 @@
 		name="description"
 		content="Simple pricing for every kind of learner. Materio Plus at ₹199/month and Materio Pro at ₹349/month — billed monthly, cancel anytime."
 	/>
+	<link rel="canonical" href="https://getmaterio.app/pricing" />
+	<meta property="og:title" content="Pricing · Materio" />
+	<meta property="og:description" content="Simple pricing for every kind of learner. Materio Plus at ₹199/month and Materio Pro at ₹349/month — billed monthly, cancel anytime." />
+	<meta property="og:url" content="https://getmaterio.app/pricing" />
+	<meta name="twitter:title" content="Pricing · Materio" />
+	<meta name="twitter:description" content="Simple pricing for every kind of learner. Materio Plus at ₹199/month and Materio Pro at ₹349/month — billed monthly, cancel anytime." />
 	<link rel="stylesheet" href="/assets/style/landing.css" />
 	<link rel="stylesheet" href="/assets/style/pricing.css" />
 </svelte:head>

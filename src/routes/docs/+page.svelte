@@ -5,8 +5,14 @@
 </script>
 
 <svelte:head>
-    <title>Documentation</title>
-    <meta name="description" content="Developer references for integrating systems." />
+    <title>Documentation · Materio</title>
+    <meta name="description" content="Developer references, architecture guides, and integration docs for the Materio platform." />
+    <link rel="canonical" href="https://getmaterio.app/docs" />
+    <meta property="og:title" content="Documentation · Materio" />
+    <meta property="og:description" content="Developer references, architecture guides, and integration docs for the Materio platform." />
+    <meta property="og:url" content="https://getmaterio.app/docs" />
+    <meta name="twitter:title" content="Documentation · Materio" />
+    <meta name="twitter:description" content="Developer references, architecture guides, and integration docs for the Materio platform." />
     <link rel="stylesheet" href="/assets/style/fonts-new.css" />
 </svelte:head>
 

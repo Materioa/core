@@ -5,8 +5,14 @@
 </script>
 
 <svelte:head>
-    <title>Legal & Policies — Materio</title>
-    <meta name="description" content="Terms of service, privacy policy, and compliance documentation." />
+    <title>Legal &amp; Policies — Materio</title>
+    <meta name="description" content="Terms of service, privacy policy, and compliance documentation for the Materio platform." />
+    <link rel="canonical" href="https://getmaterio.app/legal" />
+    <meta property="og:title" content="Legal &amp; Policies — Materio" />
+    <meta property="og:description" content="Terms of service, privacy policy, and compliance documentation for the Materio platform." />
+    <meta property="og:url" content="https://getmaterio.app/legal" />
+    <meta name="twitter:title" content="Legal &amp; Policies — Materio" />
+    <meta name="twitter:description" content="Terms of service, privacy policy, and compliance documentation for the Materio platform." />
     <link rel="stylesheet" href="/assets/style/fonts-new.css" />
 </svelte:head>
 

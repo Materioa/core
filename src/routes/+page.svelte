@@ -9,14 +9,15 @@
 
 	function checkInitialApp(): boolean {
 		if (!browser) return false;
+		const win = typeof window !== 'undefined' ? (window as unknown as Record<string, unknown>) : null;
 		const inNative = isNative || isTauri || isCapacitor || Boolean(
-			typeof window !== 'undefined' && (
-				window.__TAURI_INTERNALS__ ||
-				window.__TAURI__ ||
-				window.location?.protocol === 'tauri:' ||
-				window.location?.protocol === 'capacitor:' ||
-				window.location?.hostname === 'tauri.localhost' ||
-				window.Capacitor
+			win && (
+				win.__TAURI_INTERNALS__ ||
+				win.__TAURI__ ||
+				(win.location as Location | undefined)?.protocol === 'tauri:' ||
+				(win.location as Location | undefined)?.protocol === 'capacitor:' ||
+				(win.location as Location | undefined)?.hostname === 'tauri.localhost' ||
+				win.Capacitor
 			)
 		);
 		if (inNative) return true;
@@ -32,14 +33,17 @@
 
 	function evaluate() {
 		if (!browser) return;
+		const win = typeof window !== 'undefined' ? (window as unknown as Record<string, unknown>) : null;
 		// In native desktop (Tauri) or mobile (Capacitor) apps, never show landing page; jump directly to app
 		const inNativeApp = isNative || isTauri || isCapacitor || Boolean(
-			window.__TAURI_INTERNALS__ ||
-			window.__TAURI__ ||
-			window.location?.protocol === 'tauri:' ||
-			window.location?.protocol === 'capacitor:' ||
-			window.location?.hostname === 'tauri.localhost' ||
-			window.Capacitor
+			win && (
+				win.__TAURI_INTERNALS__ ||
+				win.__TAURI__ ||
+				(win.location as Location | undefined)?.protocol === 'tauri:' ||
+				(win.location as Location | undefined)?.protocol === 'capacitor:' ||
+				(win.location as Location | undefined)?.hostname === 'tauri.localhost' ||
+				win.Capacitor
+			)
 		);
 		if (inNativeApp) {
 			showLanding = false;
@@ -87,6 +91,12 @@
 		};
 	});
 </script>
+
+<svelte:head>
+	<title>Materio — Curated Study Materials &amp; Smart Notes</title>
+	<meta name="description" content="Official materials you trust, in a way you love — Because e-learning shouldn't feel like suffering. Find organized, official study materials, notes, and peer help all in one clean place." />
+	<link rel="canonical" href="https://getmaterio.app/" />
+</svelte:head>
 
 {#if !checked}
 	<div style="min-height:100vh; background:#faf9f5; display:flex; align-items:center; justify-content:center; color:#999; font-family: 'OpenRunde', 'Open Runde', sans-serif;">

@@ -58,7 +58,14 @@
 </script>
 
 <svelte:head>
-    <title>InsightRoom</title>
+    <title>InsightRoom · Materio</title>
+    <meta name="description" content="Community insights, shared notes, and peer discussions for university students on Materio." />
+    <link rel="canonical" href="https://getmaterio.app/room" />
+    <meta property="og:title" content="InsightRoom · Materio" />
+    <meta property="og:description" content="Community insights, shared notes, and peer discussions for university students on Materio." />
+    <meta property="og:url" content="https://getmaterio.app/room" />
+    <meta name="twitter:title" content="InsightRoom · Materio" />
+    <meta name="twitter:description" content="Community insights, shared notes, and peer discussions for university students on Materio." />
 </svelte:head>
 
 <main class="home-container">

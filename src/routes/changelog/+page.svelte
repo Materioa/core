@@ -14,7 +14,13 @@
 
 <svelte:head>
     <title>What's New? — Materio Changelog</title>
-    <meta name="description" content="Latest releases, updates, and improvements." />
+    <meta name="description" content="Latest releases, updates, product improvements, and release notes for Materio." />
+    <link rel="canonical" href="https://getmaterio.app/changelog" />
+    <meta property="og:title" content="What's New? — Materio Changelog" />
+    <meta property="og:description" content="Latest releases, updates, product improvements, and release notes for Materio." />
+    <meta property="og:url" content="https://getmaterio.app/changelog" />
+    <meta name="twitter:title" content="What's New? — Materio Changelog" />
+    <meta name="twitter:description" content="Latest releases, updates, product improvements, and release notes for Materio." />
     <link rel="stylesheet" href="/assets/style/fonts-new.css" />
 </svelte:head>
 

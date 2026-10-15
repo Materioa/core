@@ -2,7 +2,11 @@
   import ContentPage from '$lib/components/ContentPage.svelte';
 </script>
 
-<ContentPage title="About">
+<ContentPage
+  title="About Materio"
+  description="Learn about Materio — the study platform designed to simplify CS and university preparation with crowd-curated notes, official materials, and offline reading."
+  canonicalPath="/about"
+>
   <h1>About Materio</h1>
 
   <blockquote>

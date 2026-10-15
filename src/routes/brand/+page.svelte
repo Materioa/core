@@ -1,5 +1,12 @@
 <svelte:head>
-  <title>Brand Guidelines</title>
+  <title>Brand Guidelines · Materio</title>
+  <meta name="description" content="Official brand assets, logos, typography, and visual identity guidelines for Materio." />
+  <link rel="canonical" href="https://getmaterio.app/brand" />
+  <meta property="og:title" content="Brand Guidelines · Materio" />
+  <meta property="og:description" content="Official brand assets, logos, typography, and visual identity guidelines for Materio." />
+  <meta property="og:url" content="https://getmaterio.app/brand" />
+  <meta name="twitter:title" content="Brand Guidelines · Materio" />
+  <meta name="twitter:description" content="Official brand assets, logos, typography, and visual identity guidelines for Materio." />
   <link rel="stylesheet" href="https://site-assets.fontawesome.com/releases/v6.4.0/css/all.css" />
 </svelte:head>
 
@@ -283,6 +290,7 @@
     margin-bottom: 20px;
     background: linear-gradient(135deg, #333 0%, #666 100%);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
   }
 

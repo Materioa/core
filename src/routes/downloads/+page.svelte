@@ -74,6 +74,12 @@
 		name="description"
 		content="Download official Materio native apps for Windows and Android. Offline notes vault, instant search, and local MCP server for AI tools."
 	/>
+	<link rel="canonical" href="https://getmaterio.app/downloads" />
+	<meta property="og:title" content="Downloads · Materio" />
+	<meta property="og:description" content="Download official Materio native apps for Windows and Android. Offline notes vault, instant search, and local MCP server for AI tools." />
+	<meta property="og:url" content="https://getmaterio.app/downloads" />
+	<meta name="twitter:title" content="Downloads · Materio" />
+	<meta name="twitter:description" content="Download official Materio native apps for Windows and Android. Offline notes vault, instant search, and local MCP server for AI tools." />
 	<link rel="stylesheet" href="/assets/style/landing.css" />
 	<link rel="stylesheet" href="/assets/style/pricing.css" />
 </svelte:head>

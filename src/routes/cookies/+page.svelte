@@ -2,7 +2,11 @@
   import ContentPage from '$lib/components/ContentPage.svelte';
 </script>
 
-<ContentPage title="Cookie Policy">
+<ContentPage
+  title="Cookie Policy"
+  description="Review Materio's cookie policy, including how we store reader preferences, themes, and offline study materials securely."
+  canonicalPath="/cookies"
+>
   <h1>Cookie Policy</h1>
 
   <p>This Cookie Policy explains how Materio ("i", "we", "us," or "our") uses cookies and similar technologies on our website and related services (including Oread PDF reader and Insightroom). By using our website, you consent to the use of cookies as described in this policy. If you do not agree with our use of cookies, you can disable them through your browser settings or opt out of optional cookies by toggling off <strong>"Accept Cookies"</strong> in settings.</p>

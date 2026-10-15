@@ -123,6 +123,7 @@
 
 <svelte:head>
   <title>Authenticating | Materio</title>
+  <meta name="robots" content="noindex, nofollow" />
 </svelte:head>
 
 <div class="auth-callback-container">

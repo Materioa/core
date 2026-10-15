@@ -1,3 +1,8 @@
-# allow crawling everything by default
+# Allow crawling public content
 User-agent: *
-Disallow:
+Allow: /
+Disallow: /api/
+Disallow: /auth/
+
+# Sitemap location
+Sitemap: https://getmaterio.app/sitemap.xml

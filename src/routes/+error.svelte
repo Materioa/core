@@ -4,7 +4,8 @@
 </script>
 
 <svelte:head>
-    <title>{$page.status || 404} - Page Not Found</title>
+    <title>{$page.status || 404} — Page Not Found · Materio</title>
+    <meta name="robots" content="noindex, nofollow" />
 </svelte:head>
 
 <div class="dithered-404-container">

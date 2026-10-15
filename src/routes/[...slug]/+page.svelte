@@ -57,7 +57,23 @@
   <link rel="stylesheet" href="/assets/style/style.css" />
   <link rel="stylesheet" href="/assets/style/post.css" />
   <link rel="stylesheet" href="/assets/style/notebook.css" />
-  <title>{metadata.title || 'Materio'}</title>
+  <title>{metadata?.title ? `${metadata.title} · Materio` : 'Materio'}</title>
+  {#if metadata?.description}
+    <meta name="description" content={metadata.description} />
+    <meta property="og:description" content={metadata.description} />
+    <meta name="twitter:description" content={metadata.description} />
+  {/if}
+  <meta property="og:title" content={metadata?.title ? `${metadata.title} · Materio` : 'Materio'} />
+  <meta name="twitter:title" content={metadata?.title ? `${metadata.title} · Materio` : 'Materio'} />
+  {#if metadata?.image}
+    <meta property="og:image" content={metadata.image} />
+    <meta name="twitter:image" content={metadata.image} />
+    <meta name="twitter:card" content="summary_large_image" />
+  {/if}
+  {#if metadata?.url}
+    <link rel="canonical" href={`https://getmaterio.app${metadata.url}`} />
+    <meta property="og:url" content={`https://getmaterio.app${metadata.url}`} />
+  {/if}
 </svelte:head>
 
 <!-- Reading Progress Bar -->
@@ -263,6 +279,7 @@
     .post-related-excerpt {
         display: -webkit-box;
         -webkit-line-clamp: 2;
+        line-clamp: 2;
         -webkit-box-orient: vertical;
         overflow: hidden;
         margin-top: 0.3rem;
