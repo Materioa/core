@@ -62,6 +62,62 @@
     } catch (e) {}
   }
 
+  async function resolveDocumentTitle(app, doc) {
+    // 1. Try app._title or app.pdfTitle
+    const appTitle = app?._title || app?.pdfTitle;
+    if (appTitle && typeof appTitle === 'string' && !/pdf\.?js(\s+viewer)?/i.test(appTitle)) {
+      return appTitle.trim();
+    }
+
+    // 2. Try doc metadata Title
+    if (doc?.getMetadata) {
+      try {
+        const meta = await doc.getMetadata();
+        const metaTitle = meta?.info?.Title || meta?.metadata?.get?.('dc:title');
+        if (metaTitle && typeof metaTitle === 'string' && metaTitle.trim() && !/pdf\.?js(\s+viewer)?/i.test(metaTitle)) {
+          return metaTitle.trim();
+        }
+      } catch (e) {}
+    }
+
+    // 3. Try app?._contentDispositionFilename
+    const rawFilename = app?._contentDispositionFilename || '';
+    if (rawFilename && !/pdf\.?js/i.test(rawFilename)) {
+      return cleanContextPart(rawFilename, 'Document');
+    }
+
+    // 4. Try activePdfUrl or query param 'file' or app?.url
+    const fileUrl = activePdfUrl || new URLSearchParams(window.location.search).get('file') || app?.url || '';
+    if (fileUrl) {
+      try {
+        const parsed = new URL(fileUrl, window.location.href);
+        const segments = parsed.pathname.split('/').filter(Boolean);
+        const last = segments.pop() || '';
+        if (last && !/viewer\.html/i.test(last)) {
+          const decoded = decodeURIComponent(last);
+          return cleanContextPart(decoded, 'Document');
+        }
+      } catch (e) {}
+    }
+
+    // 5. Try document.title ONLY if it's not generic PDF.js viewer
+    const curTitle = document.title || '';
+    if (curTitle && !/pdf\.?js(\s+viewer)?/i.test(curTitle)) {
+      return curTitle.trim();
+    }
+
+    // 6. Try breadcrumb context from URL params
+    const ctx = readContextFromUrl();
+    if (ctx?.topic && ctx.topic !== 'this document') {
+      return ctx.topic;
+    }
+    if (ctx?.sub && ctx.sub !== 'this subject') {
+      return ctx.sub;
+    }
+
+    return 'Document';
+  }
+
   async function extractOreadPdfText(options = {}) {
     const app = window.PDFViewerApplication;
     const doc = app?.pdfDocument;
@@ -70,7 +126,10 @@
     const maxPages = options.maxPages || 40;
     const numPages = doc.numPages;
     const currentPage = app.page || 1;
-    const docTitle = cleanContextPart(document.title || app.title || activePdfUrl || 'Document', 'Document');
+    const docTitle = await resolveDocumentTitle(app, doc);
+    if (docTitle && docTitle !== 'Document' && (!document.title || /pdf\.?js(\s+viewer)?/i.test(document.title))) {
+      document.title = docTitle;
+    }
 
     // Specific page requested
     if (options.pageNumber && options.pageNumber >= 1 && options.pageNumber <= numPages) {
