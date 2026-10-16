@@ -1350,10 +1350,14 @@ i span {
 
 .switch {
     position: relative;
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
     width: 56px;
     height: 24px;
     flex-shrink: 0;
+    margin: 0;
+    vertical-align: middle;
+    align-self: center;
 }
 
 /* Expand touch target to 48x48 minimum for mobile compliance */
@@ -1463,6 +1467,7 @@ body.dark-mode input:checked+.slider {
 
 body.dark-mode input:checked+.slider:before {
     background-color: #ffffff;
+    transform: translateX(20px);
 }
 
 body.dark-mode {
@@ -1537,7 +1542,8 @@ body.dark-mode .container::after {
     transform: scale(1.15);
 }
 
-.card-layout.dark-mode {
+.card-layout.dark-mode,
+body.dark-mode .card-layout {
     background-color: var(--color-dark-bg-card);
     color: var(--color-dark-text-primary);
 }
@@ -2615,6 +2621,7 @@ body.dark-mode .account-link {
 .paper-mode-info {
     display: flex;
     flex-direction: column;
+    justify-content: center;
 }
 
 .paper-mode-title {

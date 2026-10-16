@@ -53,8 +53,8 @@
                 }, '*');
 
                 readReadingModes();
+                iframe.contentWindow.postMessage({ type: 'overlayMode', mode: 'paper-mode', enable: !!paperMode }, '*');
                 if (paperMode) {
-                    iframe.contentWindow.postMessage({ type: 'overlayMode', mode: 'paper-mode', enable: true }, '*');
                     const match = document.cookie.match(/(^| )paperTexture=([^;]+)/);
                     const savedTexture = match ? match[2] : 'black-paper';
                     iframe.contentWindow.postMessage({ type: 'paperTexture', textureUrl: `/assets/textures/${savedTexture}.png` }, '*');
@@ -62,15 +62,9 @@
                     const savedGrain = matchGrain ? matchGrain[2] : '100';
                     iframe.contentWindow.postMessage({ type: 'grainSize', sizePx: Math.round((parseInt(savedGrain) / 100) * 200) }, '*');
                 }
-                if (nightMode) {
-                    iframe.contentWindow.postMessage({ type: 'overlayMode', mode: 'night-reading', enable: true }, '*');
-                }
-                if (einkMode) {
-                    iframe.contentWindow.postMessage({ type: 'overlayMode', mode: 'eink-mode', enable: true }, '*');
-                }
-                if (invertMode) {
-                    iframe.contentWindow.postMessage({ type: 'overlayMode', mode: 'invert', enable: true }, '*');
-                }
+                iframe.contentWindow.postMessage({ type: 'overlayMode', mode: 'night-reading', enable: !!nightMode }, '*');
+                iframe.contentWindow.postMessage({ type: 'overlayMode', mode: 'eink-mode', enable: !!einkMode }, '*');
+                iframe.contentWindow.postMessage({ type: 'overlayMode', mode: 'invert', enable: !!invertMode }, '*');
             } catch (e) {}
         }
     }
@@ -549,6 +543,14 @@
             if (e.data && (e.data.type === 'applyOverlayModes' || e.data.type === 'requestOverlayModes')) {
                 syncThemeToIframe();
             }
+            if (e.data && e.data.type === 'pdfInvertToggled') {
+                invertMode = !!e.data.inverted;
+                if (typeof document !== 'undefined') {
+                    document.cookie = `invertMode=${invertMode ? 'true' : 'false'}; Max-Age=31536000; Path=/; SameSite=Lax`;
+                    const p = document.getElementById('popup');
+                    if (p) p.classList.toggle('invert-mode', invertMode);
+                }
+            }
             if (e.data && e.data.type === 'materioAnnotDiag') {
                 annotDiag('viewer>', e.data.line);
             }
@@ -904,16 +906,21 @@
     }
 
     function handleInvert(){
-        // Try iframe control first, fallback to settings toggle
-        if(!clickPdfViewerControl('toggleInvert')){
-            document.getElementById("invertModeToggle")?.click();
-            // also toggle popup class for immediate feedback
-            const p=document.getElementById('popup');
-            if(p) p.classList.toggle('invert');
-            // notify iframe via postMessage
-            const iframe=document.getElementById('pdf-iframe');
-            try{ iframe?.contentWindow?.postMessage({type:'toggleInvert'}, '*'); }catch{}
+        invertMode = !invertMode;
+        if (typeof document !== 'undefined') {
+            document.cookie = `invertMode=${invertMode ? 'true' : 'false'}; Max-Age=31536000; Path=/; SameSite=Lax`;
+            const p = document.getElementById('popup');
+            if (p) p.classList.toggle('invert-mode', invertMode);
+            const toggle = document.getElementById("invertModeToggle");
+            if (toggle && toggle.checked !== invertMode) {
+                toggle.checked = invertMode;
+                toggle.dispatchEvent(new Event('change'));
+            }
         }
+        const iframe = document.getElementById('pdf-iframe');
+        try {
+            iframe?.contentWindow?.postMessage({ type: 'overlayMode', mode: 'invert', enable: invertMode }, '*');
+        } catch (e) {}
     }
 
     async function sharePdf() {

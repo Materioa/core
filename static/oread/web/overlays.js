@@ -57,7 +57,38 @@
                     }
                 }
             }
-        }        // Handle theme synchronization
+        }
+
+        if (event.data && event.data.type === 'readingModes') {
+            const { invertMode, paperMode, nightMode, einkMode } = event.data;
+            if (typeof invertMode === 'boolean') {
+                const viewerElem = document.getElementById('viewer');
+                if (viewerElem) {
+                    if (invertMode) {
+                        viewerElem.classList.add('invert');
+                    } else {
+                        viewerElem.classList.remove('invert');
+                    }
+                    setTimeout(() => {
+                        try {
+                            if (window.PDFViewerApplication && window.PDFViewerApplication.pdfViewer) {
+                                window.PDFViewerApplication.pdfViewer.update();
+                            }
+                        } catch (e) {}
+                    }, 50);
+                }
+            }
+            if (typeof paperMode === 'boolean') {
+                document.body.classList.toggle('paper-mode', paperMode);
+            }
+            if (typeof nightMode === 'boolean') {
+                document.body.classList.toggle('night-reading', nightMode);
+            }
+            if (typeof einkMode === 'boolean') {
+                document.body.classList.toggle('eink-mode', einkMode);
+            }
+        }
+        // Handle theme synchronization
         if (event.data && event.data.type === 'themeMode') {
             const { isDark, actualMode } = event.data;
 
@@ -333,7 +364,13 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleInvertBtn.addEventListener('click', () => {
             const viewer = document.getElementById('viewer');
             if (viewer) {
-                viewer.classList.toggle('invert');
+                const isInverted = viewer.classList.toggle('invert');
+                try {
+                    window.parent.postMessage({
+                        type: 'pdfInvertToggled',
+                        inverted: isInverted
+                    }, '*');
+                } catch (e) {}
 
                 if (window.PDFViewerApplication && window.PDFViewerApplication.pdfViewer) {
                     setTimeout(() => {

@@ -983,10 +983,8 @@
                     if (rec.layer.div && rec.layer.div.hidden) rec.layer.div.hidden = false;
                     try {
                         var pageRot = rec.layer && rec.layer.viewport && normalizeRotation(rec.layer.viewport.rotation);
-                        if (pageRot && typeof ed.rotate === 'function') {
-                            ed.rotate(pageRot);
-                            if (typeof ed.fixAndSetPosition === 'function') ed.fixAndSetPosition();
-                        }
+                        if (typeof ed.fixAndSetPosition === 'function') ed.fixAndSetPosition();
+                        if (typeof ed.rotate === 'function') ed.rotate(pageRot || 0);
                     } catch (eRot3) {}
                     var r = ed.div && ed.div.getBoundingClientRect ? ed.div.getBoundingClientRect() : null;
                     diag('heal key=' + k, 'page=' + rec.pageIndex,
@@ -994,6 +992,34 @@
                 }
             } catch (e) { /* leave it for the next tick */ }
         }
+    }
+
+    function syncLayerEditors(pageIndex) {
+        try {
+            var v = viewer();
+            var pageView = v && v.getPageView ? v.getPageView(pageIndex) : null;
+            var builder = pageView && pageView.annotationEditorLayer;
+            var layer = builder && builder.annotationEditorLayer;
+            if (!layer) return;
+            var pageRotation = 0;
+            if (pageView && pageView.viewport && typeof pageView.viewport.rotation === 'number') {
+                pageRotation = normalizeRotation(pageView.viewport.rotation);
+            } else if (layer && layer.viewport && typeof layer.viewport.rotation === 'number') {
+                pageRotation = normalizeRotation(layer.viewport.rotation);
+            }
+            for (var tk in trackedEditors) {
+                var tracked = trackedEditors[tk];
+                if (tracked && tracked.pageIndex === pageIndex && tracked.editor) {
+                    var ed = tracked.editor;
+                    if (typeof ed.fixAndSetPosition === 'function') {
+                        try { ed.fixAndSetPosition(); } catch (eFix) {}
+                    }
+                    if (typeof ed.rotate === 'function') {
+                        try { ed.rotate(pageRotation || 0); } catch (eRot) {}
+                    }
+                }
+            }
+        } catch (e) {}
     }
 
     function ensurePoll() {
@@ -1267,12 +1293,10 @@
                     if (editor && (typeof layer.addOrRebuild === 'function' ||
                         typeof layer.add === 'function')) {
                         attachRestored(layer, editor);
-                        if (pageRotation !== 0) {
-                            try {
-                                if (typeof editor.rotate === 'function') editor.rotate(pageRotation);
-                                if (typeof editor.fixAndSetPosition === 'function') editor.fixAndSetPosition();
-                            } catch (eRot2) {}
-                        }
+                        try {
+                            if (typeof editor.fixAndSetPosition === 'function') editor.fixAndSetPosition();
+                            if (typeof editor.rotate === 'function') editor.rotate(pageRotation || 0);
+                        } catch (eRot2) {}
                         // PDF.js hides the editor layer's own container while it
                         // is empty:
                         //     render()  ->  if (this.isEmpty) this.div.hidden = true
@@ -1339,6 +1363,11 @@
         } finally {
             applying = false;
         }
+        try {
+            for (var p = 0; p < pages; p++) {
+                syncLayerEditors(p);
+            }
+        } catch (eSyncAll) {}
         if (!remaining.length) {
             pending = null;
             initApplied = true;
@@ -1698,10 +1727,16 @@
                             // Retrying here turns a page the reader scrolls to
                             // into an immediate restore instead of waiting for
                             // the next 1s poll.
-                            a.eventBus.on('pagerendered', function () {
+                            a.eventBus.on('pagerendered', function (evt) {
                                 if (pending && !applying) {
                                     try { applyPending(0); } catch (e) { /* ignore */ }
                                 }
+                                try {
+                                    var pageNum = evt && evt.pageNumber;
+                                    if (typeof pageNum === 'number') {
+                                        syncLayerEditors(pageNum - 1);
+                                    }
+                                } catch (e) { /* ignore */ }
                             });
                         } catch (e) { /* ignore */ }
                     }
