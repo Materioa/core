@@ -68,6 +68,13 @@
     } catch (e) {}
   }
 
+  function sendHideSidebarIcon() {
+    postToThinkletFrame({
+      type: 'MATERIO_HIDE_SIDEBAR_ICON',
+      hide: true
+    });
+  }
+
   function extractFilenameFromUrl(url) {
     if (!url) return '';
     try {
@@ -231,6 +238,20 @@
 
     if (cachedExtractedPdf && cachedExtractedPdf.numPages === numPages && cachedExtractedPdf.title === docTitle) {
       cachedExtractedPdf.currentPage = currentPage;
+      if (!cachedExtractedPdf.pages.some(p => p.pageNumber === currentPage)) {
+        try {
+          const page = await doc.getPage(currentPage);
+          const textContent = await page.getTextContent();
+          let pageText = textContent.items.map(item => item.str).join(' ');
+          let image = null;
+          let isScanned = false;
+          if (!pageText || pageText.trim().length < 40) {
+            image = await renderPageAsImage(page);
+            isScanned = true;
+          }
+          cachedExtractedPdf.pages.push({ pageNumber: currentPage, text: pageText, image, isScanned });
+        } catch (e) {}
+      }
       return cachedExtractedPdf;
     }
 
@@ -240,14 +261,27 @@
     try {
       const pages = [];
       let fullText = '';
+      const pagesToExtract = new Set();
       const limit = Math.min(numPages, maxPages);
+      for (let i = 1; i <= limit; i++) pagesToExtract.add(i);
+      // Always extract around user's active page so it is immediately accessible
+      for (let i = Math.max(1, currentPage - 2); i <= Math.min(numPages, currentPage + 2); i++) {
+        pagesToExtract.add(i);
+      }
+      const sortedPages = Array.from(pagesToExtract).sort((a, b) => a - b);
 
-      for (let i = 1; i <= limit; i++) {
+      for (const i of sortedPages) {
         try {
           const page = await doc.getPage(i);
           const textContent = await page.getTextContent();
-          const pageText = textContent.items.map(item => item.str).join(' ');
-          pages.push({ pageNumber: i, text: pageText });
+          let pageText = textContent.items.map(item => item.str).join(' ');
+          let image = null;
+          let pageIsScanned = false;
+          if (!pageText || pageText.trim().length < 40) {
+            image = await renderPageAsImage(page);
+            pageIsScanned = true;
+          }
+          pages.push({ pageNumber: i, text: pageText, image, isScanned: pageIsScanned });
           fullText += `--- Page ${i} ---\n${pageText}\n\n`;
         } catch (e) {}
       }
@@ -258,7 +292,7 @@
         title: docTitle,
         numPages,
         currentPage,
-        pageCount: limit,
+        pageCount: pages.length,
         fullText: fullText.trim(),
         pages,
         isScanned,
@@ -272,6 +306,7 @@
 
   async function sendPdfContextToThinklet() {
     try {
+      sendHideSidebarIcon();
       const data = await extractOreadPdfText();
       if (!data) return;
 
@@ -302,11 +337,39 @@
         sendPdfContextToThinklet();
       });
 
-      bus.on('pagechanging', (evt) => {
+      bus.on('pagechanging', async (evt) => {
         const pageNum = evt?.pageNumber || window.PDFViewerApplication?.page || 1;
+        let pageText = '';
+        let pageImage = null;
+        let isScanned = false;
+        try {
+          const doc = window.PDFViewerApplication?.pdfDocument;
+          if (doc && pageNum >= 1 && pageNum <= doc.numPages) {
+            const page = await doc.getPage(pageNum);
+            const textContent = await page.getTextContent();
+            pageText = textContent.items.map(item => item.str).join(' ');
+            if (!pageText || pageText.trim().length < 40) {
+              pageImage = await renderPageAsImage(page);
+              isScanned = true;
+            }
+            if (cachedExtractedPdf) {
+              cachedExtractedPdf.currentPage = pageNum;
+              const idx = cachedExtractedPdf.pages.findIndex(p => p.pageNumber === pageNum);
+              if (idx >= 0) {
+                cachedExtractedPdf.pages[idx] = { pageNumber: pageNum, text: pageText, image: pageImage, isScanned };
+              } else {
+                cachedExtractedPdf.pages.push({ pageNumber: pageNum, text: pageText, image: pageImage, isScanned });
+              }
+            }
+          }
+        } catch (e) {}
+
         postToThinkletFrame({
           type: 'MATERIO_PAGE_CHANGED',
-          pageNumber: pageNum
+          pageNumber: pageNum,
+          text: pageText,
+          image: pageImage,
+          isScanned: isScanned
         });
       });
     };
@@ -338,12 +401,14 @@
       return;
     }
 
-    frame.addEventListener('load', () => {
+    const sendInit = () => {
       postThinkletAuth(frame);
+      sendHideSidebarIcon();
       sendPdfContextToThinklet();
-    }, { once: true });
-    postThinkletAuth(frame);
-    sendPdfContextToThinklet();
+    };
+
+    frame.addEventListener('load', sendInit, { once: true });
+    sendInit();
   }
 
   function isNativeShell() {
