@@ -1,8 +1,8 @@
 (function () {
   'use strict';
 
-  const THINKLET_LOCAL_URL = 'http://localhost:5173/new';
-  const THINKLET_PROD_URL = 'https://chat.getmaterio.app/new';
+  const THINKLET_LOCAL_URL = 'http://localhost:5173';
+  const THINKLET_PROD_URL = 'https://chat.getmaterio.app';
   const THINKLET_WIDTH_KEY = 'materio_thinklet_panel_width';
   const THINKLET_RELEASE_OFFER_END = Date.parse('2026-08-27T00:00:00+05:30');
   let verifiedAccess = false;
@@ -11,7 +11,13 @@
   let selectionMenuTimer = 0;
   let selectionMenuSuppressedUntil = 0;
   let lastTheme = 'light';
-  let currentThinkletPath = '/new';
+  let currentThinkletPath = (function () {
+    try {
+      return localStorage.getItem('materio_thinklet_last_path') || '';
+    } catch (e) {
+      return '';
+    }
+  })();
 
   function getAuthToken() {
     return localStorage.getItem('materio_auth_token') || '';
@@ -571,8 +577,9 @@
   }
 
   function buildThinkletUrl(query = '') {
-    const url = new URL(getThinkletBaseUrl());
-    url.pathname = currentThinkletPath;
+    const baseUrl = getThinkletBaseUrl();
+    const targetPath = currentThinkletPath || '/';
+    const url = new URL(targetPath, baseUrl);
     return applyThinkletUrlParams(url, query).toString();
   }
 
@@ -615,8 +622,20 @@
         return false;
       }
 
-      if (isThinkletConversationPath(url.pathname) || url.pathname === '/new' || url.pathname === '/settings') {
+      if (isThinkletConversationPath(url.pathname)) {
         currentThinkletPath = url.pathname;
+        try {
+          localStorage.setItem('materio_thinklet_last_path', url.pathname);
+        } catch (e) {}
+        return true;
+      } else if (url.pathname === '/settings') {
+        currentThinkletPath = url.pathname;
+        return true;
+      } else if (url.pathname === '/new') {
+        currentThinkletPath = '/new';
+        try {
+          localStorage.removeItem('materio_thinklet_last_path');
+        } catch (e) {}
         return true;
       }
     } catch (error) {
@@ -639,8 +658,11 @@
     }
 
     lastTheme = nextTheme;
-    frame.src = buildThinkletUrl(selectedQuery);
-    attachThinkletAuth(frame);
+    // Seamless theme sync via postMessage without reloading or resetting active chat!
+    postToThinkletFrame({
+      type: 'MATERIO_SET_THEME',
+      theme: nextTheme
+    });
   }
 
   function isMobileSheet() {
@@ -751,28 +773,21 @@
     }
 
     if (open) {
-      let nextUrl = '';
-      let shouldLoadFrame = false;
-
-      if (options.keepCurrentFrame && frame.src) {
-        shouldLoadFrame = false;
-      } else {
-        if (options.reuseCurrentChat) {
-          nextUrl = buildThinkletUrlForCurrentChat(frame, query);
-        } else {
-          currentThinkletPath = '/new';
-          nextUrl = buildThinkletUrl(query);
-        }
-
-        shouldLoadFrame = !frame.src || frame.src !== nextUrl;
-      }
-
       applyStoredPanelWidth();
-      if (shouldLoadFrame) {
-        frame.src = nextUrl;
+      if (!frame.src) {
+        if (!currentThinkletPath) {
+          try {
+            currentThinkletPath = localStorage.getItem('materio_thinklet_last_path') || '';
+          } catch (e) {}
+        }
+        frame.src = buildThinkletUrl(query);
         attachThinkletAuth(frame);
       } else {
+        // Frame already initialized: NEVER reload or navigate to new page! Keep active chat intact!
         sendPdfContextToThinklet();
+        if (query) {
+          postThinkletQuery(`Explain this: ${query}`);
+        }
       }
       lastTheme = getCurrentTheme();
       selectedQuery = query;
@@ -814,9 +829,8 @@
     const panel = document.getElementById('thinkletPanel');
     const frame = document.getElementById('thinkletFrame');
 
-    if (verifiedAccess && panel && frame && !panel.hidden && currentThinkletPath === '/new') {
-      frame.src = buildThinkletUrl(selectedQuery);
-      attachThinkletAuth(frame);
+    if (verifiedAccess && panel && frame && !panel.hidden && frame.src) {
+      sendPdfContextToThinklet();
     }
   }
 
@@ -914,20 +928,8 @@
     selectedQuery = query;
     selectionMenuSuppressedUntil = Date.now() + 600;
     hideSelectionMenu();
-    const panel = document.getElementById('thinkletPanel');
-    const frame = document.getElementById('thinkletFrame');
-    const frameUrl = getFrameUrl(frame);
-    const canRewriteCurrentChat = frameUrl?.origin === getThinkletOrigin() && isThinkletConversationPath(frameUrl.pathname);
 
-    if (canRewriteCurrentChat) {
-      setPanelOpen(true, query, { reuseCurrentChat: true });
-    } else if (frame?.src && currentThinkletPath !== '/settings') {
-      setPanelOpen(true, query, { keepCurrentFrame: true });
-    } else {
-      setPanelOpen(true, query);
-    }
-
-    postThinkletQuery(`Explain this: ${query}`);
+    setPanelOpen(true, query);
   }
 
   function bindThinkletControls() {
@@ -956,8 +958,12 @@
       currentThinkletPath = '/settings';
       lastTheme = getCurrentTheme();
       applyStoredPanelWidth();
-      frame.src = buildThinkletUrl(selectedQuery);
-      attachThinkletAuth(frame);
+      if (frame.src) {
+        postToThinkletFrame({ type: 'MATERIO_NAVIGATE', path: '/settings' });
+      } else {
+        frame.src = buildThinkletUrl(selectedQuery);
+        attachThinkletAuth(frame);
+      }
       panel.hidden = false;
       updateBackdrop(true);
       button?.classList.add('toggled');
