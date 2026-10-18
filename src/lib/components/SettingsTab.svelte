@@ -38,6 +38,7 @@
     let insightroomFeed = true;
     let cookiesAccepted = false;
     let notificationsEnabled = true;
+    let displayLeaderboardName = true;
     let soundMaterialDropdownOpen = false;
 
     let selectedWallpaper = 'dynamic';
@@ -82,6 +83,41 @@
         const m=document.cookie.match(new RegExp('(^| )'+name+'=([^;]+)'));
         if (m) return decodeURIComponent(m[2]);
         try { return localStorage.getItem(name); } catch { return null; }
+    }
+
+    if (browser) {
+        try {
+            const rawLb = getCookie('displayLeaderboardName') ?? localStorage.getItem('displayLeaderboardName');
+            if (rawLb !== null) {
+                displayLeaderboardName = rawLb === 'true' || rawLb === true;
+            }
+        } catch {}
+    }
+
+    async function toggleDisplayLeaderboardName(e) {
+        displayLeaderboardName = e.target.checked;
+        if (browser) {
+            try {
+                localStorage.setItem('displayLeaderboardName', displayLeaderboardName ? 'true' : 'false');
+                document.cookie = `displayLeaderboardName=${displayLeaderboardName ? 'true' : 'false'}; Max-Age=31536000; Path=/; SameSite=Lax`;
+            } catch {}
+
+            try {
+                const token = localStorage.getItem('token') || localStorage.getItem('materio_auth_token');
+                if (token) {
+                    await fetch(toApiUrl('/api/v2/features?action=leaderboard-preferences'), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ displayLeaderboardName })
+                    });
+                }
+            } catch (err) {
+                console.warn('Failed to sync leaderboard preferences to server:', err);
+            }
+        }
     }
     import { getLoginUrl, getOverviewUrl } from '$lib/utils/app-urls.js';
 
@@ -138,7 +174,18 @@
             loginUrl = getLoginUrl();
             overviewUrl = getOverviewUrl();
             if (typeof localStorage !== 'undefined') {
-                isLoggedIn = !!(localStorage.getItem('token') || localStorage.getItem('materio_auth_token'));
+                const token = localStorage.getItem('token') || localStorage.getItem('materio_auth_token');
+                isLoggedIn = !!token;
+                if (token) {
+                    fetch(toApiUrl('/api/v2/profile'), {
+                        headers: { Authorization: `Bearer ${token}` }
+                    }).then(r => r.ok ? r.json() : null).then(data => {
+                        if (data?.user?.displayLeaderboardName !== undefined) {
+                            displayLeaderboardName = data.user.displayLeaderboardName !== false;
+                            localStorage.setItem('displayLeaderboardName', displayLeaderboardName ? 'true' : 'false');
+                        }
+                    }).catch(() => {});
+                }
             }
             const accountImg = document.getElementById('account-profile-image');
             const accountName = document.getElementById('account-name');
@@ -1486,6 +1533,20 @@
             </div>
             <label class="switch">
                 <input type="checkbox" id="notificationsToggle" class="setting-toggle" aria-label="Notifications" bind:checked={notificationsEnabled} on:change={(e)=>{notificationsEnabled=e.target.checked; localStorage.setItem("notificationsEnabled", notificationsEnabled ? "true":"false"); if(notificationsEnabled && "Notification" in window && Notification.permission==="default") Notification.requestPermission();}}>
+                <span class="slider"></span>
+            </label>
+        </div>
+    </div>
+
+    <!-- Display Name in Leaderboard -->
+    <div class="card-layout" id="leaderboardNameToggleCard">
+        <div class="toggle-container">
+            <div class="paper-mode-info">
+                <div class="paper-mode-title">Display Name in Leaderboard</div>
+                <div class="paper-mode-description">Makes your profile show up in public leaderboard.</div>
+            </div>
+            <label class="switch">
+                <input type="checkbox" id="displayLeaderboardNameToggle" class="setting-toggle" aria-label="Display Name in Leaderboard" bind:checked={displayLeaderboardName} on:change={toggleDisplayLeaderboardName}>
                 <span class="slider"></span>
             </label>
         </div>

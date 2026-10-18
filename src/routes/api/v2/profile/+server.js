@@ -98,11 +98,12 @@ export async function GET({ request }) {
 			let isPlusUser = false;
 			let isLiteUser = false;
 			let admin = false;
+			let displayLeaderboardName = true;
 			try {
 				const client = supabaseAdmin || supabase;
 				const { data, error } = await client
 					.from('users')
-					.select('has_admin_privileges, is_plus_user, is_lite_user')
+					.select('has_admin_privileges, is_plus_user, is_lite_user, display_name_in_leaderboard')
 					.eq('id', uid)
 					.limit(1);
 				const row = !error && Array.isArray(data) ? data[0] : null;
@@ -110,6 +111,7 @@ export async function GET({ request }) {
 					isPlusUser = !!row.is_plus_user;
 					isLiteUser = !!row.is_lite_user;
 					admin = !!row.has_admin_privileges;
+					displayLeaderboardName = row.display_name_in_leaderboard !== false;
 				}
 			} catch (err) {
 				console.warn('Profile lookup failed:', err?.message);
@@ -126,7 +128,7 @@ export async function GET({ request }) {
 			const decodedSignals = { ...(decoded || {}), role };
 			if (isAdminLike(decodedSignals)) admin = true;
 			if (isPlusLike(decodedSignals)) isPlusUser = true;
-			return json({ user: { id: uid, role, isPlusUser, isLiteUser, hasAdminPrivileges: admin } });
+			return json({ user: { id: uid, role, isPlusUser, isLiteUser, hasAdminPrivileges: admin, displayLeaderboardName } });
 		}
 
 		// Local secret didn't sign this token — ask the auth service that minted it.

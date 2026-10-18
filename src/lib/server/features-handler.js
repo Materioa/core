@@ -2661,6 +2661,7 @@ const ANALYTICS_RATE_WINDOW_MS = 60 * 1000;
 const ANALYTICS_RATE_LIMIT_IP = 180;
 const ANALYTICS_RATE_LIMIT_ANON = 90;
 const ANALYTICS_RATE_LIMIT_USER = 90;
+const ANALYTICS_RATE_LIMIT_PDF_OPENS = 12;
 const ANALYTICS_UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const analyticsRateBuckets = new Map();
@@ -2788,22 +2789,26 @@ function validateAnalyticsRequestOrigin(request) {
   return { ok: false, reason: 'Untrusted analytics request origin' };
 }
 
-function consumeAnalyticsRateLimit(key, limit, windowMs) {
+function consumeAnalyticsRateLimit(key, limit, windowMs, increment = 1) {
   const now = Date.now();
+  const inc = Math.max(1, Number(increment) || 1);
   const bucket = analyticsRateBuckets.get(key);
 
   if (!bucket || now - bucket.windowStart >= windowMs) {
-    analyticsRateBuckets.set(key, { count: 1, windowStart: now, lastSeen: now });
+    analyticsRateBuckets.set(key, { count: inc, windowStart: now, lastSeen: now });
+    if (inc > limit) {
+      return { allowed: false, retryAfterSec: Math.ceil(windowMs / 1000) };
+    }
     return { allowed: true };
   }
 
   bucket.lastSeen = now;
-  if (bucket.count >= limit) {
+  if (bucket.count + inc > limit) {
     const retryAfterMs = Math.max(windowMs - (now - bucket.windowStart), 1000);
     return { allowed: false, retryAfterSec: Math.ceil(retryAfterMs / 1000) };
   }
 
-  bucket.count += 1;
+  bucket.count += inc;
   return { allowed: true };
 }
 
@@ -3016,6 +3021,23 @@ async function handleAnalyticsIngest(request) {
         : null);
     delete data.rawUserId;
 
+    // Sync leaderboard display name preference if provided in user settings
+    if (data.p_user_id && data.p_usermeta_diff?.state?.settings?.displayLeaderboardName !== undefined) {
+      const displayOpt = data.p_usermeta_diff.state.settings.displayLeaderboardName;
+      const shouldDisplay = displayOpt === true || displayOpt === 'true';
+      const client = supabaseAdmin || supabase;
+      client
+        .from('users')
+        .update({ display_name_in_leaderboard: shouldDisplay })
+        .eq('id', data.p_user_id)
+        .then(() => {
+          if (!shouldDisplay) {
+            redisDel(`user:display_name:${data.p_user_id}`).catch(() => {});
+          }
+        })
+        .catch(() => {});
+    }
+
     // Best-effort and bounded: when the Mongo pool is sick this lookup would
     // otherwise queue behind it (15s wait-queue) and hold every analytics
     // flush hostage. A missed ban check on one flush is harmless; the next
@@ -3053,6 +3075,27 @@ async function handleAnalyticsIngest(request) {
       const userLimit = consumeAnalyticsRateLimit(`analytics:user:${data.p_user_id}`, ANALYTICS_RATE_LIMIT_USER, ANALYTICS_RATE_WINDOW_MS);
       if (!userLimit.allowed) {
         return json({ error: 'Too many analytics requests for user' }, { status: 429, headers: { 'Retry-After': String(userLimit.retryAfterSec) } });
+      }
+    }
+
+    // Anti-scraping rate limit on PDF opens (protects syllabus and question banks)
+    const totalPdfOpens = Object.values(data.p_metrics_diff?.pdf_counts || {}).reduce(
+      (sum, item) => sum + (typeof item?.count === 'number' ? item.count : 0),
+      0
+    );
+    if (totalPdfOpens > 0) {
+      const pdfLimitKey = `analytics:pdf_opens:${data.p_user_id || data.p_anon_id}`;
+      const pdfOpenLimit = consumeAnalyticsRateLimit(
+        pdfLimitKey,
+        ANALYTICS_RATE_LIMIT_PDF_OPENS,
+        ANALYTICS_RATE_WINDOW_MS,
+        totalPdfOpens
+      );
+      if (!pdfOpenLimit.allowed) {
+        return json(
+          { error: 'PDF access velocity exceeded, potential scraping detected' },
+          { status: 429, headers: { 'Retry-After': String(pdfOpenLimit.retryAfterSec) } }
+        );
       }
     }
 
@@ -3332,7 +3375,7 @@ async function fetchLeaderboardIdentityMap(readerIds = []) {
   for (let i = 0; i < missingUserIds.length; i += chunkSize) {
     const chunk = missingUserIds.slice(i, i + chunkSize);
     const { data, error } = await supabaseWithTimeout(
-      client.from('users').select('id,display_name,username').in('id', chunk),
+      client.from('users').select('id,display_name,username,display_name_in_leaderboard').in('id', chunk),
       'leaderboard identity lookup'
     );
     if (error) throw error;
@@ -3340,6 +3383,11 @@ async function fetchLeaderboardIdentityMap(readerIds = []) {
     for (const row of data || []) {
       const id = String(row.id || '').trim();
       if (!id) continue;
+      if (row.display_name_in_leaderboard === false) {
+        identities.set(id, 'Anonymous');
+        redisSet(`user:display_name:${id}`, 'Anonymous', 86400).catch(() => {});
+        continue;
+      }
       const displayName = String(row.display_name || '').trim() || String(row.username || '').trim() || null;
       if (displayName) {
         identities.set(id, displayName);
@@ -3567,10 +3615,12 @@ async function handleAnalyticsLeaderboard(request, url) {
           const readableId = entry.readerId || 'reader';
           const maskedId = readableId.slice(-6).padStart(6, '0');
           const resolvedName = !entry.isAnonymous && identityMap.has(entry.readerId) ? identityMap.get(entry.readerId) : null;
+          const isAnonOptOut = resolvedName === 'Anonymous';
           return {
             ...entry,
             rank: index + 1,
-            displayName: resolvedName || (entry.isAnonymous ? `Anon #${maskedId}` : `Reader #${maskedId}`)
+            isAnonymous: entry.isAnonymous || isAnonOptOut,
+            displayName: isAnonOptOut ? 'Anonymous' : (resolvedName || (entry.isAnonymous ? `Anon #${maskedId}` : `Reader #${maskedId}`))
           };
         });
     }
@@ -3651,6 +3701,56 @@ async function handleAnalyticsLeaderboard(request, url) {
   }
 }
 
+async function handleLeaderboardPreferences(request) {
+  if (request.method !== 'POST') {
+    return json({ error: 'Method not allowed' }, { status: 405 });
+  }
+
+  const token = getTokenFromHeaders(request.headers);
+  if (!token) {
+    return json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  let uid = null;
+  const decoded = verifyToken(token);
+  uid = decoded?.id || decoded?.sub || null;
+
+  if (!uid) {
+    return json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const body = await request.json().catch(() => ({}));
+    const displayLeaderboardName = body.displayLeaderboardName !== false && body.display_name_in_leaderboard !== false;
+
+    const client = supabaseAdmin || supabase;
+    const { error } = await supabaseWithTimeout(
+      client
+        .from('users')
+        .update({
+          display_name_in_leaderboard: displayLeaderboardName,
+          updated_at: new Date()
+        })
+        .eq('id', uid),
+      'update leaderboard preference'
+    );
+
+    if (error) throw error;
+
+    // Invalidate Redis caches
+    await Promise.all([
+      redisDel(`user:display_name:${uid}`),
+      redisDel('leaderboard:today:50'),
+      redisDel('leaderboard:weekly:50')
+    ]).catch(() => {});
+
+    return json({ ok: true, displayLeaderboardName });
+  } catch (err) {
+    console.error('Error updating leaderboard preference:', err);
+    return json({ error: 'Failed to update leaderboard preference' }, { status: 500 });
+  }
+}
+
 // ==========================================
 // Central Features Dispatcher
 // Matches parent features.js exactly
@@ -3663,6 +3763,7 @@ export function resolveFeatureAction(url, params) {
   if (action === 'analytics-views' || action === 'views') return 'analytics-views';
   if (action === 'promo-stats' || action === 'promoStats') return 'promo-stats';
   if (action === 'analytics-leaderboard' || action === 'leaderboard') return 'analytics-leaderboard';
+  if (action === 'leaderboard-preferences' || action === 'display-name-toggle') return 'leaderboard-preferences';
   if (action === 'analytics') return 'analytics';
   if (action === 'notifications-feed') return 'notifications-feed';
 
@@ -3733,6 +3834,9 @@ export async function handleFeaturesRequest({ request, url, params }) {
 
   if (feature === 'analytics-views' || feature === 'views') {
     return handleAnalyticsViews(url);
+  }
+  if (feature === 'leaderboard-preferences' || feature === 'display-name-toggle') {
+    return handleLeaderboardPreferences(request);
   }
   if (feature === 'promo-stats') {
     return handlePromoStats(request, url);

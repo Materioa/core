@@ -15,6 +15,8 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_PDF_ENTRIES = 30;
 const MAX_OPENS_PER_ITEM = 8;
 const MAX_TOTAL_OPENS = 30;
+export const MAX_REQUEST_READING_SEC = 2 * 60 * 60; // 7,200s (2 hours)
+export const MAX_REQUEST_ENGAGEMENT_SEC = 3 * 60 * 60; // 10,800s (3 hours)
 
 export function todayLocalISO(now = new Date()) {
 	return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
@@ -129,11 +131,17 @@ export function mergeAnalyticsPayload(base, pending) {
 		p_date: chooseDate(b.p_date, pending.p_date),
 		p_user_id: b.p_user_id ?? pending.p_user_id ?? null,
 		p_metrics_diff: {
-			total_reading_sec: num(bm.total_reading_sec) + num(pm.total_reading_sec),
+			total_reading_sec: Math.min(
+				Math.max(0, num(bm.total_reading_sec) + num(pm.total_reading_sec)),
+				MAX_REQUEST_READING_SEC
+			),
 			pdf_counts: mergePdfCounts(bm.pdf_counts, pm.pdf_counts)
 		},
 		p_usermeta_diff: {
-			total_engagement_sec: num(bu.total_engagement_sec) + num(pu.total_engagement_sec),
+			total_engagement_sec: Math.min(
+				Math.max(0, num(bu.total_engagement_sec) + num(pu.total_engagement_sec)),
+				MAX_REQUEST_ENGAGEMENT_SEC
+			),
 			session: isObj(bu.session) ? bu.session : isObj(pu.session) ? pu.session : null,
 			engagement: mergeEngagement(bu.engagement, pu.engagement),
 			// Pending state first so the fresher live state wins on conflicts —

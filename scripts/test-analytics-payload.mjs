@@ -9,7 +9,9 @@ import {
 	chooseDate,
 	mergeAnalyticsPayload,
 	hasSendableData,
-	attachDeviceState
+	attachDeviceState,
+	MAX_REQUEST_READING_SEC,
+	MAX_REQUEST_ENGAGEMENT_SEC
 } from '../src/lib/utils/analytics-payload.js';
 
 let ran = 0;
@@ -134,6 +136,17 @@ test('merge stays inside the server rejection limits (30 opens / 8 per item)', (
 test('merge with a payload-less pending is a no-op', () => {
 	assert.deepEqual(mergeAnalyticsPayload(base(), null), base());
 	assert.deepEqual(mergeAnalyticsPayload(base(), 'garbage'), base());
+});
+
+test('merge caps total_reading_sec and total_engagement_sec to single-request maximums', () => {
+	const bloated = {
+		p_date: todayLocalISO(),
+		p_metrics_diff: { total_reading_sec: 999999, pdf_counts: {} },
+		p_usermeta_diff: { total_engagement_sec: 888888, engagement: {} }
+	};
+	const m = mergeAnalyticsPayload(bloated, bloated);
+	assert.equal(m.p_metrics_diff.total_reading_sec, MAX_REQUEST_READING_SEC);
+	assert.equal(m.p_usermeta_diff.total_engagement_sec, MAX_REQUEST_ENGAGEMENT_SEC);
 });
 
 // ------------------------------------------------------------ sendable guard

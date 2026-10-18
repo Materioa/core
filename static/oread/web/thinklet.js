@@ -11,13 +11,12 @@
   let selectionMenuTimer = 0;
   let selectionMenuSuppressedUntil = 0;
   let lastTheme = 'light';
-  let currentThinkletPath = (function () {
-    try {
-      return localStorage.getItem('materio_thinklet_last_path') || '';
-    } catch (e) {
-      return '';
-    }
-  })();
+  // Clean up any legacy thinklet path from localStorage so chats don't leak across different PDFs or sessions
+  try {
+    localStorage.removeItem('materio_thinklet_last_path');
+  } catch (e) {}
+
+  let currentThinkletPath = '/new';
 
   function getAuthToken() {
     return localStorage.getItem('materio_auth_token') || '';
@@ -643,7 +642,7 @@
 
   function buildThinkletUrl(query = '') {
     const baseUrl = getThinkletBaseUrl();
-    const targetPath = currentThinkletPath || '/';
+    const targetPath = currentThinkletPath || '/new';
     const url = new URL(targetPath, baseUrl);
     return applyThinkletUrlParams(url, query).toString();
   }
@@ -689,18 +688,12 @@
 
       if (isThinkletConversationPath(url.pathname)) {
         currentThinkletPath = url.pathname;
-        try {
-          localStorage.setItem('materio_thinklet_last_path', url.pathname);
-        } catch (e) {}
         return true;
       } else if (url.pathname === '/settings') {
         currentThinkletPath = url.pathname;
         return true;
       } else if (url.pathname === '/new') {
         currentThinkletPath = '/new';
-        try {
-          localStorage.removeItem('materio_thinklet_last_path');
-        } catch (e) {}
         return true;
       }
     } catch (error) {
@@ -840,11 +833,6 @@
     if (open) {
       applyStoredPanelWidth();
       if (!frame.src) {
-        if (!currentThinkletPath) {
-          try {
-            currentThinkletPath = localStorage.getItem('materio_thinklet_last_path') || '';
-          } catch (e) {}
-        }
         frame.src = buildThinkletUrl(query);
         attachThinkletAuth(frame);
       } else {
@@ -1156,8 +1144,16 @@
       }
 
       if (event.data?.type === 'loadFile' && event.data.url) {
+        const isDifferentPdf = activePdfUrl && activePdfUrl !== event.data.url;
         activePdfUrl = event.data.url;
         cachedExtractedPdf = null;
+        if (isDifferentPdf) {
+          currentThinkletPath = '/new';
+          const frame = document.getElementById('thinkletFrame');
+          if (frame?.src) {
+            frame.src = '';
+          }
+        }
         updateOpenPanelContext();
         setTimeout(sendPdfContextToThinklet, 800);
       }

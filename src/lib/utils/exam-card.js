@@ -889,16 +889,38 @@ function isExamMatch(exam, subjectName) {
     if (!exam || !subjectName) return false;
     if (exam.global === true) return true;
     
-    const normalizeForMatch = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, ' ').trim();
+    const normalizeForMatch = (str) => String(str || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').trim();
+    const stripAll = (str) => String(str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const normalizeStem = (str) => normalizeForMatch(str)
+        .replace(/\banalytics\b/g, 'analysis')
+        .replace(/\btechnologies\b/g, 'technology')
+        .replace(/\btechniques\b/g, 'technique');
+
     const subjectNorm = normalizeForMatch(subjectName);
     const examNorm = normalizeForMatch(exam.subject);
     
     if (examNorm.includes(subjectNorm) || subjectNorm.includes(examNorm)) return true;
 
+    // Space-insensitive match (e.g. 'Cyber Security' vs 'Cybersecurity')
+    const subNoSpace = stripAll(subjectName);
+    const examNoSpace = stripAll(exam.subject);
+    if (subNoSpace && examNoSpace && (examNoSpace.includes(subNoSpace) || subNoSpace.includes(examNoSpace))) {
+        return true;
+    }
+
+    // Stem / synonym match (e.g. 'Analytics' vs 'Analysis')
+    const subStem = normalizeStem(subjectName);
+    const examStem = normalizeStem(exam.subject);
+    if (subStem && examStem && (examStem.includes(subStem) || subStem.includes(examStem))) {
+        return true;
+    }
+
     if (exam.aliases && Array.isArray(exam.aliases)) {
         for (const alias of exam.aliases) {
             const aliasNorm = normalizeForMatch(alias);
             if (aliasNorm.includes(subjectNorm) || subjectNorm.includes(aliasNorm)) return true;
+            const aliasNoSpace = stripAll(alias);
+            if (aliasNoSpace && (aliasNoSpace.includes(subNoSpace) || subNoSpace.includes(aliasNoSpace))) return true;
         }
     }
 

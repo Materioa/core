@@ -27,6 +27,10 @@ const ANALYTICS_URL = '/api/v2/features?action=analytics';
 const STORAGE_ANON_ID = 'materio_anon_id';
 const STORAGE_PENDING = 'materio_analytics_pending';
 const STORAGE_DEVICE_CTX = 'materio_device_ctx';
+const BROADCAST_CHANNEL_NAME = 'materio_analytics_sync';
+const STORAGE_ACTIVE_TAB = 'materio_analytics_active_tab';
+const IDLE_CUTOFF_MS = { page: 60000, pdf: 180000 }; // 60s page idle, 180s (3 min) PDF idle
+const MIN_PDF_DWELL_MS = 5000; // 5s minimum dwell time to qualify as an authentic PDF read
 // appVersion is refreshed live on every flush (a user who updates the app
 // must show up under the new version immediately); the other fields are
 // hardware-stable and cached per install.
@@ -70,7 +74,8 @@ function readSettings() {
   const s = {};
   const keys = [
     'theme', 'accentColor', 'invertMode', 'paperMode', 'nightMode', 'einkMode',
-    'enableBg', 'selectedWallpaper', 'notificationsEnabled', 'hapticToggle'
+    'enableBg', 'selectedWallpaper', 'notificationsEnabled', 'hapticToggle',
+    'displayLeaderboardName'
   ];
   try {
     document.cookie.split(';').forEach((c) => {
@@ -241,14 +246,22 @@ class ExodusAnalytics {
       engagement: { clicks: {}, scroll: 0, zoom: 0, shortcuts: {} },
       state: null
     };
+    this._tabId = 'tab_' + Math.random().toString(36).substring(2, 10);
+    this._isTabActive =
+      typeof document !== 'undefined' &&
+      document.visibilityState === 'visible' &&
+      (typeof document.hasFocus === 'function' ? document.hasFocus() : true);
+    this._channel = null;
     this._pageActiveTs = Date.now();
     this._pdfTitle = null;
     this._pdfOpenTs = 0;
+    this._pdfCounted = false;
+    this._lastPdfOpenAttemptTs = 0;
     this._lastActivityTs = Date.now();
     this._lastPdfScrollTs = Date.now();
     this._flushTimer = null;
-    this._lastFlushAt = 0;
-    this._idleMs = { page: 120000, pdf: 300000 };
+    this._lastFlushAt = Date.now();
+    this._idleMs = IDLE_CUTOFF_MS;
     this._lastTab = null;
     this._init();
   }
@@ -275,6 +288,7 @@ class ExodusAnalytics {
   }
 
   _init() {
+    this._setupTabCoordination();
     this._retryPending();
     this._prepareSession();
     this._refreshState();
@@ -284,10 +298,75 @@ class ExodusAnalytics {
     this._setupClickTracking();
   }
 
+  _setupTabCoordination() {
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        this._channel = new BroadcastChannel(BROADCAST_CHANNEL_NAME);
+        this._channel.onmessage = (event) => {
+          try {
+            const data = event?.data;
+            if (!data || typeof data !== 'object') return;
+            if (data.type === 'CLAIM_ACTIVE' && data.tabId !== this._tabId) {
+              if (this._isTabActive) {
+                this._recordEngagementUntil(Date.now());
+                this._isTabActive = false;
+              }
+            }
+          } catch {}
+        };
+      }
+    } catch {}
+
+    try {
+      window.addEventListener('storage', (e) => {
+        try {
+          if (e.key === STORAGE_ACTIVE_TAB && e.newValue) {
+            const data = JSON.parse(e.newValue);
+            if (data?.tabId && data.tabId !== this._tabId && this._isTabActive) {
+              this._recordEngagementUntil(Date.now());
+              this._isTabActive = false;
+            }
+          }
+        } catch {}
+      });
+    } catch {}
+
+    if (this._isTabActive) {
+      this._claimActiveTab();
+    }
+  }
+
+  _claimActiveTab() {
+    this._isTabActive = true;
+    const now = Date.now();
+    this._pageActiveTs = now;
+    this._lastActivityTs = now;
+    if (this._pdfTitle) this._lastPdfScrollTs = now;
+    try {
+      if (this._channel) {
+        this._channel.postMessage({ type: 'CLAIM_ACTIVE', tabId: this._tabId, ts: now });
+      }
+      localStorage.setItem(STORAGE_ACTIVE_TAB, JSON.stringify({ tabId: this._tabId, ts: now }));
+    } catch {}
+  }
+
+  _yieldActiveTab() {
+    if (!this._isTabActive) return;
+    this._recordEngagementUntil(Date.now());
+    this._isTabActive = false;
+    try {
+      if (this._channel) {
+        this._channel.postMessage({ type: 'YIELD_ACTIVE', tabId: this._tabId, ts: Date.now() });
+      }
+    } catch {}
+  }
+
   _setupHeartbeat() {
     setInterval(() => {
       try {
         const now = Date.now();
+        // Background/inactive tabs never accumulate or flush heartbeats
+        if (!this._isTabActive || (typeof document !== 'undefined' && document.visibilityState !== 'visible')) return;
         const idleThreshold = this._pdfTitle ? this._idleMs.pdf : this._idleMs.page;
         if (now - this._lastActivityTs > idleThreshold) return;
         this._recordEngagementUntil(now);
@@ -348,11 +427,29 @@ class ExodusAnalytics {
   }
 
   _recordEngagementUntil(now = Date.now()) {
+    // Only the single active and visible tab may accrue engagement
+    if (!this._isTabActive || (typeof document !== 'undefined' && document.visibilityState !== 'visible')) {
+      this._pageActiveTs = now;
+      return;
+    }
     if (now <= this._pageActiveTs) return;
-    const idleCutoff = this._pdfTitle
-      ? this._lastPdfScrollTs + this._idleMs.pdf
-      : this._lastActivityTs + this._idleMs.page;
-    const engagedSec = Math.floor((Math.min(now, idleCutoff) - this._pageActiveTs) / 1000);
+
+    const idleThreshold = this._pdfTitle ? this._idleMs.pdf : this._idleMs.page;
+    const lastActive = this._pdfTitle ? this._lastPdfScrollTs : this._lastActivityTs;
+    const idleCutoff = lastActive + idleThreshold;
+
+    // If already past idle cutoff, do not count the idle period
+    if (now > idleCutoff && this._pageActiveTs >= idleCutoff) {
+      this._pageActiveTs = now;
+      return;
+    }
+
+    const effectiveEnd = Math.min(now, idleCutoff);
+    const rawSec = Math.floor((effectiveEnd - this._pageActiveTs) / 1000);
+    // Wall-clock sanity: cannot exceed elapsed physical time
+    const wallSec = Math.floor((now - this._pageActiveTs) / 1000);
+    const engagedSec = Math.max(0, Math.min(rawSec, wallSec));
+
     if (engagedSec > 0) {
       this.usermetaDiff.total_engagement_sec += engagedSec;
       if (this._pdfTitle) {
@@ -361,6 +458,12 @@ class ExodusAnalytics {
           this.metricsDiff.pdf_counts[this._pdfTitle] ||
           (this.metricsDiff.pdf_counts[this._pdfTitle] = { count: 0, time_sec: 0 });
         entry.time_sec += engagedSec;
+
+        // Qualify PDF read: if user has engaged for at least 5s, credit the read
+        if (!this._pdfCounted && (now - this._pdfOpenTs) >= MIN_PDF_DWELL_MS) {
+          entry.count += 1;
+          this._pdfCounted = true;
+        }
       }
     }
     this._pageActiveTs = now;
@@ -368,31 +471,50 @@ class ExodusAnalytics {
 
   _openPdf(title) {
     const now = Date.now();
+    // Throttle rapid opening loops (< 2.5s) to mitigate bot scraping
+    if (now - this._lastPdfOpenAttemptTs < 2500) return;
+    this._lastPdfOpenAttemptTs = now;
+
     this._recordEngagementUntil(now);
     const clean = normalizePdfTitle(title);
     // Same-doc reopen within 5s (modal re-render) is not a new open.
     if (this._pdfTitle === clean && now - this._pdfOpenTs < 5000) return;
+
+    if (this._pdfTitle && this._pdfTitle !== clean) {
+      this._closePdf();
+    }
+
     this._pdfTitle = clean;
     this._pdfOpenTs = now;
+    this._pdfCounted = false;
     this._lastPdfScrollTs = now;
+
     if (Object.keys(this.metricsDiff.pdf_counts).length >= MAX_PDF_ENTRIES && !this.metricsDiff.pdf_counts[clean]) {
       this._flush();
     }
-    const entry =
-      this.metricsDiff.pdf_counts[clean] ||
-      (this.metricsDiff.pdf_counts[clean] = { count: 0, time_sec: 0 });
-    entry.count += 1;
+    if (!this.metricsDiff.pdf_counts[clean]) {
+      this.metricsDiff.pdf_counts[clean] = { count: 0, time_sec: 0 };
+    }
     this._refreshState();
-    this._scheduleFlush();
   }
 
   _closePdf() {
     if (!this._pdfTitle) return;
-    this._recordEngagementUntil(Date.now());
+    const now = Date.now();
+    this._recordEngagementUntil(now);
+
+    // If closed after >= 5s of reading and not counted yet, credit it
+    if (!this._pdfCounted && (now - this._pdfOpenTs) >= MIN_PDF_DWELL_MS) {
+      const entry = this.metricsDiff.pdf_counts[this._pdfTitle];
+      if (entry) entry.count += 1;
+      this._pdfCounted = true;
+    }
+
     this._refreshState();
     this._scheduleFlush();
     this._pdfTitle = null;
     this._pdfOpenTs = 0;
+    this._pdfCounted = false;
   }
 
   // Exact PDF lifecycle from the store: every open path (search, reading
@@ -482,26 +604,24 @@ class ExodusAnalytics {
   }
 
   _setupActivityListeners() {
-    const mark = (isPdfScrollEvent) => {
+    const mark = (ev, isPdfScrollEvent) => {
+      // Ignore untrusted synthetic events (automated bot dispatchEvent loops)
+      if (ev && ev.isTrusted === false) return;
+
       const now = Date.now();
+      // If we weren't active, user interaction in this tab claims active status
+      if (!this._isTabActive && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        this._claimActiveTab();
+      }
+
       this._recordEngagementUntil(now);
       this._lastActivityTs = now;
       if (this._pdfTitle && isPdfScrollEvent) this._lastPdfScrollTs = now;
     };
     const pdfScrollEvents = new Set(['scroll', 'wheel', 'touchmove']);
-    // The event name was never passed to addEventListener, so each call threw
-    // "parameter 1 is not of type 'string'", the forEach died on its first
-    // iteration, and the surrounding catch swallowed it. That left all six
-    // activity listeners unregistered, so _lastActivityTs froze at page load.
-    // Two consequences: _recordEngagementUntil capped itself at the idle
-    // cutoff forever (2 min, or 5 min in a PDF), and the heartbeat's idle gate
-    // was permanently tripped so it never flushed at all. Long reading
-    // sessions reported almost nothing.
-    // Registered individually so one failure can't take out the rest, and
-    // captured because 'scroll' does not bubble (scrollable inner elements).
     ['mousedown', 'keydown', 'scroll', 'touchstart', 'wheel', 'touchmove'].forEach((ev) => {
       try {
-        document.addEventListener(ev, () => mark(pdfScrollEvents.has(ev)), {
+        document.addEventListener(ev, (e) => mark(e, pdfScrollEvents.has(ev)), {
           passive: true,
           capture: true
         });
@@ -513,28 +633,42 @@ class ExodusAnalytics {
       // Viewer iframe activity bridge (posted by the PDF viewer when present).
       window.addEventListener('message', (event) => {
         try {
-          if (event.origin !== window.location.origin) return;
+          if (event.origin && event.origin !== 'null' && event.origin !== window.location.origin) return;
           if (!event.data || event.data.type !== 'pdfUserActivity') return;
           if (!this._pdfTitle) return;
-          mark(true);
+          mark(null, true);
         } catch {}
       });
       document.addEventListener('visibilitychange', () => {
         try {
-          this._recordEngagementUntil(Date.now());
           if (document.visibilityState === 'visible') {
-            this._pageActiveTs = Date.now();
-            this._lastActivityTs = Date.now();
-            if (this._pdfTitle) this._lastPdfScrollTs = Date.now();
+            this._claimActiveTab();
           } else {
+            this._yieldActiveTab();
             this._refreshState();
             this._flush(true);
           }
         } catch {}
       });
+      window.addEventListener('focus', () => {
+        try {
+          if (document.visibilityState === 'visible') {
+            this._claimActiveTab();
+          }
+        } catch {}
+      });
+      window.addEventListener('blur', () => {
+        try {
+          // If activeElement is an iframe (e.g. PDF viewer), focus transferred into the iframe — do NOT yield!
+          if (document.activeElement && document.activeElement.tagName === 'IFRAME') {
+            return;
+          }
+          this._recordEngagementUntil(Date.now());
+        } catch {}
+      });
       window.addEventListener('pagehide', () => {
         try {
-          this._recordEngagementUntil(Date.now());
+          this._yieldActiveTab();
           this._refreshState();
           this._flush(true);
         } catch {}
@@ -559,6 +693,21 @@ class ExodusAnalytics {
           settings: readSettings()
         });
       }
+      const now = Date.now();
+      const elapsedSec = Math.ceil((now - (this._lastFlushAt || this._pageActiveTs)) / 1000);
+      const maxPossibleSec = Math.max(15, elapsedSec + 15);
+      if (this.metricsDiff.total_reading_sec > maxPossibleSec) {
+        this.metricsDiff.total_reading_sec = maxPossibleSec;
+      }
+      if (this.usermetaDiff.total_engagement_sec > maxPossibleSec) {
+        this.usermetaDiff.total_engagement_sec = maxPossibleSec;
+      }
+      for (const entry of Object.values(this.metricsDiff.pdf_counts || {})) {
+        if (entry && entry.time_sec > maxPossibleSec) {
+          entry.time_sec = maxPossibleSec;
+        }
+      }
+
       const payload = {
         metrics: { ...this.metricsDiff },
         usermeta
