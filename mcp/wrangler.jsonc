@@ -9,6 +9,12 @@
     "enabled": true
   },
   "main": "src/worker.ts",
+  "vars": {
+    "MATERIO_API_URL": "https://getmaterio.app",
+    "INSIGHTROOM_API_URL": "https://room.getmaterio.app",
+    "JWT_SECRET": "3a765eaecf1a7fbca0a98524459fce66cecb9da12997f6d22f60b2512fde022d",
+    "LEGACY_JWT_SECRET": "3a765eaecf1a7fbca0a98524459fce66cecb9da12997f6d22f60b2512fde022d"
+  },
   "routes": [
     {
       "pattern": "mcp.getmaterio.app",

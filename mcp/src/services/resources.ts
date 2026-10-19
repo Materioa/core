@@ -5,7 +5,7 @@
 
 import {
   CDN_BASE,
-  API_BASE,
+  PDF_API_BASE,
   RESOURCE_LIB_URL,
   POINTER_THRESHOLD,
   CACHE_TTL,
@@ -56,7 +56,7 @@ export function buildPdfUrl(
   topic: string,
   useApi: boolean = false
 ): string {
-  const base = useApi ? API_BASE : CDN_BASE;
+  const base = useApi ? PDF_API_BASE : CDN_BASE;
   const prefix = useApi ? "/api/pdfs" : "/pdfs";
   if (semester === "9999") {
     return `${base}${prefix}/${semester}/${slugify(subject)}/vault/${slugify(topic)}.pdf`;

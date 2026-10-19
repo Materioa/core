@@ -284,7 +284,7 @@ export function registerCommunityTools(
     },
     async ({ limit, subject, semester, authToken }) => {
       try {
-        const { effectiveTier, effectiveToken } = await resolveAuth(authToken);
+        const { effectiveTier, effectiveToken, effectiveUser } = await resolveAuth(authToken);
         const includePrivate = effectiveTier === "plus" || effectiveTier === "super";
 
         const posts = await fetchInsightroomPosts({
@@ -293,6 +293,7 @@ export function registerCommunityTools(
           semester,
           token: effectiveToken,
           includePrivate,
+          user: effectiveUser,
         });
 
         return {
@@ -332,7 +333,7 @@ export function registerCommunityTools(
     },
     async ({ slug, category, authToken }) => {
       try {
-        const { effectiveTier, effectiveToken } = await resolveAuth(authToken);
+        const { effectiveTier, effectiveToken, effectiveUser } = await resolveAuth(authToken);
         const canAccessPrivate = effectiveTier === "plus" || effectiveTier === "super";
 
         const result = await readInsightroomPost({
@@ -340,6 +341,7 @@ export function registerCommunityTools(
           category,
           token: effectiveToken,
           canAccessPrivate,
+          user: effectiveUser,
         });
 
         return {

@@ -7,14 +7,17 @@ import crypto from "crypto";
 import { API_BASE, INSIGHTROOM_API_BASE } from "../constants.js";
 
 export function signLegacyToken(user?: any): string {
-  const secret = process.env.LEGACY_JWT_SECRET || "8EF/5eF2Qm1Oe0xL7kMp7zHSHINjb6bU66U5FcV7AdY=";
-  if (!user || !user.id) return "";
+  const secret = process.env.JWT_SECRET || process.env.LEGACY_JWT_SECRET || "3a765eaecf1a7fbca0a98524459fce66cecb9da12997f6d22f60b2512fde022d";
+  if (!user || (!user.id && !user.sub)) return "";
+  const userId = String(user.id || user.sub);
   const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
   const payload = Buffer.from(JSON.stringify({
-    id: user.id,
-    sub: user.id,
+    id: userId,
+    sub: userId,
     email: user.email || "",
     username: user.username || "",
+    client_id: "materio-mcp",
+    token_use: "access",
     iat: Math.floor(Date.now() / 1000),
     exp: Math.floor(Date.now() / 1000) + 7 * 86400,
   })).toString("base64url");
@@ -36,7 +39,9 @@ function authHeaders(token?: string): Record<string, string> {
     Accept: "application/json",
   };
   if (token) {
-    headers["Authorization"] = `Bearer ${token.trim()}`;
+    const trimmed = token.trim();
+    headers["Authorization"] = `Bearer ${trimmed}`;
+    headers["Cookie"] = `materio_token=${trimmed}; materio_auth_token=${trimmed}`;
   }
   return headers;
 }
@@ -297,17 +302,19 @@ export async function fetchInsightroomPosts(options: {
   semester?: string;
   token?: string;
   includePrivate?: boolean;
+  user?: any;
 }): Promise<any> {
   const base = getInsightroomApiBase();
+  const effectiveToken = (options.user ? signLegacyToken(options.user) : "") || options.token;
   const params = new URLSearchParams();
   if (options.limit) params.set("num", String(options.limit));
   if (options.subject) params.set("subject", options.subject);
   if (options.semester) params.set("semester", options.semester);
-  if (options.token) params.set("token", options.token);
+  if (effectiveToken) params.set("token", effectiveToken);
 
   const url = `${base}/api/posts?${params.toString()}`;
   const res = await fetch(url, {
-    headers: authHeaders(options.token),
+    headers: authHeaders(effectiveToken),
   });
   if (!res.ok) {
     throw new Error(`Failed to fetch insightroom posts: ${res.status} ${res.statusText}`);
@@ -326,15 +333,17 @@ export async function readInsightroomPost(options: {
   category?: string;
   token?: string;
   canAccessPrivate?: boolean;
+  user?: any;
 }): Promise<any> {
   const base = getInsightroomApiBase();
   const cat = encodeURIComponent(options.category || "_permalink");
   const slug = encodeURIComponent(options.slug);
-  const tokenQuery = options.token ? `?token=${encodeURIComponent(options.token)}` : "";
+  const effectiveToken = (options.user ? signLegacyToken(options.user) : "") || options.token;
+  const tokenQuery = effectiveToken ? `?token=${encodeURIComponent(effectiveToken)}` : "";
 
   const contentUrl = `${base}/api/posts/content/${cat}/${slug}${tokenQuery}`;
   const res = await fetch(contentUrl, {
-    headers: authHeaders(options.token),
+    headers: authHeaders(effectiveToken),
   });
 
   if (res.status === 403) {
