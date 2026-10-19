@@ -1,11 +1,8 @@
 # Materio MCP Server — Tool Catalog & Architecture Reference
 
-This document provides the definitive catalog of all **24 active tools** registered on the Materio MCP Server (`mcp.getmaterio.app`), deployed via Cloudflare Workers (`D:\v4\materio\svelte\mcp`).
+This document provides the definitive catalog of all 29 tools registered on the Materio MCP Server (`mcp.getmaterio.app`), deployed via Cloudflare Workers (`D:\v4\materio\svelte\mcp`).
 
-All tools adhere strictly to the simplified **`word_word`** (`snake_case`) naming convention and are dynamically gated by Materio ID OAuth Access Tiers:
-- **Free Tier (Public)**: 11 tools
-- **Pro Tier**: 16 tools (11 Public + 5 Pro)
-- **Admin Tier**: 24 tools (11 Public + 5 Pro + 8 Admin)
+All tools adhere strictly to the simplified **`word_word`** (`snake_case`) naming convention and are protected by Materio ID OAuth Access Tiers.
 
 ---
 
@@ -18,9 +15,10 @@ All tools adhere strictly to the simplified **`word_word`** (`snake_case`) namin
 | 1 | `resource_library` | Public | Hierarchical catalog explorer across all 8 semesters (including Semester 7), subjects, chapters, and question banks. |
 | 2 | `finder` | Public | Resource location discovery powered by Materio Search API & TypeSafe AI Jev System 1 decision engine. Locates exact syllabus topics without returning giant text chunks. |
 | 3 | `snap_search` | Public | Primary vectorless keyword retrieval (Postgres FTS `tsvector`) across actual textbook chunks. |
-| 4 | `deep_think` | 🔒 **Pro / Admin** | Semantic vector synthesis (pgvector embeddings) for complex conceptual queries. |
-| 5 | `share_link_generator` | Public | Generates verified, masked end-user links (`https://getmaterio.app/?share=...`). Hard-asserts against exposing raw CDN URLs. |
-| 6 | `lookup_external_sources` | Public | Educational fallback lookup via **Firecrawl Keyless** (prioritizing GeeksforGeeks, MDN, TutorialsPoint, W3Schools) when syllabus context is insufficient. |
+| 4 | `get_document` | Public | Direct PDF retrieval & in-document grounding. Fetches official course PDFs, extracts text via `unpdf`, and answers when SnapSearch / RAG yields no results. |
+| 5 | `deep_think` | 🔒 **Plus / Admin** | Semantic vector synthesis (pgvector embeddings) for complex conceptual queries. |
+| 6 | `share_link_generator` | Public | Generates verified, masked end-user links (`https://getmaterio.app/?share=...`). Hard-asserts against exposing raw CDN URLs. |
+| 7 | `lookup_external_sources` | Public | Educational fallback lookup on GeeksforGeeks / Exa when syllabus context is insufficient. |
 
 ### B. Campus Community & Notifications (Public Read)
 
@@ -34,8 +32,8 @@ All tools adhere strictly to the simplified **`word_word`** (`snake_case`) namin
 
 | # | Tool Name | Access Tier | Primary Purpose |
 |---|---|---|---|
-| 10 | `list_posts` | Public / 🔒 Pro | Lists published InsightRoom articles (`room.getmaterio.app/api/posts`). Automatically unlocks private posts for Pro & Admin members. |
-| 11 | `read_posts` | Public / 🔒 Pro | Reads the full rendered article body for an InsightRoom post. Unlocks private articles for Pro & Admin members. |
+| 10 | `read_insightroom_posts` | Public | Lists published InsightRoom articles (`room.getmaterio.app/api/posts`). |
+| 11 | `read_insightroom_post` | Public | Reads the full rendered article body for an InsightRoom post. |
 
 ### D. Personal Cloud Notebooks (User-Scoped)
 
@@ -43,23 +41,23 @@ All tools adhere strictly to the simplified **`word_word`** (`snake_case`) namin
 
 | # | Tool Name | Access Tier | Primary Purpose |
 |---|---|---|---|
-| 12 | `get_all_notebooks` | 🔒 **Pro / Admin** | Retrieves the authenticated caller's cloud notebooks (`/api/v2/features?action=notebooks&subAction=list`). |
-| 13 | `create_notebook` | 🔒 **Pro / Admin** | Creates a cloud notebook or exports LLM chat sessions directly to Materio Notebooks. |
-| 14 | `update_notebook` | 🔒 **Pro / Admin** | Updates the title or content of an existing notebook owned by the user. |
-| 15 | `delete_notebook` | 🔒 **Pro / Admin** | Deletes a cloud notebook owned by the user. |
+| 12 | `get_all_notebooks` | **Pro / Admin** | Retrieves the authenticated caller's cloud notebooks (`/api/v2/features?action=notebooks&subAction=list`). |
+| 13 | `create_notebook` | **Pro / Admin** | Creates a cloud notebook or exports LLM chat sessions directly to Materio Notebooks. |
+| 14 | `update_notebook` | **Pro / Admin** | Updates the title or content of an existing notebook owned by the user. |
+| 15 | `delete_notebook` | **Pro / Admin** | Deletes a cloud notebook owned by the user. |
 
 ### E. Super / Admin Management (`accessTier === 'super'`)
 
 | # | Tool Name | Access Tier | Primary Purpose |
 |---|---|---|---|
-| 16 | `edit_exam_data` | 🛡️ **Admin Only** | Creates or updates semester exam schedules, dates, and seating configs (`POST /api/v2/examdata`). |
-| 17 | `list_all_promotions` | 🛡️ **Admin Only** | Admin view of all promotions, including disabled and expired campaigns (`/api/v2/promotions?all=true`). |
-| 18 | `create_promotion` | 🛡️ **Admin Only** | Creates a new promotional campaign banner (`POST /api/v2/promotions`). |
-| 19 | `update_promotion` | 🛡️ **Admin Only** | Edits promotion dates, details, or toggles active state (`PUT /api/v2/promotions`). |
-| 20 | `delete_promotion` | 🛡️ **Admin Only** | Deletes a promotion from the database (`DELETE /api/v2/promotions?id=...`). |
-| 21 | `create_notification` | 🛡️ **Admin Only** | Broadcasts an academic notice or alert (`POST /api/v2/notifications`). |
-| 22 | `update_notification` | 🛡️ **Admin Only** | Edits an existing notification (`PUT /api/v2/notifications`). |
-| 23 | `delete_notification` | 🛡️ **Admin Only** | Deletes an announcement (`DELETE /api/v2/notifications?id=...`). |
+| 16 | `edit_exam_data` | **Admin** | Creates or updates semester exam schedules, dates, and seating configs (`POST /api/v2/examdata`). |
+| 17 | `list_all_promotions` | **Admin** | Admin view of all promotions, including disabled and expired campaigns (`/api/v2/promotions?all=true`). |
+| 18 | `create_promotion` | **Admin** | Creates a new promotional campaign banner (`POST /api/v2/promotions`). |
+| 19 | `update_promotion` | **Admin** | Edits promotion dates, details, or toggles active state (`PUT /api/v2/promotions`). |
+| 20 | `delete_promotion` | **Admin** | Deletes a promotion from the database (`DELETE /api/v2/promotions?id=...`). |
+| 21 | `create_notification` | **Admin** | Broadcasts an academic notice or alert (`POST /api/v2/notifications`). |
+| 22 | `update_notification` | **Admin** | Edits an existing notification (`PUT /api/v2/notifications`). |
+| 23 | `delete_notification` | **Admin** | Deletes an announcement (`DELETE /api/v2/notifications?id=...`). |
 
 ### F. Document Export
 
@@ -71,20 +69,9 @@ All tools adhere strictly to the simplified **`word_word`** (`snake_case`) namin
 
 ## 2. Purge & Migration Log
 
-### A. Deleted Heavy Tools (Bundle Size Reduced from 24MB to 5.1MB)
-The following tools and heavy dependencies were completely removed from the worker codebase:
+The following legacy tools have been permanently purged and consolidated:
 
-| Purged Tool | Reason for Removal | Status |
-|---|---|---|
-| `diagram_generator` | Heavy dependencies (D3, Graphviz/Viz.js, resvg WASM) bloated bundle beyond Cloudflare limits. | 🗑️ **Deleted** (`diagram-generator.ts`, `diagrams.ts`) |
-| `diagram_validator` | Merged and removed with diagram generator purge. | 🗑️ **Deleted** |
-| `generate_diagram_from_request` | Merged and removed with diagram generator purge. | 🗑️ **Deleted** |
-| `create_worksheet_paper` | Deprecated PDF/worksheet generator tool removed. | 🗑️ **Deleted** (`worksheet-paper.ts`) |
-| `create_or_edit_paper_template` | Deprecated paper template generator tool removed. | 🗑️ **Deleted** |
-
-### B. Consolidated Course & Navigation Tools
-
-| Old Tool Name | New Replacement | Migration Notes |
+| Purged Tool | Replacement | Reason |
 |---|---|---|
 | `GlobalSearch` | `finder` | Inefficient broad scans replaced by live search API with TypeSafe Jev System 1 ranking. |
 | `SemesterNavigator` | `resource_library({})` | Consolidated into hierarchical catalog explorer. |
@@ -92,14 +79,17 @@ The following tools and heavy dependencies were completely removed from the work
 | `ConceptExplorer` | `resource_library({ topic })` & `finder` | Redundant intermediate explorer eliminated. |
 | `KnowledgeAtlas` | `resource_library({})` | Redundant catalog duplicate eliminated. |
 | `ResourceAccess` | `share_link_generator` | Purged to prevent raw internal CDN URL exposure. |
-
-### C. Search & External Fallback Overhaul
-- **`lookup_external_sources`**: Completely replaced Exa engine with **Firecrawl Keyless Search & Scrape**, prioritizing high-credibility developer documentation:
-  1. GeeksforGeeks (`geeksforgeeks.org`)
-  2. Mozilla MDN (`developer.mozilla.org`)
-  3. TutorialsPoint (`tutorialspoint.com`)
-  4. W3Schools (`w3schools.com`)
-  5. Official Docs & RFCs
+| `ResourceLibrary` | `resource_library` | Renamed to standard `word_word` format. |
+| `Finder` | `finder` | Renamed to standard `word_word` format. |
+| `SnapSearch` | `snap_search` | Renamed to standard `word_word` format. |
+| `DeepThink` | `deep_think` | Renamed to standard `word_word` format. |
+| `ShareLinkGenerator` | `share_link_generator` | Renamed to standard `word_word` format. |
+| `LookupExternalSources` | `lookup_external_sources` | Renamed to standard `word_word` format. |
+| `DiagramGenerator` | `diagram_generator` | Renamed to standard `word_word` format. |
+| `DiagramValidator` | `diagram_validator` | Renamed to standard `word_word` format. |
+| `GenerateDiagramFromRequest` | `generate_diagram_from_request` | Renamed to standard `word_word` format. |
+| `CreateWorksheetPaper` | `create_worksheet_paper` | Renamed to standard `word_word` format. |
+| `CreateOrEditPaperTemplate` | `create_or_edit_paper_template` | Renamed to standard `word_word` format. |
 
 ---
 
@@ -118,7 +108,7 @@ The following tools and heavy dependencies were completely removed from the work
 ┌─────────────────────────────────────────────────────────────┐
 │ 2. CONTENT GROUNDING (What does the book actually say?)     │
 │    • snap_search: Fast keyword FTS chunk retrieval          │
-│    • deep_think: Semantic vector synthesis (Pro/Admin)      │
+│    • deep_think: Semantic vector synthesis (Plus/Admin)     │
 │      RETURNS: Actual textbook excerpts                      │
 │      (MANDATORY BEFORE ANSWERING CONCEPT QUESTIONS)         │
 └──────────────────────────────┬──────────────────────────────┘

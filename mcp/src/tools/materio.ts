@@ -12,6 +12,7 @@ import {
 } from "../services/resources.js";
 import { findResources } from "../services/finder.js";
 import { queryDeepThinkRAG, queryVectorlessRAG } from "../services/rag.js";
+import { fetchAndAnalyzeDocument } from "../services/document.js";
 import { CHARACTER_LIMIT } from "../constants.js";
 import { lookupExternalSources } from "../services/external-lookup.js";
 import {
@@ -142,6 +143,50 @@ function truncateToWordLimit(text: string, wordLimit: number): string {
   if (words.length <= wordLimit) return text.trim();
   return `${words.slice(0, wordLimit).join(" ")} ...`;
 }
+
+const GetDocumentSchema = {
+  query: z
+    .string()
+    .optional()
+    .describe(
+      "The specific question, topic, or concept to answer from the PDF document. Use this when SnapSearch / RAG didn't find the answer or when exact in-document text is needed."
+    ),
+  topic: z
+    .string()
+    .optional()
+    .describe(
+      "Topic or chapter title of the PDF document (e.g. 'Deadlocks', 'Introduction', 'Processes, Thread & Process Scheduling')."
+    ),
+  subject: z
+    .string()
+    .optional()
+    .describe(
+      "Subject name (e.g. 'Operating System', 'DBMS'). If omitted, searches across all subjects."
+    ),
+  semester: z
+    .string()
+    .optional()
+    .describe("Optional semester number (e.g. '4', '7')."),
+  page: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe("Specific 1-based page number to fetch and inspect."),
+  max_pages: z
+    .number()
+    .int()
+    .min(1)
+    .max(10)
+    .optional()
+    .describe("Max matching pages to return (default: 4, max: 10)."),
+  url: z
+    .string()
+    .optional()
+    .describe(
+      "Direct PDF URL or share link (https://getmaterio.app/?share=...) if already known."
+    ),
+};
 
 const GenerateShareLinkSchema = {
   url: z.string().optional().describe("Direct raw internal PDF URL. DO NOT guess or hallucinate. If not known, supply semester, subject, and topic instead."),
@@ -438,6 +483,70 @@ Args:
               text: `Vectorless Search error: ${error instanceof Error ? error.message : String(error)}`
             }
           ]
+        };
+      }
+    }
+  );
+
+  // ──── 4. get_document (Direct PDF Document Retrieval & Answer Grounding) ────
+  server.registerTool(
+    "get_document",
+    {
+      title: "Fetch PDF Document & In-Document Answer Grounding",
+      description: `Directly fetches the official course PDF document from Materio and extracts its text to ground answers.
+Use this tool whenever:
+1. SnapSearch (RAG / keyword search) failed to find the answer or returned incomplete chunks.
+2. The user asks about a specific chapter, syllabus PDF, lab manual, or question bank document.
+3. You need to inspect exact pages or verify formulas, theorems, and definitions directly from the primary textbook PDF.
+
+Args:
+  - query: (Optional) The specific question, concept, or keywords to search and locate inside the PDF pages.
+  - topic: (Optional) Topic or chapter name of the document (e.g. 'Deadlocks', 'Introduction', 'Processes, Thread & Process Scheduling').
+  - subject: (Optional) Subject name to narrow down the document (e.g. 'Operating System').
+  - semester: (Optional) Semester number (e.g. '4', '7').
+  - page: (Optional) Specific 1-based page number to inspect.
+  - max_pages: (Optional) Max matching pages to return (default: 4, max: 10).
+  - url: (Optional) Direct PDF URL or share link (https://getmaterio.app/?share=...) if known.
+
+Returns:
+  - Total document pages, relevance-scored page excerpts, full matching text, and verified web share link.`,
+      inputSchema: GetDocumentSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async ({ query, topic, subject, semester, page, max_pages, url }) => {
+      try {
+        const result = await fetchAndAnalyzeDocument({
+          query,
+          topic,
+          subject,
+          semester,
+          page,
+          max_pages,
+          url,
+        });
+
+        if (!result.found && result.errorMessage) {
+          return {
+            content: [{ type: "text" as const, text: result.errorMessage }],
+          };
+        }
+
+        return {
+          content: [{ type: "text" as const, text: result.summaryText }],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `get_document error: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
         };
       }
     }

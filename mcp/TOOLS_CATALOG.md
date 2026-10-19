@@ -15,9 +15,10 @@ All tools adhere strictly to the simplified **`word_word`** (`snake_case`) namin
 | 1 | `resource_library` | Public | Hierarchical catalog explorer across all 8 semesters (including Semester 7), subjects, chapters, and question banks. |
 | 2 | `finder` | Public | Resource location discovery powered by Materio Search API & TypeSafe AI Jev System 1 decision engine. Locates exact syllabus topics without returning giant text chunks. |
 | 3 | `snap_search` | Public | Primary vectorless keyword retrieval (Postgres FTS `tsvector`) across actual textbook chunks. |
-| 4 | `deep_think` | 🔒 **Plus / Admin** | Semantic vector synthesis (pgvector embeddings) for complex conceptual queries. |
-| 5 | `share_link_generator` | Public | Generates verified, masked end-user links (`https://getmaterio.app/?share=...`). Hard-asserts against exposing raw CDN URLs. |
-| 6 | `lookup_external_sources` | Public | Educational fallback lookup on GeeksforGeeks / Exa when syllabus context is insufficient. |
+| 4 | `get_document` | Public | Direct PDF retrieval & in-document grounding. Fetches official course PDFs, extracts text via `unpdf`, and answers when SnapSearch / RAG yields no results. |
+| 5 | `deep_think` | 🔒 **Plus / Admin** | Semantic vector synthesis (pgvector embeddings) for complex conceptual queries. |
+| 6 | `share_link_generator` | Public | Generates verified, masked end-user links (`https://getmaterio.app/?share=...`). Hard-asserts against exposing raw CDN URLs. |
+| 7 | `lookup_external_sources` | Public | Educational fallback lookup on GeeksforGeeks / Exa when syllabus context is insufficient. |
 
 ### B. Campus Community & Notifications (Public Read)
 

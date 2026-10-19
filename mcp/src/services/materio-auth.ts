@@ -53,15 +53,10 @@ function getIssuerUrl(): string {
   return getAuthBaseUrl();
 }
 
-/** Scopes this resource server honours, independent of what Materio ID declares. */
+/** Scopes this resource server honours: Profile data and Subscription status */
 const RESOURCE_SCOPES = [
   "openid",
   "profile",
-  "email",
-  "admin",
-  "offline_access",
-  "pro",
-  "plus",
   "subscription",
 ];
 
@@ -342,10 +337,8 @@ export async function getOAuthAuthorizationServerMetadata(): Promise<Record<stri
       "client_secret_post",
       "none",
     ],
-    code_challenge_methods_supported: ["S256"],
-    // Union, not replace: Materio ID's DEFAULT_SCOPES omits pro/plus/subscription,
-    // and a client that trims to the advertised set would silently lose them.
-    scopes_supported: [...new Set([...(remote.scopes_supported ?? []), ...RESOURCE_SCOPES])],
+    // Scopes strictly restricted to Profile data and Subscription status (admin checked via subscription)
+    scopes_supported: RESOURCE_SCOPES,
   };
 }
 
@@ -463,7 +456,7 @@ export async function handleRegisterProxy(request: Request): Promise<Response> {
       redirect_uris: redirectUris,
       client_name: body.client_name || "Claude Desktop / MCP Client",
       token_endpoint_auth_method: body.token_endpoint_auth_method || "none",
-      scope: body.scope || "openid profile email admin",
+      scope: body.scope || "openid profile subscription",
     };
 
     const clientIp =

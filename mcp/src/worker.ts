@@ -48,6 +48,7 @@ import {
   generateMaskedUrl,
 } from "./services/resources.js";
 import { findResources } from "./services/finder.js";
+import { fetchAndAnalyzeDocument } from "./services/document.js";
 import { queryDeepThinkRAG, queryVectorlessRAG } from "./services/rag.js";
 import { lookupExternalSources } from "./services/external-lookup.js";
 import {
@@ -302,6 +303,17 @@ export default {
           topic: match?.topic ?? topic,
           shareLink,
         });
+      }
+
+      if (url.pathname === "/api/document") {
+        const query = url.searchParams.get("query") || url.searchParams.get("q") || undefined;
+        const topic = url.searchParams.get("topic") || undefined;
+        const subject = url.searchParams.get("subject") || undefined;
+        const semester = url.searchParams.get("semester") || undefined;
+        const pageStr = url.searchParams.get("page");
+        const page = pageStr ? parseInt(pageStr, 10) : undefined;
+        const docRes = await fetchAndAnalyzeDocument({ query, topic, subject, semester, page });
+        return jsonResponse(docRes);
       }
 
       if (url.pathname === "/api/index") {
