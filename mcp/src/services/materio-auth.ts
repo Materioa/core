@@ -342,9 +342,12 @@ export async function getOAuthAuthorizationServerMetadata(): Promise<Record<stri
   };
 }
 
-export function getOAuthProtectedResourceMetadata(origin: string) {
+export function getOAuthProtectedResourceMetadata(origin: string, requestedResource?: string | null) {
+  const resource = (requestedResource && requestedResource.startsWith(origin))
+    ? requestedResource
+    : `${origin}/mcp`;
   return {
-    resource: `${origin}/mcp`,
+    resource,
     // The authorization server is Materio ID, not this resource server.
     authorization_servers: [getIssuerUrl()],
     scopes_supported: RESOURCE_SCOPES,

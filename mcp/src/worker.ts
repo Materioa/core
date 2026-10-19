@@ -122,7 +122,9 @@ export default {
       // 0a. OAuth 2.0 Authorization Server Discovery (RFC 8414)
       if (
         url.pathname === "/.well-known/oauth-authorization-server" ||
+        url.pathname.startsWith("/.well-known/oauth-authorization-server/") ||
         url.pathname === "/.well-known/openid-configuration" ||
+        url.pathname.startsWith("/.well-known/openid-configuration/") ||
         url.pathname === "/oauth-metadata"
       ) {
         return jsonResponse(await getOAuthAuthorizationServerMetadata(), 200, {
@@ -131,8 +133,12 @@ export default {
       }
 
       // 0b. OAuth 2.0 Protected Resource Metadata (RFC 9728)
-      if (url.pathname === "/.well-known/oauth-protected-resource") {
-        return jsonResponse(getOAuthProtectedResourceMetadata(url.origin), 200, {
+      if (
+        url.pathname === "/.well-known/oauth-protected-resource" ||
+        url.pathname.startsWith("/.well-known/oauth-protected-resource/")
+      ) {
+        const requestedResource = url.searchParams.get("resource") || `${url.origin}/mcp`;
+        return jsonResponse(getOAuthProtectedResourceMetadata(url.origin, requestedResource), 200, {
           "Cache-Control": "public, max-age=3600",
         });
       }
@@ -177,7 +183,7 @@ export default {
               status: 401,
               headers: {
                 "Content-Type": "application/json",
-                "WWW-Authenticate": `Bearer resource_metadata="${url.origin}/.well-known/oauth-protected-resource"`,
+                "WWW-Authenticate": `Bearer realm="mcp", error="invalid_token", resource_metadata="${url.origin}/.well-known/oauth-protected-resource"`,
                 ...CORS_HEADERS,
               },
             }
