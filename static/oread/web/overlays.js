@@ -223,7 +223,6 @@
 
         // Document loaded event - PDF file fully downloaded
         eventBus.on('documentloaded', function () {
-            reportPdfActivity('documentloaded');
             try {
                 window.parent.postMessage({
                     type: 'pdfLoaded'
@@ -232,7 +231,6 @@
         });
 
         eventBus.on('pagesloaded', function () {
-            reportPdfActivity('pagesloaded');
             try {
                 window.parent.postMessage({
                     type: 'pdfLoaded'
@@ -242,10 +240,6 @@
 
         eventBus.on('pagechanging', function () {
             reportPdfActivity('pagechanging');
-        });
-
-        eventBus.on('updateviewarea', function () {
-            reportPdfActivity('updateviewarea');
         });
 
         // Error event

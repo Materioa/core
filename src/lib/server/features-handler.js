@@ -2930,6 +2930,25 @@ function sanitizeAnalyticsPayload(rawPayload) {
     return { ok: false, error: pdfResult.error };
   }
 
+  // Enforce physical invariant: sum of individual PDF reading times cannot exceed total reading seconds
+  let sumPdfTimeSec = 0;
+  for (const item of Object.values(pdfResult.pdfCounts)) {
+    sumPdfTimeSec += item.time_sec;
+  }
+  if (sumPdfTimeSec > totalReadingSec) {
+    const scale = totalReadingSec > 0 ? totalReadingSec / sumPdfTimeSec : 0;
+    for (const key of Object.keys(pdfResult.pdfCounts)) {
+      pdfResult.pdfCounts[key].time_sec = Math.round(pdfResult.pdfCounts[key].time_sec * scale);
+    }
+  }
+
+  // Credit at least 1 read if user engaged for >= 15s but count was 0 due to date rollover
+  for (const item of Object.values(pdfResult.pdfCounts)) {
+    if (item.count === 0 && item.time_sec >= 15) {
+      item.count = 1;
+    }
+  }
+
   const sanitized = {
     p_anon_id: anonId,
     p_date: dateKey,

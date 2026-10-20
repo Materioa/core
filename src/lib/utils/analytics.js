@@ -263,6 +263,7 @@ class ExodusAnalytics {
     this._lastFlushAt = Date.now();
     this._idleMs = IDLE_CUTOFF_MS;
     this._lastTab = null;
+    this._currentDate = todayLocalISO();
     this._init();
   }
 
@@ -427,6 +428,13 @@ class ExodusAnalytics {
   }
 
   _recordEngagementUntil(now = Date.now()) {
+    // Reset PDF counted flag across calendar date boundary so reading on a new day registers a read
+    const today = todayLocalISO();
+    if (this._currentDate !== today) {
+      this._currentDate = today;
+      this._pdfCounted = false;
+    }
+
     // Only the single active and visible tab may accrue engagement
     if (!this._isTabActive || (typeof document !== 'undefined' && document.visibilityState !== 'visible')) {
       this._pageActiveTs = now;
@@ -609,7 +617,7 @@ class ExodusAnalytics {
       if (ev && ev.isTrusted === false) return;
 
       const now = Date.now();
-      // If we weren't active, user interaction in this tab claims active status
+      // If we weren't active, genuine user interaction in this tab claims active status
       if (!this._isTabActive && typeof document !== 'undefined' && document.visibilityState === 'visible') {
         this._claimActiveTab();
       }
@@ -659,10 +667,6 @@ class ExodusAnalytics {
       });
       window.addEventListener('blur', () => {
         try {
-          // If activeElement is an iframe (e.g. PDF viewer), focus transferred into the iframe — do NOT yield!
-          if (document.activeElement && document.activeElement.tagName === 'IFRAME') {
-            return;
-          }
           this._recordEngagementUntil(Date.now());
         } catch {}
       });
@@ -705,6 +709,22 @@ class ExodusAnalytics {
       for (const entry of Object.values(this.metricsDiff.pdf_counts || {})) {
         if (entry && entry.time_sec > maxPossibleSec) {
           entry.time_sec = maxPossibleSec;
+        }
+      }
+
+      // Invariant: sum of PDF times cannot exceed total reading time
+      let sumPdfSec = 0;
+      for (const entry of Object.values(this.metricsDiff.pdf_counts || {})) {
+        if (entry && typeof entry.time_sec === 'number') {
+          sumPdfSec += entry.time_sec;
+        }
+      }
+      if (sumPdfSec > this.metricsDiff.total_reading_sec) {
+        const factor = this.metricsDiff.total_reading_sec > 0 ? (this.metricsDiff.total_reading_sec / sumPdfSec) : 0;
+        for (const entry of Object.values(this.metricsDiff.pdf_counts || {})) {
+          if (entry && typeof entry.time_sec === 'number') {
+            entry.time_sec = Math.round(entry.time_sec * factor);
+          }
         }
       }
 

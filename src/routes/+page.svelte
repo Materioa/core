@@ -93,8 +93,8 @@
 </script>
 
 <svelte:head>
-	<title>Materio — Curated Study Materials &amp; Smart Notes</title>
-	<meta name="description" content="Official materials you trust, in a way you love — Because e-learning shouldn't feel like suffering. Find organized, official study materials, notes, and peer help all in one clean place." />
+	<title>Materio — Curated Study Materials, PU Elearning &amp; Smart Notes</title>
+	<meta name="description" content="Parul University study materials, notes &amp; PYQs you trust, in a way you love — Because PU elearning shouldn't feel like suffering. Find organized materials for Parul University, CSE, and engineering in one clean place." />
 	<link rel="canonical" href="https://getmaterio.app/" />
 </svelte:head>
 

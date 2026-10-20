@@ -94,6 +94,8 @@
 
   <h2>Important Links:</h2>
   <ul>
+    <li><a href="/pu-elearning">PU Elearning Guide &amp; Study Portal</a></li>
+    <li><a href="/pumis">PUMIS Portal Login &amp; Student Resources</a></li>
     <li><a href="/privacy">Privacy Policy</a></li>
     <li><a href="/cookies">Cookie Policy</a></li>
     <li><a href="/terms">Terms of Service</a></li>
