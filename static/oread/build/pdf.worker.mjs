@@ -35359,7 +35359,7 @@ class FileSpec {
     let filename = "";
     const item = pickPlatformItem(this.root);
     if (item && typeof item === "string") {
-      filename = stringToPDFString(item).replaceAll("\\\\", "\\").replaceAll("\\/", "/").replaceAll("\\", "/");
+      filename = stringToPDFString(item).replaceAll("\\/", "/").replaceAll("\\", "/");
     }
     return shadow(this, "filename", filename || "unnamed");
   }

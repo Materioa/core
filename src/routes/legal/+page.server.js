@@ -1,3 +1,14 @@
+function stripHtmlTags(str) {
+    if (!str || typeof str !== 'string') return '';
+    let text = str;
+    let prev;
+    do {
+        prev = text;
+        text = text.replace(/<[^>]*>/g, '');
+    } while (text !== prev);
+    return text.trim();
+}
+
 import matter from 'gray-matter';
 import fs from 'fs';
 import path from 'path';
@@ -32,7 +43,7 @@ export async function load({ setHeaders }) {
 
         for (const doc of mongoDocs) {
             seenSlugs.add(doc.slug);
-            const rawText = (doc.content || '').replace(/<[^>]*>?/gm, '').trim();
+            const rawText = stripHtmlTags(doc.content);
             legalPages.push({
                 title: doc.title || doc.slug,
                 slug: doc.slug,
@@ -59,7 +70,7 @@ export async function load({ setHeaders }) {
                     const { data: metadata, content } = matter(rawContent);
                     if (metadata.draft === true || metadata.hidden === true || metadata.visibility === 'private') continue;
 
-                    const rawText = content.replace(/<[^>]*>?/gm, '').trim();
+                    const rawText = stripHtmlTags(content);
                     legalPages.push({
                         title: metadata.title || slug.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' '),
                         slug,

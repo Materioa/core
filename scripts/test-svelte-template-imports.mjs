@@ -171,7 +171,7 @@ function check(label, ok, detail = '') {
 
 for (const file of COMPONENTS) {
   const source = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
-  const scriptMatch = source.match(/<script[^>]*>([\s\S]*?)<\/script>/);
+  const scriptMatch = source.match(/<script[^>]*>([\s\S]*?)<\/script>/i);
   const template = scriptMatch ? source.slice(scriptMatch.index + scriptMatch[0].length) : source;
 
   const known = new Set([

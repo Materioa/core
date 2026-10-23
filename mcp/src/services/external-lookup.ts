@@ -46,8 +46,8 @@ function isTrustedDomain(urlStr: string): boolean {
   try {
     const parsed = new URL(urlStr);
     const host = parsed.hostname.toLowerCase();
-    if (BLOCKED_DOMAINS.some((b) => host.includes(b))) return false;
-    return TRUSTED_DOMAINS.some((d) => host.includes(d));
+    if (BLOCKED_DOMAINS.some((b) => host === b || host.endsWith("." + b))) return false;
+    return TRUSTED_DOMAINS.some((d) => host === d || host.endsWith("." + d));
   } catch {
     return false;
   }
@@ -56,12 +56,12 @@ function isTrustedDomain(urlStr: string): boolean {
 function getDomainRank(urlStr: string): number {
   try {
     const host = new URL(urlStr).hostname.toLowerCase();
-    if (host.includes("geeksforgeeks.org")) return 1;
-    if (host.includes("developer.mozilla.org")) return 2;
-    if (host.includes("tutorialspoint.com")) return 3;
-    if (host.includes("w3schools.com")) return 4;
-    if (host.includes("docs.") || host.includes("learn.microsoft.com")) return 5;
-    if (host.includes("wikipedia.org")) return 6;
+    if (host === "geeksforgeeks.org" || host.endsWith(".geeksforgeeks.org")) return 1;
+    if (host === "developer.mozilla.org" || host.endsWith(".developer.mozilla.org")) return 2;
+    if (host === "tutorialspoint.com" || host.endsWith(".tutorialspoint.com")) return 3;
+    if (host === "w3schools.com" || host.endsWith(".w3schools.com")) return 4;
+    if (host.startsWith("docs.") || host === "learn.microsoft.com" || host.endsWith(".learn.microsoft.com")) return 5;
+    if (host === "wikipedia.org" || host.endsWith(".wikipedia.org")) return 6;
     return 10;
   } catch {
     return 99;

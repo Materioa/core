@@ -590,8 +590,13 @@
    */
   function htmlToText(html) {
     if (typeof html !== 'string') return '';
-    return html
-      .replace(/<[^>]*>/g, '')
+    var text = html;
+    var prev;
+    do {
+      prev = text;
+      text = text.replace(/<[^>]*>/g, '');
+    } while (text !== prev);
+    return text
       .replace(/&#(\d+);/g, function (_, code) {
         var num = Number(code);
         return num > 0 ? String.fromCodePoint(num) : '';

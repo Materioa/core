@@ -228,9 +228,8 @@ export async function resolveUserFromHeaders(
   let token = "";
   const authHeader = getHeader("authorization");
   if (authHeader) {
-    const match = authHeader.match(/^Bearer\s+(.+)$/i);
-    if (match?.[1]) {
-      token = match[1].trim();
+    if (authHeader.toLowerCase().startsWith("bearer ")) {
+      token = authHeader.slice(7).trim();
     }
   }
 
@@ -427,7 +426,7 @@ export async function handleTokenProxy(request: Request): Promise<Response> {
   } catch (err: any) {
     console.error("[Token Proxy Error]", err);
     return new Response(
-      JSON.stringify({ error: "Token proxy failed", details: err?.message || String(err) }),
+      JSON.stringify({ error: "Token proxy failed" }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -1,3 +1,15 @@
+function isGfgUrl(urlString: string): boolean {
+  try {
+    const parsed = new URL(urlString);
+    const host = parsed.hostname.toLowerCase();
+    const isGfg = host === "geeksforgeeks.org" || host.endsWith(".geeksforgeeks.org");
+    const isYahoo = host === "yahoo.com" || host.endsWith(".yahoo.com");
+    return (parsed.protocol === "http:" || parsed.protocol === "https:") && isGfg && !isYahoo;
+  } catch {
+    return false;
+  }
+}
+
 export interface GfGLookupResult {
   topic: string;
   source: string | null;

@@ -739,8 +739,13 @@ Args:
               ]
             };
           }
+          let parsedHost = "";
+          try {
+            parsedHost = new URL(rawUrl).hostname.toLowerCase();
+          } catch {}
           if (
-            rawUrl.includes("example.com") ||
+            parsedHost === "example.com" ||
+            parsedHost.endsWith(".example.com") ||
             rawUrl.includes("placeholder") ||
             rawUrl.includes("fake") ||
             rawUrl.includes("sample.pdf")

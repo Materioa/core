@@ -38,7 +38,7 @@
     "svelte": "^5.55.9",
     "tailwindcss": "^4.3.0",
     "typescript": "^5.8.2",
-    "vite": "^8.0.14",
+    "vite": "^8.3.5",
     "wrangler": "^4.132.0"
   },
   "dependencies": {
@@ -69,7 +69,14 @@
   },
   "overrides": {
     "cookie": "^0.7.2",
-    "uuid": "^11.1.1"
+    "uuid": "^11.1.1",
+    "@grpc/grpc-js": "^1.14.6",
+    "follow-redirects": "^1.16.1",
+    "launch-editor": "^2.14.2",
+    "sharp": "^0.35.5",
+    "source-map-js": "^1.2.2",
+    "undici": "^7.29.1",
+    "vite": "^8.3.5"
   },
   "type": "module"
 }

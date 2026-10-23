@@ -89,7 +89,7 @@ export function installExternalLinkHandler() {
                 const anchor = e.target && e.target.closest ? e.target.closest('a[href]') : null;
                 if (!anchor) return;
                 const raw = anchor.getAttribute('href');
-                if (!raw || raw.startsWith('#') || raw.startsWith('mailto:') || raw.startsWith('tel:') || raw.startsWith('javascript:')) return;
+                if (!raw || raw.startsWith('#') || raw.startsWith('mailto:') || raw.startsWith('tel:') || raw.startsWith('javascript:') || raw.startsWith('data:') || raw.startsWith('vbscript:')) return;
                 let parsed;
                 try {
                     parsed = new URL(raw, window.location.href);

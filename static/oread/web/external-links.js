@@ -84,7 +84,7 @@
 
       const raw = anchor.getAttribute('href');
       if (!raw || raw.startsWith('#') || raw.startsWith('mailto:') || raw.startsWith('tel:') ||
-        raw.startsWith('javascript:')) return;
+        raw.startsWith('javascript:') || raw.startsWith('data:') || raw.startsWith('vbscript:')) return;
 
       let parsed;
       try {

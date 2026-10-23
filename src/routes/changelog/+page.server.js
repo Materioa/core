@@ -1,3 +1,14 @@
+function stripHtmlTags(str) {
+    if (!str || typeof str !== 'string') return '';
+    let text = str;
+    let prev;
+    do {
+        prev = text;
+        text = text.replace(/<[^>]*>/g, '');
+    } while (text !== prev);
+    return text.trim();
+}
+
 import matter from 'gray-matter';
 import fs from 'fs';
 import path from 'path';
@@ -32,7 +43,7 @@ export async function load({ setHeaders }) {
 
         for (const l of mongoLogs) {
             seenSlugs.add(l.slug);
-            const rawText = (l.content || '').replace(/<[^>]*>?/gm, '').trim();
+            const rawText = stripHtmlTags(l.content);
             const postUrl = l.url && !l.url.includes('#') ? l.url : `/changelog/${l.slug}`;
             changelogs.push({
                 title: l.title || l.slug,
@@ -66,7 +77,7 @@ export async function load({ setHeaders }) {
                     if (!isLog || metadata.draft === true || metadata.hidden === true || metadata.visibility === 'private') continue;
 
                     const url = `/changelog/${slug}`;
-                    const rawText = content.replace(/<[^>]*>?/gm, '').trim();
+                    const rawText = stripHtmlTags(content);
                     changelogs.push({
                         title: metadata.title || slug,
                         slug,

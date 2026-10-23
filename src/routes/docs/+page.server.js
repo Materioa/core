@@ -1,3 +1,14 @@
+function stripHtmlTags(str) {
+    if (!str || typeof str !== 'string') return '';
+    let text = str;
+    let prev;
+    do {
+        prev = text;
+        text = text.replace(/<[^>]*>/g, '');
+    } while (text !== prev);
+    return text.trim();
+}
+
 import matter from 'gray-matter';
 import fs from 'fs';
 import path from 'path';
@@ -34,7 +45,7 @@ export async function load({ setHeaders }) {
 
         for (const d of mongoDocs) {
             seenSlugs.add(d.slug);
-            const rawText = (d.content || '').replace(/<[^>]*>?/gm, '').trim();
+            const rawText = stripHtmlTags(d.content);
             const excerpt = d.excerpt || (rawText.slice(0, 160) + '...');
             docs.push({
                 ...(d.metadata || {}),
@@ -70,7 +81,7 @@ export async function load({ setHeaders }) {
 
                     if (listed && metadata.draft !== true && metadata.hidden !== true) {
                         const url = `/${postUrl(metadata, slug)}`;
-                        const rawText = content.replace(/<[^>]*>?/gm, '').trim();
+                        const rawText = stripHtmlTags(content);
                         const excerpt = metadata.excerpt || (rawText.slice(0, 160) + '...');
                         const cover = coverUrl(metadata);
 

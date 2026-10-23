@@ -4352,11 +4352,21 @@ async function uint8ArrayToBase64(uint8) {
 }
 
 function triggerBrowserDownload(blobUrl, filename) {
+  if (typeof blobUrl !== "string") return;
+  let parsed;
+  try {
+    parsed = new URL(blobUrl, window.location.href);
+  } catch {
+    return;
+  }
+  if (parsed.protocol !== "blob:" && parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return;
+  }
   const a = document.createElement("a");
   if (!a.click) {
     throw new Error('DownloadManager: "a.click()" is not supported.');
   }
-  a.href = blobUrl;
+  a.href = parsed.href;
   a.target = "_parent";
   if ("download" in a) {
     a.download = filename;

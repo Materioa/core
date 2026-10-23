@@ -190,8 +190,13 @@ function decodeURIComponentSafe(value) {
  */
 export function htmlToText(html) {
 	if (typeof html !== 'string') return '';
-	return html
-		.replace(/<[^>]*>/g, '')
+	let text = html;
+	let prev;
+	do {
+		prev = text;
+		text = text.replace(/<[^>]*>/g, '');
+	} while (text !== prev);
+	return text
 		.replace(/&#(\d+);/g, (_, code) => {
 			const num = Number(code);
 			return Number.isFinite(num) && num > 0 ? String.fromCodePoint(num) : '';

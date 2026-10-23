@@ -141,6 +141,24 @@ async function runStdio(): Promise<void> {
 // ──── Transport: Streamable HTTP & Express App ────
 export const app = express();
 
+// In-memory rate limiter for auth routes
+const authRateLimitMap = new Map<string, { count: number; resetAt: number }>();
+function authRateLimiter(req: any, res: any, next: any) {
+  const ip = String(req.ip || req.headers["x-forwarded-for"] || "unknown");
+  const now = Date.now();
+  const entry = authRateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    authRateLimitMap.set(ip, { count: 1, resetAt: now + 15 * 60 * 1000 });
+    return next();
+  }
+  if (entry.count >= 100) {
+    return res.status(429).json({ error: "Too many authorization requests, please try again later" });
+  }
+  entry.count++;
+  return next();
+}
+
+
 // Parse JSON bodies
 app.use(express.json({ limit: "50mb" }));
 
@@ -185,7 +203,8 @@ app.get("/.well-known/oauth-protected-resource", (req, res) => {
   res.json(getOAuthProtectedResourceMetadata(origin));
 });
 
-app.get("/authorize", (req, res) => {
+// codeql[js/missing-rate-limiting]
+app.get("/authorize", authRateLimiter, (req, res) => {
   const host = req.get("host") || "localhost:3001";
   const protocol = req.headers["x-forwarded-proto"] || req.protocol || "http";
   const fullUrl = new URL(req.originalUrl || req.url, `${protocol}://${host}`);
@@ -193,7 +212,8 @@ app.get("/authorize", (req, res) => {
   res.redirect(response.headers.get("Location") || "https://auth.getmaterio.app/authorize");
 });
 
-app.all("/token", async (req, res) => {
+// codeql[js/missing-rate-limiting]
+app.all("/token", authRateLimiter, async (req, res) => {
   try {
     const host = req.get("host") || "localhost:3001";
     const protocol = req.headers["x-forwarded-proto"] || req.protocol || "http";
@@ -207,7 +227,7 @@ app.all("/token", async (req, res) => {
     const data = await webRes.json().catch(() => ({}));
     res.status(webRes.status).json(data);
   } catch (err: any) {
-    res.status(500).json({ error: "Token proxy error", details: err?.message });
+    res.status(500).json({ error: "Token proxy error" });
   }
 });
 
@@ -645,6 +665,11 @@ app.all("/api/mcp-proxy", async (req, res) => {
       return;
     }
 
+    if (parsedTargetUrl.protocol !== "https:" && parsedTargetUrl.protocol !== "http:") {
+      res.status(400).json({ error: "Only HTTP/HTTPS protocols are permitted" });
+      return;
+    }
+
     const hostname = parsedTargetUrl.hostname.toLowerCase();
     const isPrivateOrLoopback = 
       hostname === "localhost" || 
@@ -657,6 +682,20 @@ app.all("/api/mcp-proxy", async (req, res) => {
       
     if (isPrivateOrLoopback) {
       res.status(403).json({ error: "Access to private/local networks is not allowed" });
+      return;
+    }
+
+    // Explicit allowlist for permitted upstream target hosts
+    const isAllowedHost =
+      hostname === "mcp.getmaterio.app" ||
+      hostname === "getmaterio.app" ||
+      hostname === "auth.getmaterio.app" ||
+      hostname === "api.getmaterio.app" ||
+      hostname === "room.getmaterio.app" ||
+      hostname.endsWith(".getmaterio.app");
+
+    if (!isAllowedHost) {
+      res.status(403).json({ error: "Target host is not permitted" });
       return;
     }
 
@@ -675,7 +714,8 @@ app.all("/api/mcp-proxy", async (req, res) => {
       body: req.method !== "GET" && req.method !== "HEAD" ? JSON.stringify(req.body) : undefined,
     };
 
-    const targetRes = await fetch(targetUrl, fetchOpts);
+    // codeql[js/request-forgery]
+    const targetRes = await fetch(parsedTargetUrl.href, fetchOpts);
     res.status(targetRes.status);
     targetRes.headers.forEach((val, key) => {
       if (!["transfer-encoding", "content-encoding", "content-length"].includes(key.toLowerCase())) {
