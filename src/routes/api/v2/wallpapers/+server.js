@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import { getMongoDb } from '$lib/server/mongodb.js';
+import { getMongoDb, withMongoTimeout } from '$lib/server/mongodb.js';
 import { corsHeaders } from '$lib/server/cors-origins.js';
 
 export const prerender = false;
@@ -11,11 +11,13 @@ export async function OPTIONS() {
 export async function GET({ request }) {
   try {
     const db = await getMongoDb();
-    const wallpapers = await db
-      .collection('wallpapers')
-      .find({})
-      .sort({ isDefault: -1, createdAt: 1 })
-      .toArray();
+    const wallpapers = await withMongoTimeout(
+      db
+        .collection('wallpapers')
+        .find({})
+        .sort({ isDefault: -1, createdAt: 1 })
+        .toArray()
+    );
 
     const formatted = wallpapers.map((w) => ({
       id: w._id.toString(),
