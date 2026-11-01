@@ -673,10 +673,14 @@
         }
         resetAnnotState();
         cleanupActiveBlob();
+        try {
+            const iframe = document.getElementById("pdf-iframe");
+            iframe?.contentWindow?.postMessage({ type: 'MATERIO_RESET_THINKLET' }, '*');
+        } catch {}
         cue.pdfClosing();
         isClosing = true;
         setTimeout(() => {
-            pdfModalStore.update((state) => ({ ...state, isOpen: false }));
+            pdfModalStore.update((state) => ({ ...state, isOpen: false, pdfUrl: '' }));
             isClosing = false;
             showShareModal = false;
             closeInProgress = false;

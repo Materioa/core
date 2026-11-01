@@ -3,7 +3,10 @@
 </script>
 
 <svelte:head>
-  <meta name="keywords" content="PUMIS, PUMIS Login, PUMIS Student Portal, student.pumis.in, Parul University PUMIS, PUMIS Portal, PU Attendance, PU Hostel PUMIS, PU Elearning, Materio PU" />
+  <title>Materio</title>
+  <meta property="og:title" content="Materio" />
+  <meta name="twitter:title" content="Materio" />
+  <meta name="keywords" content="Materio, PUMIS, PUMIS Login, student.pumis.in, Parul University PUMIS, PU attendance, PU hostel, PU elearning" />
   
   <script type="application/ld+json">
   {
@@ -13,8 +16,8 @@
         "@type": "WebPage",
         "@id": "https://getmaterio.app/pumis#webpage",
         "url": "https://getmaterio.app/pumis",
-        "name": "PUMIS Student Portal & Login Guide — Parul University | Materio",
-        "description": "Direct links and complete guide for Parul University PUMIS student portal (student.pumis.in), attendance, exam papers, and study resources on Materio.",
+        "name": "Materio",
+        "description": "Student portal guide, login navigation, and study resources on Materio.",
         "isPartOf": {
           "@type": "WebSite",
           "@id": "https://getmaterio.app/#website",
@@ -31,7 +34,7 @@
             "name": "How to log into PUMIS Student Portal?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Visit student.pumis.in and sign in using your Parul University Enrollment Number or registered email address and your password or OTP."
+              "text": "Visit student.pumis.in and sign in using your Enrollment Number or registered email address and your password or OTP."
             }
           },
           {
@@ -39,7 +42,7 @@
             "name": "Where can I get study materials without logging into PUMIS?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "You can access all semester notes, computer science subjects, and question banks directly on Materio (getmaterio.app) without needing PUMIS credentials."
+              "text": "You can access semester notes, computer science subjects, and question banks directly on Materio (getmaterio.app)."
             }
           }
         ]
@@ -50,25 +53,24 @@
 </svelte:head>
 
 <ContentPage
-  title="PUMIS Portal Login & Student Guide — Parul University"
-  description="Direct access to Parul University PUMIS student portal login, attendance updates, and fast curated study resources on Materio."
+  title="Student Portal Companion"
+  tabTitle="Materio"
+  description="Student portal guide, login navigation, and fast curated study resources on Materio."
   canonicalPath="/pumis"
 >
-  <h1>PUMIS Student Portal &amp; Login Guide — Parul University</h1>
-
   <blockquote>
-    <p>Direct login guidance for <strong>PUMIS (Parul University Management Information System)</strong>, plus fast access to university study materials on <strong>Materio</strong>.</p>
+    <p>Student guide for <strong>PUMIS</strong> navigation, plus quick access to academic materials on <strong>Materio</strong>.</p>
   </blockquote>
 
   <p>
-    <strong>PUMIS</strong> is Parul University's primary student information system. It manages official academic profiles, internal attendance records, exam timetables, fee payments, and hostel requests.
+    <strong>PUMIS</strong> is Parul University's primary student information system, managing official academic profiles, attendance records, exam timetables, fee payments, and hostel requests.
   </p>
 
   <div style="background: rgba(255, 132, 0, 0.08); border-left: 4px solid #ff8400; padding: 14px 18px; margin: 1.5rem 0; border-radius: 4px;">
-    <strong>Looking for study notes, PPTs, or PYQs?</strong> You don't need to log into PUMIS or PU Elearning to study. <a href="/" style="font-weight: 600; text-decoration: underline;">Open Materio App</a> to start reading verified semester materials immediately.
+    <strong>Looking for study notes, PPTs, or PYQs?</strong> You don't need to log into administrative portals to read. <a href="/" style="font-weight: 600; text-decoration: underline;">Open Materio App</a> to start reading verified semester materials immediately.
   </div>
 
-  <h2>Official PUMIS Links</h2>
+  <h2>Official Portal Links</h2>
   <ul>
     <li><strong>Student Login Portal:</strong> <a href="https://student.pumis.in" target="_blank" rel="noopener noreferrer">student.pumis.in</a></li>
     <li><strong>Hostel Management:</strong> <a href="https://hostel.pumis.in" target="_blank" rel="noopener noreferrer">hostel.pumis.in</a></li>
@@ -84,7 +86,7 @@
     <li>View your dashboard for real-time attendance, timetables, and exam hall tickets.</li>
   </ol>
 
-  <h2>PUMIS vs. Materio</h2>
+  <h2>Portal Reference vs. Materio</h2>
   <table style="width: 100%; border-collapse: collapse; margin-top: 1rem;">
     <thead>
       <tr style="border-bottom: 2px solid #ddd; text-align: left;">
@@ -101,7 +103,7 @@
       </tr>
       <tr style="border-bottom: 1px solid #eee;">
         <td style="padding: 8px;"><strong>Curated Study Notes &amp; PPTs</strong></td>
-        <td style="padding: 8px;">Scattered / Slow</td>
+        <td style="padding: 8px;">Scattered</td>
         <td style="padding: 8px;"><strong>Yes (Instant, Sem 1–8)</strong></td>
       </tr>
       <tr style="border-bottom: 1px solid #eee;">
@@ -121,6 +123,6 @@
   <p style="text-align: center;">
     <a href="/" style="display: inline-block; background: #ff8400; color: white; padding: 10px 22px; border-radius: 8px; font-weight: 600; text-decoration: none;">Explore Notes on Materio</a>
     &nbsp;&nbsp;
-    <a href="/pu-elearning" style="display: inline-block; padding: 10px 18px; border: 1px solid #ff8400; border-radius: 8px; color: #ff8400; font-weight: 600; text-decoration: none;">View PU Elearning Guide</a>
+    <a href="/pu-elearning" style="display: inline-block; padding: 10px 18px; border: 1px solid #ff8400; border-radius: 8px; color: #ff8400; font-weight: 600; text-decoration: none;">View E-Learning Guide</a>
   </p>
 </ContentPage>

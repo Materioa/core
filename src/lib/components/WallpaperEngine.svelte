@@ -2,7 +2,9 @@
     import { onMount, onDestroy } from 'svelte';
     import { browser } from '$app/environment';
     import { activeTab } from '$lib/stores.js';
+    import { toApiUrl } from '$lib/config/api.js';
     import HugeIcon from '$lib/components/HugeIcon.svelte';
+    import { getActiveCustomWallpaper, addCustomWallpaper } from '$lib/utils/customWallpaperDb.js';
 
     let dynamicWallpaperInterval = null;
     let christmasWallpaperInterval = null;
@@ -160,14 +162,27 @@
         return 0;
     }
 
+    const DYNAMIC_PARTS = [
+        'https://res.cloudinary.com/dvsdsl7iw/image/upload/v1793245857/materio/wallpapers/dynamic_part_0.webp',
+        'https://res.cloudinary.com/dvsdsl7iw/image/upload/v1793245859/materio/wallpapers/dynamic_part_1.webp',
+        'https://res.cloudinary.com/dvsdsl7iw/image/upload/v1793245860/materio/wallpapers/dynamic_part_2.webp',
+        'https://res.cloudinary.com/dvsdsl7iw/image/upload/v1793245861/materio/wallpapers/dynamic_part_3.webp',
+        'https://res.cloudinary.com/dvsdsl7iw/image/upload/v1793245863/materio/wallpapers/dynamic_part_4.webp',
+        'https://res.cloudinary.com/dvsdsl7iw/image/upload/v1793245864/materio/wallpapers/dynamic_part_5.webp',
+        'https://res.cloudinary.com/dvsdsl7iw/image/upload/v1793245865/materio/wallpapers/dynamic_part_6.webp',
+        'https://res.cloudinary.com/dvsdsl7iw/image/upload/v1793245867/materio/wallpapers/dynamic_part_7.webp',
+        'https://res.cloudinary.com/dvsdsl7iw/image/upload/v1793245868/materio/wallpapers/dynamic_part_8.webp'
+    ];
+
     function applyDynamicWallpaper() {
         if (!browser) return;
         const index = getDynamicImageIndex();
-        const imageUrl = `url('/assets/img/events/dynamic/part_${index}.webp')`;
+        const imageUrl = `url('${DYNAMIC_PARTS[index] || DYNAMIC_PARTS[0]}')`;
         const homeElem = document.getElementById('home');
         if (homeElem) homeElem.style.setProperty("--bg-img", imageUrl);
 
         updateDynamicPreview();
+            syncCollectionWallpapers();
     }
 
     function updateDynamicPreview() {
@@ -177,7 +192,7 @@
 
         if (dynamicPreview) {
             const index = getDynamicImageIndex();
-            const imageUrl = `/assets/img/events/dynamic/part_${index}.webp`;
+            const imageUrl = DYNAMIC_PARTS[index] || DYNAMIC_PARTS[0];
             dynamicPreview.style.backgroundImage = `url('${imageUrl}')`;
             dynamicPreview.style.backgroundSize = 'cover';
             dynamicPreview.style.backgroundPosition = 'center';
@@ -208,18 +223,28 @@
         }
     }
 
+    const CHRISTMAS_PARTS = {
+        2: 'https://res.cloudinary.com/dvsdsl7iw/image/upload/v1793245869/materio/wallpapers/christmas_part_2.webp',
+        3: 'https://res.cloudinary.com/dvsdsl7iw/image/upload/v1793245871/materio/wallpapers/christmas_part_3.webp',
+        4: 'https://res.cloudinary.com/dvsdsl7iw/image/upload/v1793245873/materio/wallpapers/christmas_part_4.webp',
+        5: 'https://res.cloudinary.com/dvsdsl7iw/image/upload/v1793245876/materio/wallpapers/christmas_part_5.webp',
+        6: 'https://res.cloudinary.com/dvsdsl7iw/image/upload/v1793245879/materio/wallpapers/christmas_part_6.webp',
+        7: 'https://res.cloudinary.com/dvsdsl7iw/image/upload/v1793245881/materio/wallpapers/christmas_part_7.webp',
+        8: 'https://res.cloudinary.com/dvsdsl7iw/image/upload/v1793245883/materio/wallpapers/christmas_part_8.webp'
+    };
+
     function getChristmasImageUrl() {
         const now = new Date();
         const totalMinutes = now.getHours() * 60 + now.getMinutes();
 
-        if (totalMinutes >= 405 && totalMinutes < 1065) return `url('/assets/img/events/dynamic/christmas/part_2.webp')`;
-        else if (totalMinutes >= 1065 && totalMinutes < 1080) return `url('/assets/img/events/dynamic/christmas/part_3.webp')`;
-        else if (totalMinutes >= 1080 && totalMinutes < 1140) return `url('/assets/img/events/dynamic/christmas/part_4.webp')`;
-        else if (totalMinutes >= 1140 && totalMinutes < 1280) return `url('/assets/img/events/dynamic/christmas/part_5.webp')`;
-        else if (totalMinutes >= 1280 && totalMinutes < 1430) return `url('/assets/img/events/dynamic/christmas/part_6.webp')`;
-        else if (totalMinutes >= 1430 || totalMinutes < 345) return `url('/assets/img/events/dynamic/christmas/part_8.webp')`;
+        if (totalMinutes >= 405 && totalMinutes < 1065) return `url('${CHRISTMAS_PARTS[2]}')`;
+        else if (totalMinutes >= 1065 && totalMinutes < 1080) return `url('${CHRISTMAS_PARTS[3]}')`;
+        else if (totalMinutes >= 1080 && totalMinutes < 1140) return `url('${CHRISTMAS_PARTS[4]}')`;
+        else if (totalMinutes >= 1140 && totalMinutes < 1280) return `url('${CHRISTMAS_PARTS[5]}')`;
+        else if (totalMinutes >= 1280 && totalMinutes < 1430) return `url('${CHRISTMAS_PARTS[6]}')`;
+        else if (totalMinutes >= 1430 || totalMinutes < 345) return `url('${CHRISTMAS_PARTS[8]}')`;
         
-        return `url('/assets/img/events/dynamic/christmas/part_2.webp')`;
+        return `url('${CHRISTMAS_PARTS[2]}')`;
     }
 
     function applyChristmasDynamicWallpaper() {
@@ -268,16 +293,16 @@
         }
     }
 
-    function applyCustomWallpaper() {
+    async function applyCustomWallpaper() {
         if (!browser) return;
-        const customUrl = localStorage.getItem('materio_custom_wallpaper');
-        if (customUrl) {
+        const customWp = await getActiveCustomWallpaper();
+        if (customWp && customWp.dataUrl) {
             const homeElem = document.getElementById('home');
-            if (homeElem) homeElem.style.setProperty("--bg-img", `url('${customUrl}')`);
+            if (homeElem) homeElem.style.setProperty("--bg-img", `url('${customWp.dataUrl}')`);
             
             const customPreview = document.getElementById('customPreview');
             if (customPreview) {
-                customPreview.style.backgroundImage = `url('${customUrl}')`;
+                customPreview.style.backgroundImage = `url('${customWp.thumbnailUrl || customWp.dataUrl}')`;
                 customPreview.style.backgroundSize = 'cover';
                 customPreview.style.backgroundPosition = 'center';
             }
@@ -287,11 +312,80 @@
         }
     }
 
+    
+    let genericDynamicInterval = null;
+
+    function isTimeInRange(time, start, end) {
+        if (!start || !end) return true;
+        if (start <= end) {
+            return time >= start && time < end;
+        } else {
+            return time >= start || time < end;
+        }
+    }
+
+    function getSlotImageForTime(slots) {
+        if (!slots || !slots.length) return null;
+        const now = new Date();
+        const curTime = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+        const todayStr = now.toISOString().split('T')[0];
+
+        // 1. Exclusive dates first
+        const dateSlot = slots.find(s => Array.isArray(s.exclusiveDates) && s.exclusiveDates.includes(todayStr) && isTimeInRange(curTime, s.start, s.end));
+        if (dateSlot && dateSlot.image) return dateSlot.image;
+
+        // 2. Standard time match
+        const standardSlot = slots.find(s => isTimeInRange(curTime, s.start, s.end));
+        if (standardSlot && standardSlot.image) return standardSlot.image;
+
+        return slots[0].image;
+    }
+
+    function applyCollectionDynamicWallpaper(wp) {
+        if (!browser || !wp) return;
+        const img = getSlotImageForTime(wp.slots);
+        if (img) {
+            const homeElem = document.getElementById('home');
+            if (homeElem) homeElem.style.setProperty("--bg-img", "url('" + img + "')");
+        }
+    }
+
+    function startCollectionDynamicTimer(wp) {
+        if (!browser) return;
+        if (genericDynamicInterval) clearInterval(genericDynamicInterval);
+        genericDynamicInterval = setInterval(() => {
+            const selected = getCookie("selectedWallpaper");
+            if (selected === (wp.slug || wp.id)) {
+                applyCollectionDynamicWallpaper(wp);
+            }
+        }, 60000);
+    }
+
+    function stopCollectionDynamicTimer() {
+        if (genericDynamicInterval) {
+            clearInterval(genericDynamicInterval);
+            genericDynamicInterval = null;
+        }
+    }
+
+    async function syncCollectionWallpapers() {
+        if (!browser) return;
+        try {
+            const res = await fetch(toApiUrl('/api/v2/wallpapers'));
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success && Array.isArray(data.wallpapers)) {
+                    localStorage.setItem('materio_collection_wallpapers', JSON.stringify(data.wallpapers));
+                }
+            }
+        } catch {}
+    }
+
     const STATIC_WALLPAPERS = {
-        'default': "url('/assets/img/events/hero.webp')",
-        'h2': "url('/assets/img/wallpapers/h2.webp')",
-        'h5': "url('/assets/img/wallpapers/h5.webp')",
-        'h3': "url('/assets/img/wallpapers/h3.webp')"
+        'default': "url('https://res.cloudinary.com/dvsdsl7iw/image/upload/v1793245885/materio/wallpapers/hero_default.webp')",
+        'h2': "url('https://res.cloudinary.com/dvsdsl7iw/image/upload/v1793245888/materio/wallpapers/wallpaper_h2.webp')",
+        'h5': "url('https://res.cloudinary.com/dvsdsl7iw/image/upload/v1793245892/materio/wallpapers/wallpaper_h5.webp')",
+        'h3': "url('https://res.cloudinary.com/dvsdsl7iw/image/upload/v1793245889/materio/wallpapers/wallpaper_h3.webp')"
     };
 
     function setWallpaperAsBackground(wallpaperType) {
@@ -357,6 +451,7 @@
 
             if (!isWallpaperEnabled) {
                 stopDynamicWallpaperTimer();
+            stopCollectionDynamicTimer();
                 stopChristmasWallpaperTimer();
                 stopSereineWallpaperTimer();
                 if (homeElem) homeElem.style.setProperty("--bg-img", "none");
@@ -382,27 +477,13 @@
         }
     }
 
-    function handleWatermarkSave() {
+    async function handleWatermarkSave() {
         if (!browser) return;
         if (window.MaterioHaptics) window.MaterioHaptics.vibrate('tick');
         if (currentSereineImageUrl) {
             try {
-                const raw = localStorage.getItem('materio_custom_wallpaper_store') || '[]';
-                let list = [];
-                try { list = JSON.parse(raw); } catch {}
                 const title = `Sereine - ${sereineArtistName || 'Curated'}`;
-                const exists = list.some(item => item.dataUrl === currentSereineImageUrl);
-                if (!exists) {
-                    list.unshift({
-                        id: `cw_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
-                        name: title,
-                        dataUrl: currentSereineImageUrl,
-                        createdAt: Date.now()
-                    });
-                    if (list.length > 20) list = list.slice(0, 20);
-                    localStorage.setItem('materio_custom_wallpaper_store', JSON.stringify(list));
-                }
-                localStorage.setItem('materio_custom_wallpaper', currentSereineImageUrl);
+                await addCustomWallpaper(currentSereineImageUrl, title);
             } catch (err) {}
         }
     }
@@ -442,6 +523,9 @@
             
             window.addEventListener('materioWallpaperChange', handleWallpaperChange);
             window.addEventListener('materioWallpaperToggle', handleWallpaperChange);
+            window.addEventListener('materioCustomWallpaperActiveChange', () => {
+                if (currentWallpaperType === 'custom') applyCustomWallpaper();
+            });
         }
     });
 

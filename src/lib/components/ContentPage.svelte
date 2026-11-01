@@ -1,10 +1,11 @@
 <script>
   export let title = '';
+  export let tabTitle = '';
   export let description = '';
   export let canonicalPath = '';
   export let showBackButton = true;
 
-  $: pageTitle = title ? `${title} · Materio` : 'Materio';
+  $: pageTitle = tabTitle || (title ? (title === 'Materio' ? 'Materio' : `${title} · Materio`) : 'Materio');
   $: pageDesc = description || "Official materials you trust, in a way you love — Find organized, official study materials and notes on Materio.";
   $: pageUrl = `https://getmaterio.app${canonicalPath || ''}`;
 </script>

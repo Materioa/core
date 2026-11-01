@@ -3,9 +3,12 @@
 </script>
 
 <svelte:head>
-  <meta name="keywords" content="PU Elearning, Parul Elearning, PUMIS, Parul University Elearning, PU LMS, PU Student Portal, Parul University Notes, PU CSE Materials, Parul University Vadodara, PU PYQ, Parul University Previous Year Papers, student.pumis.in, learning.paruluniversity.ac.in, elearning.paruluniversity.ac.in, PU Student App" />
+  <title>Materio</title>
+  <meta property="og:title" content="Materio" />
+  <meta name="twitter:title" content="Materio" />
+  <meta name="keywords" content="Materio, PU Elearning, Parul Elearning, PUMIS, Parul University, PU, student.pumis.in, elearning.paruluniversity.ac.in, PU study materials, CSE notes, PYQs, syllabus" />
   
-  <!-- Structured Data: FAQPage for Google Featured Snippets & Position 0 -->
+  <!-- Structured Data: FAQPage for semantic search answering student queries -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -14,8 +17,8 @@
         "@type": "WebPage",
         "@id": "https://getmaterio.app/pu-elearning#webpage",
         "url": "https://getmaterio.app/pu-elearning",
-        "name": "PU Elearning & PUMIS Study Portal — Parul University Notes & Resources",
-        "description": "Find organized Parul University (PU) study materials, CSE lecture notes, PYQs, and syllabus. A fast, offline-friendly alternative to standard PU Elearning and PUMIS portals.",
+        "name": "Materio",
+        "description": "Student guide and study resource companion for campus e-learning and portal navigation.",
         "isPartOf": {
           "@type": "WebSite",
           "@id": "https://getmaterio.app/#website",
@@ -29,34 +32,26 @@
         "mainEntity": [
           {
             "@type": "Question",
-            "name": "What is PU Elearning and how does Materio compare?",
+            "name": "What is PU Elearning and how does Materio help?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "PU Elearning (learning.paruluniversity.ac.in / elearning.paruluniversity.ac.in) is Parul University's LMS portal for online course modules and submissions. Materio is a dedicated, ultra-fast study hub created specifically for Parul University students to read, organize, and download lecture notes, PPTs, syllabus, and exam PYQs without server timeouts or login friction."
+              "text": "PU Elearning is Parul University's online learning management system. Materio is an independent, fast study hub that helps students organize, read, and bookmark lecture notes, PPTs, syllabus, and PYQs without server timeouts or login friction."
             }
           },
           {
             "@type": "Question",
-            "name": "How can I access Parul University (PU) notes and study materials without login delays?",
+            "name": "Where can I find PU CSE and engineering semester notes?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "You can access verified Parul University study materials on Materio (getmaterio.app). Materials are categorized by Semester, Subject, Unit, and Topic with built-in online reading and offline bookmarking."
+              "text": "Materio provides verified semester-wise notes, chapter presentations, and question banks categorized from Semester 1 to 8."
             }
           },
           {
             "@type": "Question",
-            "name": "Where can I find Parul University CSE / B.Tech Previous Year Questions (PYQs)?",
+            "name": "How can I access study notes offline?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Parul University previous year exam papers (PYQs), question banks, and chapter notes are crowd-curated on Materio's InsightRoom and Resource Library."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "What are the official portal links for Parul University?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "The official Parul University student portals include PUMIS Student Portal (student.pumis.in), PU E-Learning Portal (elearning.paruluniversity.ac.in), and the PU Student Mobile App on Google Play."
+              "text": "Using Materio as a PWA or Android app, you can bookmark materials to read them offline without an internet connection."
             }
           }
         ]
@@ -67,71 +62,55 @@
 </svelte:head>
 
 <ContentPage
-  title="PU Elearning & PUMIS Guide — Parul University Study Portal"
-  description="All-in-one guide to Parul University (PU) Elearning, PUMIS portal, and verified study resources. Access PU CSE notes, exam PYQs, and syllabus on Materio."
+  title="E-Learning Companion"
+  tabTitle="Materio"
+  description="Independent student companion for e-learning, portal navigation, and organized lecture notes."
   canonicalPath="/pu-elearning"
 >
-  <h1>Parul University (PU) Elearning &amp; PUMIS Portal Guide</h1>
-
   <blockquote>
-    <p>Looking for Parul University study materials, notes, or previous year papers? <strong>Materio</strong> is built by PU students, for PU students — faster, simpler, and accessible anytime.</p>
+    <p>Independent student resource guide for <strong>PU E-Learning</strong> and campus academic resources. Faster, simpler, and accessible anytime.</p>
   </blockquote>
 
   <p>
-    Welcome to the complete reference and student resource companion for <strong>Parul University (PU) Elearning</strong> and <strong>PUMIS (Parul University Management Information System)</strong>. Whether you need lecture presentations, semester-wise notes, syllabus copies, or previous year question papers (PYQs), this page provides direct access to both official PU portals and the enhanced Materio study experience.
+    Welcome to the student companion for <strong>Parul University (PU) E-Learning</strong> and <strong>PUMIS</strong>. If you are looking for lecture slides, semester notes, syllabus copies, or previous year question papers (PYQs), this guide links to both official portals and Materio's clean study reader.
   </p>
 
   <div style="background: rgba(255, 132, 0, 0.08); border-left: 4px solid #ff8400; padding: 14px 18px; margin: 1.5rem 0; border-radius: 4px;">
-    <strong>⚡ Quick Start:</strong> Skip login queues and slow servers. <a href="/" style="font-weight: 600; text-decoration: underline;">Open Materio App</a> to immediately browse Semester 1 to 8 notes, CSE resources, and PDF reading modes.
+    <strong>⚡ Quick Start:</strong> <a href="/" style="font-weight: 600; text-decoration: underline;">Open Materio App</a> to immediately browse Semester 1 to 8 notes, computer science resources, and reading tools.
   </div>
 
-  <h2>Official Parul University Portals Directory</h2>
-  <p>If you need to complete official university tasks like checking attendance, submitting exam fees, or viewing internal marks, use the official links below:</p>
+  <h2>Official Campus Portals</h2>
+  <p>For administrative duties like attendance tracking, exam hall tickets, or fee payments, use the official links below:</p>
   <ul>
     <li>
-      <strong>PUMIS Student Portal:</strong> <a href="https://student.pumis.in" target="_blank" rel="noopener noreferrer">student.pumis.in</a> — Access daily attendance, timetable, semester marks, fee receipts, and mentor updates.
+      <strong>PUMIS Student Portal:</strong> <a href="https://student.pumis.in" target="_blank" rel="noopener noreferrer">student.pumis.in</a> — Attendance records, timetables, and fee receipts.
     </li>
     <li>
-      <strong>PU Elearning LMS Portal:</strong> <a href="https://elearning.paruluniversity.ac.in" target="_blank" rel="noopener noreferrer">elearning.paruluniversity.ac.in</a> — Official LMS platform (Edorer) for online assignments, course tests, and uploaded faculty slides.
+      <strong>PU E-Learning Portal:</strong> <a href="https://elearning.paruluniversity.ac.in" target="_blank" rel="noopener noreferrer">elearning.paruluniversity.ac.in</a> — LMS assignments, tests, and faculty uploads.
     </li>
     <li>
-      <strong>Parul University Online (Distance LMS):</strong> <a href="https://lms.paruluniversity.online" target="_blank" rel="noopener noreferrer">lms.paruluniversity.online</a> — Online degree LMS for BCA, MCA, BBA, and MBA online courses.
+      <strong>PU Online (Distance LMS):</strong> <a href="https://lms.paruluniversity.online" target="_blank" rel="noopener noreferrer">lms.paruluniversity.online</a> — Online degree learning dashboard.
     </li>
     <li>
-      <strong>PU Student App:</strong> Available on the Google Play Store for mobile attendance, bus passes, and campus notifications.
+      <strong>PU Student App:</strong> Mobile portal for attendance and notifications.
     </li>
   </ul>
 
-  <h2>Why Students Use Materio Instead of Standard PU Elearning</h2>
-  <p>While the official PU Elearning and PUMIS portals are essential for administrative tasks and grading, studying through them during exam crunch times can be frustrating due to:</p>
+  <h2>Why Use Materio for Daily Study?</h2>
+  <p>Official LMS portals are essential for grades and attendance, but when preparing for exams, students often experience slow loading times or difficult navigation. Materio provides:</p>
   <ul>
-    <li><strong>Server Timeouts &amp; Peak Congestion:</strong> Portals often experience slow response times when thousands of students check materials right before exams.</li>
-    <li><strong>Clunky PDF Downloads:</strong> Downloading large PDFs fills up phone and laptop storage unnecessarily.</li>
-    <li><strong>Scattered Notes:</strong> PPTs, assignment answers, and syllabus copies are frequently split across WhatsApp groups, Google Drives, and diverse LMS folders.</li>
+    <li><strong>Instant Loading:</strong> Access curated study materials without waiting for portal sessions to reload.</li>
+    <li><strong>Organized by Semester:</strong> Select your semester (Sem 1–8), subject, and unit to start reading immediately.</li>
+    <li><strong>Comfortable Reader:</strong> Built-in Paper, Night, and E-ink modes for long study sessions.</li>
+    <li><strong>Offline Access:</strong> Bookmark documents to read them offline in the Materio app.</li>
   </ul>
 
-  <p><strong>Materio solves this completely:</strong></p>
-  <ul>
-    <li><strong>Zero Login Lag:</strong> Read verified study materials instantly in your browser without waiting for login sessions to refresh.</li>
-    <li><strong>Organized by Semester &amp; Subject:</strong> Select your semester (Sem 1 through 8), subject (e.g. Data Structures, OS, DBMS, Web Dev, Python), category, and topic in one clean dropdown.</li>
-    <li><strong>Built-in Clean PDF Reader:</strong> Includes Paper, Night, and E-ink overlay modes for strain-free reading.</li>
-    <li><strong>Offline Reading:</strong> Bookmark any material with one click and access it inside the Materio PWA / Android app without an active internet connection.</li>
-    <li><strong>AI Search &amp; Community Notes:</strong> Instant keyword search across materials, plus the <em>InsightRoom</em> for crowd-curated cheat sheets and PYQ solutions.</li>
-  </ul>
+  <h2>FAQ</h2>
+  <h3>What is the difference between PUMIS and E-Learning?</h3>
+  <p><strong>PUMIS</strong> (student.pumis.in) handles administrative tasks like attendance, exams, and fees. <strong>PU E-Learning</strong> (elearning.paruluniversity.ac.in) hosts course modules and quizzes.</p>
 
-  <h2>Frequently Asked Questions (FAQ)</h2>
-  
-  <h3>1. What is the difference between PUMIS and PU Elearning?</h3>
-  <p><strong>PUMIS</strong> (Parul University Management Information System, hosted at <code>student.pumis.in</code>) manages administrative records such as attendance, exam hall tickets, hostel records, and fee payments. <strong>PU Elearning</strong> (hosted at <code>elearning.paruluniversity.ac.in</code>) is the learning management system where teachers post assignments and course quizzes.</p>
-
-  <h3>2. How do I get CSE and Engineering notes for Parul University?</h3>
-  <p>Visit <a href="/">Materio (getmaterio.app)</a>. Select your current semester, choose your subject, and hit "Start Reading" to open high-yield lecture slides, unit notes, and past exam questions.</p>
-
-  <h3>3. Does Materio replace my PUMIS attendance or university registration?</h3>
-  <p>No. Materio is an independent, student-first study and revision platform built to simplify academic preparation. For official attendance tracking, exam fee submission, and university grade cards, always use <a href="https://student.pumis.in" target="_blank" rel="noopener noreferrer">student.pumis.in</a>.</p>
-
-  <h3>4. How do I read Parul University materials offline?</h3>
-  <p>Install the Materio Web App (PWA) on your mobile or PC, open any document, and tap the bookmark icon (+). The document will be saved locally in your Downloads tab for offline reading anytime.</p>
+  <h3>Does Materio replace university portals?</h3>
+  <p>No. Materio is an independent study tool for reading notes and preparing for exams. For official attendance and submissions, always use the official portals.</p>
 
   <hr style="margin: 2rem 0; opacity: 0.2;" />
   <p style="text-align: center; margin-top: 1.5rem;">

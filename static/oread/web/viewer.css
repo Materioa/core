@@ -7022,11 +7022,9 @@ dialog :link {
     inset: 0;
     z-index: 100000;
     display: block;
-    background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(5px);
-    -webkit-backdrop-filter: blur(5px);
+    background: rgba(0, 0, 0, 0.6);
     opacity: 1;
-    transition: opacity 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+    transition: opacity 0.3s cubic-bezier(0.32, 0.72, 0, 1);
   }
 
   #thinkletBackdrop[hidden] {
@@ -7037,18 +7035,22 @@ dialog :link {
     position: fixed;
     inset-block: auto 0;
     inset-inline: 0;
-    width: auto;
-    max-width: none;
+    width: 100%;
+    max-width: 100%;
     min-width: 0;
     height: min(85dvh, 720px);
     border-inline-start: 0;
-    border-radius: 40px 40px 0 0;
-    corner-shape: squircle;
+    border-radius: 28px 28px 0 0;
     box-shadow: 0 -8px 32px rgb(0 0 0 / 0.25);
     overflow: hidden;
-    animation: thinkletSheetSlideUp 0.4s cubic-bezier(0.32, 0.72, 0, 1);
-    touch-action: pan-y;
+    animation: thinkletSheetSlideUp 0.35s cubic-bezier(0.32, 0.72, 0, 1);
     z-index: 100001;
+    isolation: isolate;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    contain: paint;
   }
 
   #thinkletPanel::before {
@@ -7057,11 +7059,12 @@ dialog :link {
     top: 10px;
     left: 50%;
     transform: translateX(-50%);
-    width: 60px;
-    height: 6px;
-    background-color: rgba(150, 150, 150, 0.6);
+    width: 48px;
+    height: 5px;
+    background-color: rgba(150, 150, 150, 0.5);
     border-radius: 3px;
     z-index: 5;
+    pointer-events: none;
   }
 
   #thinkletResizeHandle {
@@ -7069,13 +7072,24 @@ dialog :link {
   }
 
   #thinkletPanelHeader {
-    padding-top: 12px;
-    height: calc(var(--toolbar-height) + 12px);
-    min-height: calc(var(--toolbar-height) + 12px);
+    padding-top: 14px;
+    height: calc(var(--toolbar-height) + 14px);
+    min-height: calc(var(--toolbar-height) + 14px);
+    touch-action: pan-y;
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: grab;
   }
 
   #thinkletFrame {
+    width: 100%;
+    height: 100%;
     min-height: 0;
+    border: 0;
+    flex: 1;
+    display: block;
+    -webkit-overflow-scrolling: touch;
+    touch-action: auto;
   }
 }
 

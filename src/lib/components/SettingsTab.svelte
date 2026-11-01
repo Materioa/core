@@ -42,6 +42,44 @@
     let soundMaterialDropdownOpen = false;
 
     let selectedWallpaper = 'dynamic';
+    let collectionWallpapers = [];
+    const MAX_ROW_WALLPAPERS = 5;
+    let wallpaperStoreTab = 'collection'; // 'collection' | 'custom'
+
+    const fallbackWallpapers = [
+        { name: 'Default', slug: 'default', type: 'standard', desktopImage: 'https://res.cloudinary.com/dvsdsl7iw/image/upload/v1793245885/materio/wallpapers/hero_default.webp' },
+        { name: 'Dynamic Landscape', slug: 'dynamic', type: 'dynamic', desktopImage: 'https://res.cloudinary.com/dvsdsl7iw/image/upload/v1793245860/materio/wallpapers/dynamic_part_2.webp' },
+        { name: 'Zen', slug: 'h2', type: 'standard', desktopImage: 'https://res.cloudinary.com/dvsdsl7iw/image/upload/v1793245888/materio/wallpapers/wallpaper_h2.webp' },
+        { name: 'Dusk', slug: 'h5', type: 'standard', desktopImage: 'https://res.cloudinary.com/dvsdsl7iw/image/upload/v1793245892/materio/wallpapers/wallpaper_h5.webp' },
+        { name: 'A Blissful Night', slug: 'h3', type: 'standard', desktopImage: 'https://res.cloudinary.com/dvsdsl7iw/image/upload/v1793245889/materio/wallpapers/wallpaper_h3.webp' },
+        { name: 'Christmas', slug: 'christmas-dynamic', type: 'dynamic', desktopImage: 'https://res.cloudinary.com/dvsdsl7iw/image/upload/v1793245869/materio/wallpapers/christmas_part_2.webp' }
+    ];
+
+    async function loadCollectionWallpapers() {
+        if (!browser) return;
+        try {
+            const cached = localStorage.getItem('materio_collection_wallpapers');
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                if (Array.isArray(parsed) && parsed.length) {
+                    collectionWallpapers = parsed;
+                }
+            }
+        } catch {}
+
+        try {
+            const res = await fetch(toApiUrl('/api/v2/wallpapers'));
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success && Array.isArray(data.wallpapers)) {
+                    collectionWallpapers = data.wallpapers;
+                    localStorage.setItem('materio_collection_wallpapers', JSON.stringify(data.wallpapers));
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to load collection wallpapers:', e);
+        }
+    }
     let showWallpaperStore = false;
     let showSereineModal = false;
     let sereineFrequency = 'everytime';
@@ -195,6 +233,8 @@
         };
 
         refreshAccountState();
+        refreshCustomWallpapers();
+        loadCollectionWallpapers();
         if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
             window.requestIdleCallback(() => loadReleases(), { timeout: 4000 });
         } else {
@@ -468,19 +508,59 @@
             }));
         }
     }
-    function handleCustomWallpaperInput(e){
-        const file=e.target.files?.[0]; if(!file) return;
-        const reader=new FileReader();
-        reader.onload=()=>{ 
-            const url=reader.result; 
-            localStorage.setItem('materio_custom_wallpaper', url); 
+    async function refreshCustomWallpapers() {
+        if (!browser) return;
+        try {
+            customWallpapersList = await getAllCustomWallpapers();
+            activeCustomId = getActiveCustomWallpaperId();
+            maxCustomLimit = getMaxWallpapers();
+            const customPreview = document.getElementById('customPreview');
+            if (customPreview) {
+                const activeWp = customWallpapersList.find(w => w.id === activeCustomId) || customWallpapersList[0];
+                if (activeWp) {
+                    customPreview.style.backgroundImage = "url('" + (activeWp.thumbnailUrl || activeWp.dataUrl) + "')";
+                    customPreview.style.backgroundSize = 'cover';
+                    customPreview.style.backgroundPosition = 'center';
+                } else {
+                    customPreview.style.backgroundImage = 'none';
+                }
+            }
+        } catch (e) {
+            console.error('Failed to refresh custom wallpapers:', e);
+        }
+    }
+
+    async function handleCustomWallpaperInput(e) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async () => {
+            const url = reader.result;
+            const res = await addCustomWallpaper(url, file.name);
+            if (!res.success && res.reason === 'limit_reached') {
+                showToastMessage('Custom wallpaper limit reached (' + res.max + ' max)', 'error');
+                return;
+            }
+            await refreshCustomWallpapers();
             selectWallpaper('custom');
+            showToastMessage('Wallpaper added to store', 'success');
         };
         reader.readAsDataURL(file);
+        e.target.value = '';
     }
-    function removeCustomWallpaper(){
-        localStorage.removeItem('materio_custom_wallpaper');
-        selectWallpaper('dynamic');
+
+    async function removeCustomWallpaper() {
+        if (activeCustomId) {
+            await deleteCustomWallpaper(activeCustomId);
+            await refreshCustomWallpapers();
+        }
+        if (customWallpapersList.length === 0) {
+            selectWallpaper('dynamic');
+        } else {
+            window.dispatchEvent(new CustomEvent('materioWallpaperChange', {
+                detail: { enabled: true, wallpaperType: 'custom' }
+            }));
+        }
     }
     function saveInsightroomSettings(enabled, view){
         insightroomFeed = enabled; 
@@ -589,29 +669,21 @@
         }
     }
 
-    function handleSereineSave() {
+    async function handleSereineSave() {
         if (browser && window.MaterioHaptics) {
             window.MaterioHaptics.vibrate('tick');
         }
 
         if (currentSereineImageUrl && browser) {
             try {
-                const raw = localStorage.getItem('materio_custom_wallpaper_store') || '[]';
-                let list = [];
-                try { list = JSON.parse(raw); } catch {}
                 const title = `Sereine - ${sereineArtistName || 'Curated'}`;
-                const exists = list.some(item => item.dataUrl === currentSereineImageUrl);
-                if (!exists) {
-                    list.unshift({
-                        id: `cw_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
-                        name: title,
-                        dataUrl: currentSereineImageUrl,
-                        createdAt: Date.now()
-                    });
-                    if (list.length > 20) list = list.slice(0, 20);
-                    localStorage.setItem('materio_custom_wallpaper_store', JSON.stringify(list));
+                const res = await addCustomWallpaper(currentSereineImageUrl, title);
+                await refreshCustomWallpapers();
+                if (!res.success && res.reason === 'limit_reached') {
+                    showToastMessage('Custom wallpaper limit reached (' + res.max + ' max)', 'error');
+                } else {
+                    showToastMessage('Saved to custom wallpapers', 'success');
                 }
-                localStorage.setItem('materio_custom_wallpaper', currentSereineImageUrl);
             } catch (err) {
                 console.error('Failed to save to custom wallpapers:', err);
             }
@@ -940,6 +1012,18 @@
         return map[t] || 'System';
     }
     import HugeIcon from '$lib/components/HugeIcon.svelte';
+    import {
+        getAllCustomWallpapers,
+        addCustomWallpaper,
+        deleteCustomWallpaper,
+        setActiveCustomWallpaperId,
+        getActiveCustomWallpaperId,
+        getMaxWallpapers
+    } from '$lib/utils/customWallpaperDb.js';
+
+    let customWallpapersList = [];
+    let activeCustomId = null;
+    let maxCustomLimit = 10;
 </script>
 
 <!-- Matches _includes/main.html lines 971-1693 -->
@@ -1126,79 +1210,49 @@
             <div class="paper-mode-description">Select from available wallpaper options</div>
         </div>
         <div class="wallpaper-grid">
-            <div class="wallpaper-preview-card" class:selected={selectedWallpaper === 'default'} data-wallpaper="default" data-bg-image="" on:click={() => selectWallpaper('default')} on:keydown={(e) => e.key === 'Enter' && selectWallpaper('default')} tabindex="0" role="button">
-                <div class="wallpaper-preview"
-                    style="background-image: url('/assets/img/events/hero.webp'); background-size: cover; background-position: center;">
-                    <div class="wallpaper-overlay">
-                        <span class="wallpaper-name">Default</span>
+            {#each (collectionWallpapers.length ? collectionWallpapers.slice(0, MAX_ROW_WALLPAPERS) : fallbackWallpapers) as w (w.id || w.slug)}
+                <div class="wallpaper-preview-card"
+                     class:selected={selectedWallpaper === (w.slug || w.id)}
+                     data-wallpaper={w.slug || w.id}
+                     data-bg-image={w.type === 'dynamic' ? (w.slug || 'dynamic') : ("url('" + (w.desktopImage || '') + "')")}
+                     on:click={() => selectWallpaper(w.slug || w.id)}
+                     on:keydown={(e) => e.key === 'Enter' && selectWallpaper(w.slug || w.id)}
+                     tabindex="0" role="button">
+                    <div class="wallpaper-preview"
+                        style="background-image: url('{w.desktopImage || (w.slots && w.slots[0]?.image)}'); background-size: cover; background-position: center;">
+                        <div class="wallpaper-overlay">
+                            <span class="wallpaper-name">{w.name}</span>
+                            {#if w.type === 'dynamic'}
+                                <span class="dynamic-time">{w.slots?.length ? (w.slots.length + ' phases') : 'Dynamic'}</span>
+                            {/if}
+                        </div>
                     </div>
                 </div>
-            </div>
-            <div class="wallpaper-preview-card" class:selected={selectedWallpaper === 'dynamic'} data-wallpaper="dynamic" data-bg-image="dynamic" on:click={() => selectWallpaper('dynamic')} on:keydown={(e) => e.key === 'Enter' && selectWallpaper('dynamic')} tabindex="0" role="button">
-                <div class="wallpaper-preview dynamic-preview" id="dynamicPreview">
-                    <div class="wallpaper-overlay">
-                        <span class="wallpaper-name">Dynamic Landscape</span>
-                        <span class="dynamic-time" id="dynamicTime"></span>
-                    </div>
-                </div>
-            </div>
-            <div class="wallpaper-preview-card" class:selected={selectedWallpaper === 'h2'} data-wallpaper="h2"
-                data-bg-image="url('/assets/img/events/h2.webp')" on:click={() => selectWallpaper('h2')} on:keydown={(e) => e.key === 'Enter' && selectWallpaper('h2')} tabindex="0" role="button">
-                <div class="wallpaper-preview"
-                    style="background-image: url('/assets/img/events/h2.webp'); background-size: cover; background-position: center;">
-                    <div class="wallpaper-overlay">
-                        <span class="wallpaper-name">Zen</span>
-                    </div>
-                </div>
-            </div>
-            <div class="wallpaper-preview-card" class:selected={selectedWallpaper === 'h5'} data-wallpaper="h5"
-                data-bg-image="url('/assets/img/events/h5.webp')" on:click={() => selectWallpaper('h5')} on:keydown={(e) => e.key === 'Enter' && selectWallpaper('h5')} tabindex="0" role="button">
-                <div class="wallpaper-preview"
-                    style="background-image: url('/assets/img/events/h5.webp'); background-size: cover; background-position: center;">
-                    <div class="wallpaper-overlay">
-                        <span class="wallpaper-name">Dusk</span>
-                    </div>
-                </div>
-            </div>
-            <div class="wallpaper-preview-card" class:selected={selectedWallpaper === 'h3'} data-wallpaper="h3"
-                data-bg-image="url('/assets/img/events/h3.webp')" on:click={() => selectWallpaper('h3')} on:keydown={(e) => e.key === 'Enter' && selectWallpaper('h3')} tabindex="0" role="button">
-                <div class="wallpaper-preview"
-                    style="background-image: url('/assets/img/events/h3.webp'); background-size: cover; background-position: center;">
-                    <div class="wallpaper-overlay">
-                        <span class="wallpaper-name">A Blissful Night</span>
-                    </div>
-                </div>
-            </div>
-            <div class="wallpaper-preview-card" class:selected={selectedWallpaper === 'christmas-dynamic'} data-wallpaper="christmas-dynamic"
-                data-bg-image="christmas-dynamic" on:click={() => selectWallpaper('christmas-dynamic')} on:keydown={(e) => e.key === 'Enter' && selectWallpaper('christmas-dynamic')} tabindex="0" role="button">
-                <div class="wallpaper-preview christmas-preview" id="christmasPreview"
-                    style="background-image: url('/assets/img/events/dynamic/christmas/part_2.webp'); background-size: cover; background-position: center;">
-                    <div class="wallpaper-overlay">
-                        <span class="wallpaper-name">Christmas</span>
-                        <span class="dynamic-time" id="christmasTime"></span>
-                    </div>
-                </div>
-            </div>
+            {/each}
+
+            <!-- Sereine Carousel -->
             <div class="wallpaper-preview-card" class:selected={selectedWallpaper === 'sereine'} data-wallpaper="sereine" data-bg-image="sereine" on:click={() => { selectWallpaper('sereine'); showSereineModal=true; }} on:keydown={(e) => e.key === 'Enter' && selectWallpaper('sereine')} tabindex="0" role="button">
                 <div class="wallpaper-preview sereine-preview" id="sereinePreview"
-                    style="background-size: cover; background-position: center; {showSereineModal || selectedWallpaper === 'sereine' ? `background-image: url('${currentSereineImageUrl || 'https://sereine.vercel.app/api/wallpapers/random?fallback=true'}');` : 'background: linear-gradient(135deg, #1e1e24 0%, #2b2b36 100%);'}">
+                    style="background-size: cover; background-position: center; {showSereineModal || selectedWallpaper === 'sereine' ? ("background-image: url('" + (currentSereineImageUrl || 'https://sereine.vercel.app/api/wallpapers/random?fallback=true') + "');") : 'background: linear-gradient(135deg, #1e1e24 0%, #2b2b36 100%);'}">
                     <div class="wallpaper-overlay">
-                        <span class="wallpaper-name">Sereine Carousel</span>
+                        <span class="wallpaper-name">Sereine</span>
                     </div>
                 </div>
             </div>
+
+            <!-- Store Card (Opens Wallpaper Store Modal) -->
             <div class="wallpaper-preview-card wallpaper-upload-card" class:selected={selectedWallpaper === 'custom'} data-wallpaper="custom"
-                id="customWallpaperCard" on:click={() => { if(selectedWallpaper==='custom') showWallpaperStore=true; else selectWallpaper('custom'); }} on:keydown={(e) => e.key === 'Enter' && selectWallpaper('custom')} tabindex="0" role="button">
+                id="customWallpaperCard" on:click={() => { showWallpaperStore = true; }} on:keydown={(e) => e.key === 'Enter' && (showWallpaperStore = true)} tabindex="0" role="button">
                 <div class="wallpaper-preview custom-preview" id="customPreview">
                     <div class="wallpaper-upload-content">
-                        <HugeIcon name="shopping-bag-01"  />
+                        <HugeIcon name="shopping-bag-01" />
                         <span class="wallpaper-upload-text">Store</span>
                     </div>
                     <div class="wallpaper-overlay custom-wallpaper-overlay" style:display={selectedWallpaper==='custom' ? 'flex' : 'none'}>
                         <span class="wallpaper-name">Custom</span>
                         <button class="custom-wallpaper-remove" id="removeCustomWallpaper"
                             title="Remove custom wallpaper" on:click|stopPropagation={removeCustomWallpaper}>
-                            <HugeIcon name="cancel-01"  />
+                            <HugeIcon name="cancel-01" />
                         </button>
                     </div>
                 </div>
@@ -1210,25 +1264,115 @@
 
 {#if showWallpaperStore}
 <div class="promo-modal-overlay dynamic-form-overlay show" style="display:flex" on:click|self={()=>showWallpaperStore=false}>
-  <div class="promo-modal dynamic-form-modal wallpaper-store-modal">
+  <div class="promo-modal dynamic-form-modal wallpaper-store-modal" style="max-width: 680px; width: 92vw;">
     <button type="button" class="promo-close-btn" on:click={()=>showWallpaperStore=false} aria-label="Close"><HugeIcon name="cancel-01" /></button>
     <div class="promo-content dynamic-form-content-wrapper">
-      <div class="paper-mode-info" style="margin-bottom: 14px;">
-        <div class="paper-mode-title">Custom Wallpaper Store</div>
-      </div>
-      <div id="customWallpaperStoreGrid" class="wallpaper-grid" style="margin-top:16px;">
-        <div class="wallpaper-preview-card" on:click={()=> document.getElementById('customWallpaperInput')?.click()} style="cursor:pointer;">
-          <div class="wallpaper-preview" style="display:flex;align-items:center;justify-content:center;background:var(--color-bg-card);">
-            <HugeIcon name="plus" /><span style="margin-left:8px;">Add New</span>
-          </div>
+      <div class="paper-mode-info" style="margin-bottom: 10px;">
+        <div class="paper-mode-title" style="font-size: 18px;">Wallpaper Store</div>
+        <div style="font-size: 12px; color: var(--color-text-secondary); margin-top: 2px;">
+          Browse collection wallpapers or manage your personal custom library
         </div>
       </div>
+
+      <!-- Tab Switcher -->
+      <div style="display: flex; gap: 8px; margin-bottom: 14px; border-bottom: 1px solid var(--color-border); padding-bottom: 8px;">
+        <button
+          type="button"
+          style="padding: 5px 14px; border-radius: 9999px; font-size: 12px; font-weight: 500; border: 1px solid var(--color-border); background: {wallpaperStoreTab === 'collection' ? 'var(--color-primary, #eb5e28)' : 'transparent'}; color: {wallpaperStoreTab === 'collection' ? '#fff' : 'var(--color-text)'}; cursor: pointer; transition: all 0.15s ease;"
+          on:click={() => wallpaperStoreTab = 'collection'}
+        >
+          Collection ({collectionWallpapers.length || fallbackWallpapers.length})
+        </button>
+        <button
+          type="button"
+          style="padding: 5px 14px; border-radius: 9999px; font-size: 12px; font-weight: 500; border: 1px solid var(--color-border); background: {wallpaperStoreTab === 'custom' ? 'var(--color-primary, #eb5e28)' : 'transparent'}; color: {wallpaperStoreTab === 'custom' ? '#fff' : 'var(--color-text)'}; cursor: pointer; transition: all 0.15s ease;"
+          on:click={() => wallpaperStoreTab = 'custom'}
+        >
+          Custom Wallpapers ({customWallpapersList.length}/{maxCustomLimit})
+        </button>
+      </div>
+
+      {#if wallpaperStoreTab === 'collection'}
+        <!-- Collection Wallpapers Grid (Shows all, including wallpapers exceeding the row) -->
+        <div class="wallpaper-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; max-height: 55vh; overflow-y: auto; padding: 4px;">
+          {#each (collectionWallpapers.length ? collectionWallpapers : fallbackWallpapers) as w (w.id || w.slug)}
+            <div
+              class="wallpaper-preview-card"
+              class:selected={selectedWallpaper === (w.slug || w.id)}
+              style="cursor:pointer; position:relative; min-height: 90px;"
+              on:click={() => {
+                selectWallpaper(w.slug || w.id);
+                showWallpaperStore = false;
+              }}
+            >
+              <div
+                class="wallpaper-preview"
+                style="background-image: url('{w.desktopImage || (w.slots && w.slots[0]?.image)}'); background-size: cover; background-position: center; height: 100%; border-radius: 8px;"
+              >
+                <div class="wallpaper-overlay" style="display:flex; justify-content:space-between; align-items:center; padding: 4px 6px;">
+                  <span class="wallpaper-name" style="font-size: 10px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{w.name}</span>
+                </div>
+                {#if selectedWallpaper === (w.slug || w.id)}
+                  <div style="position: absolute; top: 6px; left: 6px; background: var(--color-primary, #eb5e28); color: #fff; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">
+                    ✓
+                  </div>
+                {/if}
+              </div>
+            </div>
+          {/each}
+        </div>
+      {:else}
+        <!-- Custom Wallpapers Grid -->
+        <div id="customWallpaperStoreGrid" class="wallpaper-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; max-height: 55vh; overflow-y: auto; padding: 4px;">
+          <div class="wallpaper-preview-card" on:click={() => {
+            if (customWallpapersList.length >= maxCustomLimit) {
+              showToastMessage('Storage limit reached (' + maxCustomLimit + ' max)', 'error');
+            } else {
+              document.getElementById('customWallpaperInput')?.click();
+            }
+          }} style="cursor:pointer; min-height: 90px;">
+            <div class="wallpaper-preview" style="display:flex; flex-direction:column; align-items:center; justify-content:center; background:var(--color-bg-card); gap:6px; height: 100%; border: 1.5px dashed var(--color-border); border-radius: 8px;">
+              <HugeIcon name="plus" />
+              <span style="font-size: 11px; font-weight: 500;">Add New</span>
+            </div>
+          </div>
+
+          {#each customWallpapersList as wp (wp.id)}
+            <div class="wallpaper-preview-card" class:selected={selectedWallpaper === 'custom' && activeCustomId === wp.id}
+                 style="cursor:pointer; position:relative; min-height: 90px;"
+                 on:click={() => {
+                   setActiveCustomWallpaperId(wp.id);
+                   activeCustomId = wp.id;
+                   selectWallpaper('custom');
+                 }}>
+              <div class="wallpaper-preview" style="background-image: url('{wp.thumbnailUrl || wp.dataUrl}'); background-size: cover; background-position: center; height: 100%; border-radius: 8px;">
+                <div class="wallpaper-overlay" style="display:flex; justify-content:space-between; align-items:center; padding: 4px 6px;">
+                  <span class="wallpaper-name" style="font-size: 10px; max-width: 75px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{wp.name || 'Custom'}</span>
+                  <button type="button" class="custom-wallpaper-remove" title="Delete" style="background: rgba(0,0,0,0.6); border: none; color: #fff; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; cursor: pointer;"
+                          on:click|stopPropagation={async () => {
+                            await deleteCustomWallpaper(wp.id);
+                            await refreshCustomWallpapers();
+                            if (selectedWallpaper === 'custom') {
+                              window.dispatchEvent(new CustomEvent('materioWallpaperChange', { detail: { enabled: true, wallpaperType: 'custom' } }));
+                            }
+                          }}>
+                    <HugeIcon name="cancel-01" style="font-size: 9px;" />
+                  </button>
+                </div>
+                {#if activeCustomId === wp.id}
+                  <div style="position: absolute; top: 6px; left: 6px; background: var(--color-primary, #eb5e28); color: #fff; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">
+                    ✓
+                  </div>
+                {/if}
+              </div>
+            </div>
+          {/each}
+        </div>
+      {/if}
     </div>
   </div>
 </div>
-{/if}
-
-{#if showSereineModal}
+{/if}{#if showSereineModal}
 <div class="promo-modal-overlay dynamic-form-overlay show" id="sereineWallpaperModal" role="dialog" aria-hidden="true" style="display: flex;" on:click|self={()=>showSereineModal=false}>
     <div class="promo-modal dynamic-form-modal wallpaper-store-modal">
         <button type="button" class="promo-close-btn" on:click={()=>showSereineModal=false} aria-label="Close">

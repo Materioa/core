@@ -640,10 +640,14 @@
     return url;
   }
 
-  function buildThinkletUrl(query = '') {
+  function buildThinkletUrl(query = '', forceNew = false) {
     const baseUrl = getThinkletBaseUrl();
-    const targetPath = currentThinkletPath || '/new';
+    const targetPath = (!forceNew && currentThinkletPath) ? currentThinkletPath : '/new';
     const url = new URL(targetPath, baseUrl);
+    if (forceNew || targetPath === '/new') {
+      url.searchParams.set('new', 'true');
+      url.searchParams.set('sid', 's_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6));
+    }
     return applyThinkletUrlParams(url, query).toString();
   }
 
@@ -737,32 +741,25 @@
   }
 
   function bindMobileSheetSwipe() {
+    const header = document.getElementById('thinkletPanelHeader');
     const panel = document.getElementById('thinkletPanel');
-    if (!panel || panel.dataset.swipeInitialized) {
+    if (!header || !panel || header.dataset.swipeInitialized) {
       return;
     }
 
-    panel.dataset.swipeInitialized = 'true';
+    header.dataset.swipeInitialized = 'true';
 
     let startY = 0;
     let currentY = 0;
     let startTime = 0;
     let isDragging = false;
 
-    panel.addEventListener('touchstart', event => {
+    header.addEventListener('touchstart', event => {
       if (!isMobileSheet() || panel.hidden) {
         return;
       }
 
       const touchY = event.touches[0].clientY;
-      const panelRect = panel.getBoundingClientRect();
-      const isNearHandle = touchY < panelRect.top + 80;
-      const isScrolledToTop = panel.scrollTop <= 5;
-
-      if (!isNearHandle && !isScrolledToTop) {
-        return;
-      }
-
       startY = touchY;
       currentY = touchY;
       startTime = Date.now();
@@ -771,7 +768,7 @@
       panel.style.willChange = 'transform';
     }, { passive: true });
 
-    panel.addEventListener('touchmove', event => {
+    header.addEventListener('touchmove', event => {
       if (!isDragging || !isMobileSheet()) {
         return;
       }
@@ -783,11 +780,11 @@
         return;
       }
 
-      panel.style.transform = `translateY(${deltaY * 0.6}px)`;
+      panel.style.transform = `translateY(${Math.round(deltaY * 0.6)}px)`;
       event.preventDefault();
     }, { passive: false });
 
-    panel.addEventListener('touchend', () => {
+    header.addEventListener('touchend', () => {
       if (!isDragging || !isMobileSheet()) {
         isDragging = false;
         return;
@@ -796,9 +793,9 @@
       const deltaY = currentY - startY;
       const elapsed = Math.max(Date.now() - startTime, 1);
       const velocity = deltaY / elapsed;
-      const shouldDismiss = deltaY > 80 || velocity > 0.5;
+      const shouldDismiss = deltaY > 70 || velocity > 0.4;
 
-      panel.style.transition = 'transform 0.4s cubic-bezier(0.32, 0.72, 0, 1)';
+      panel.style.transition = 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)';
 
       if (shouldDismiss) {
         panel.style.transform = 'translateY(100%)';
@@ -807,14 +804,14 @@
           panel.style.transition = '';
           panel.style.willChange = '';
           setPanelOpen(false);
-        }, 360);
+        }, 300);
       } else {
         panel.style.transform = 'translateY(0)';
         setTimeout(() => {
           panel.style.transform = '';
           panel.style.transition = '';
           panel.style.willChange = '';
-        }, 360);
+        }, 300);
       }
 
       isDragging = false;
@@ -833,7 +830,7 @@
     if (open) {
       applyStoredPanelWidth();
       if (!frame.src) {
-        frame.src = buildThinkletUrl(query);
+        frame.src = buildThinkletUrl(query, true);
         attachThinkletAuth(frame);
       } else {
         // Frame already initialized: NEVER reload or navigate to new page! Keep active chat intact!
@@ -1156,6 +1153,14 @@
         }
         updateOpenPanelContext();
         setTimeout(sendPdfContextToThinklet, 800);
+      }
+
+      if (event.data?.type === 'MATERIO_RESET_THINKLET' || event.data?.type === 'resetThinklet') {
+        currentThinkletPath = '/new';
+        const frame = document.getElementById('thinkletFrame');
+        if (frame?.src) {
+          frame.src = '';
+        }
       }
     });
   }

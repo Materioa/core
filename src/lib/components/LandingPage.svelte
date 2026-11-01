@@ -393,10 +393,10 @@
 <!-- SEO Meta Tags -->
 <svelte:head>
 	<link rel="stylesheet" href="/assets/style/landing.css" />
-	<title>Materio — Curated Study Materials, PU Elearning &amp; Smart Notes</title>
+	<title>Materio</title>
 	<meta
 		name="description"
-		content="Parul University study materials, notes &amp; PYQs you trust, in a way you love — Because PU elearning shouldn't feel like suffering. Find organized materials for Parul University, CSE, and engineering in one clean place."
+		content="Official materials you trust, in a way you love — Because e-learning shouldn't feel like suffering. Find organized, official study materials, notes, and peer help — all in one clean place."
 	/>
 	<meta name="robots" content="index, follow" />
 	<link rel="canonical" href="https://getmaterio.app" />
@@ -406,10 +406,10 @@
 	/>
 
 	<!-- Open Graph Meta Tags -->
-	<meta property="og:title" content="Materio — Curated Study Materials, PU Elearning &amp; Smart Notes" />
+	<meta property="og:title" content="Materio" />
 	<meta
 		property="og:description"
-		content="Parul University study materials, notes &amp; PYQs you trust, in a way you love — Because PU elearning shouldn't feel like suffering. Find organized materials for Parul University, CSE, and engineering in one clean place."
+		content="Official materials you trust, in a way you love — Because e-learning shouldn't feel like suffering. Find organized, official study materials, notes, and peer help — all in one clean place."
 	/>
 	<meta
 		property="og:image"
@@ -432,10 +432,10 @@
 
 	<!-- Twitter Meta Tags -->
 	<meta name="twitter:card" content="summary_large_image" />
-	<meta name="twitter:title" content="Materio — Curated Study Materials, PU Elearning &amp; Smart Notes" />
+	<meta name="twitter:title" content="Materio" />
 	<meta
 		name="twitter:description"
-		content="Parul University study materials, notes &amp; PYQs you trust, in a way you love — Because PU elearning shouldn't feel like suffering."
+		content="Official materials you trust, in a way you love — Because e-learning shouldn't feel like suffering."
 	/>
 	<meta
 		name="twitter:image"
